@@ -29,6 +29,7 @@ mkdir -p "${state_root}/workspace"
 container_args=(
   --user "$(id -u):$(id -g)"
   --env HOME=/home/node
+  --env NPM_CONFIG_CACHE=/home/node/.openclaw/npm-cache
   --env OPENCLAW_DISABLE_BONJOUR=1
   --env "OPENCLAW_GATEWAY_TOKEN=${gateway_token}"
   --mount "type=bind,src=${state_root},dst=/home/node/.openclaw"
