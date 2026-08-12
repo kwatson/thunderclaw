@@ -46,10 +46,30 @@ evergreen documentation when a public contract, supported version, setup step,
 or security property changes. Describe the user-visible effect, the checks you
 ran, and any remaining limitation in the pull request.
 
-Contributions must be your original work or material you have the right to
-submit under the repository's Apache License 2.0. By submitting a contribution,
-you agree that it may be distributed under that license. Do not add third-party
-code or assets without recording their source, license, and required notices.
+### Developer Certificate of Origin
+
+Contributions submitted through pull requests must comply with the
+[Developer Certificate of Origin 1.1](https://developercertificate.org/). Add a
+`Signed-off-by` trailer to every commit to certify that you have the right to
+submit the contribution under the repository's Apache License 2.0:
+
+```text
+Signed-off-by: Your Name <your.email@example.com>
+```
+
+Git can add the trailer using the name and email from your Git configuration:
+
+```text
+git commit --signoff
+```
+
+Use `git commit --amend --signoff` for the most recent unsigned commit. For
+multiple commits, use an interactive rebase and amend each unsigned commit,
+then update the pull-request branch with `git push --force-with-lease`. The DCO
+check requires the signoff email to match the commit author's email.
+
+This pull-request check is not cryptographic commit signing and does not apply
+to direct maintainer pushes. Do not add third-party code or assets without
+recording their source, license, and required notices.
 
 Participation is governed by [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md).
-
