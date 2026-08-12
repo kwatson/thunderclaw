@@ -12,6 +12,7 @@
     "build": "npm run build:plugin && npm run build:extension",
     "build:plugin": "npm run build --workspace @thunderclaw/openclaw-plugin",
     "build:extension": "node scripts/build-extension.mjs",
+    "build:site": "node scripts/build-pages.mjs",
     "pack:plugin": "node scripts/package-openclaw-plugin.mjs",
     "pack:source": "node scripts/package-extension-source.mjs",
     "pack:release": "npm run pack:plugin && npm run build:extension && npm run pack:source",

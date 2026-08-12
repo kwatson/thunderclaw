@@ -13,6 +13,11 @@ makes releases reproducible and keeps asset provenance reviewable.
 - `assets/raster/icons/` contains the source-size toolbar icon artwork.
 - Shipping size-specific icons live with the Thunderbird extension package and
   are generated from the approved toolbar icon master.
+- Website favicon and install-icon derivatives live under `site/assets/`.
+  The 16, 32, and 48 pixel files reuse the matching approved extension icons;
+  the 180, 192, and 512 pixel files are mechanical resize or cream-canvas
+  derivatives of the approved toolbar icon master. The Pages build assembles
+  the multi-size `favicon.ico` from those approved PNG derivatives.
 - The OpenClaw plugin's `assets/thunderclaw-plugin-icon.png` is an exact copy of
   the approved toolbar icon master. Its manifest exposes the canonical master
   through the repository's stable public HTTPS URL for ClawHub catalog cards.
