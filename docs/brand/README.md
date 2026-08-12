@@ -13,6 +13,9 @@ makes releases reproducible and keeps asset provenance reviewable.
 - `assets/raster/icons/` contains the source-size toolbar icon artwork.
 - Shipping size-specific icons live with the Thunderbird extension package and
   are generated from the approved toolbar icon master.
+- The OpenClaw plugin's `assets/thunderclaw-plugin-icon.png` is an exact copy of
+  the approved toolbar icon master. Its manifest exposes the canonical master
+  through the repository's stable public HTTPS URL for ClawHub catalog cards.
 
 The character document records which files are masters and which are
 mechanical derivatives. The PNG and WebP files contain no embedded author,

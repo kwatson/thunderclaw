@@ -2,6 +2,7 @@
   "id": "thunderclaw",
   "name": "ThunderClaw",
   "description": "Secure Thunderbird email transformations with paired-device access",
+  "icon": "https://raw.githubusercontent.com/kwatson/thunderclaw/main/docs/brand/assets/raster/icons/thunderclaw-toolbar-icon-master.png",
   "activation": {
     "onStartup": true
   },
