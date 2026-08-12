@@ -1,0 +1,39 @@
+name: thunderclaw-spike
+
+services:
+  capture-proxy:
+    image: node:24.19.0-alpine
+    user: "1000:1000"
+    env_file:
+      - .env.openclaw.local
+    volumes:
+      - ./scripts/deepseek-capture-proxy.mjs:/app/proxy.mjs:ro
+      - ./.spike/evidence:/evidence
+    command: ["node", "/app/proxy.mjs"]
+    init: true
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  gateway:
+    image: ghcr.io/openclaw/openclaw:2026.7.2-beta.7
+    env_file:
+      - .env.openclaw.local
+    environment:
+      HOME: /home/node
+      NODE_ENV: development
+      OPENCLAW_DISABLE_BONJOUR: "1"
+    volumes:
+      - ./.spike/thunderclaw-openclaw:/home/node/.openclaw
+      - ./:/workspace/thunderclaw:ro
+    ports:
+      - "${THUNDERCLAW_GATEWAY_BIND_ADDRESS:-127.0.0.1}:18789:18789"
+    command: ["node", "openclaw.mjs", "gateway", "--port", "18789"]
+    init: true
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL

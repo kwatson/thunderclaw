@@ -1,0 +1,36 @@
+# Environment files and local secrets
+.env
+.env.*
+!.env.example
+
+# Required repository configuration (overrides common global ignore rules)
+!.mise.toml
+
+# Node dependencies and local npm cache
+node_modules/
+.npm/
+
+# Repository build and packaging output
+/dist/
+/packages/*/dist/
+/build/
+
+# TypeScript and Python local state
+*.tsbuildinfo
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+
+# Local OpenClaw test environment
+.spike/
+
+# Editor and OS metadata
+.idea/
+.vs/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db

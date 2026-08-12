@@ -1,0 +1,24 @@
+{
+  "id": "thunderclaw",
+  "name": "ThunderClaw",
+  "description": "Secure Thunderbird email transformations with paired-device access",
+  "activation": {
+    "onStartup": true
+  },
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "sessionTtlMs": {
+        "type": "integer",
+        "minimum": 1000,
+        "maximum": 86400000
+      },
+      "maxRequestBytes": {
+        "type": "integer",
+        "minimum": 1024,
+        "maximum": 1048576
+      }
+    }
+  }
+}

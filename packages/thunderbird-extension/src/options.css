@@ -1,0 +1,62 @@
+:root {
+  color-scheme: light dark;
+  font: message-box;
+}
+
+body {
+  margin: 0;
+  color: CanvasText;
+  background: Canvas;
+}
+
+main {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 28px 24px 48px;
+}
+
+h1 { margin: 0 0 8px; font-size: 1.7rem; }
+h2 { margin-top: 0; font-size: 1.15rem; }
+.intro { margin: 0 0 24px; color: GrayText; }
+
+section {
+  margin: 0 0 20px;
+  padding: 20px;
+  border: 1px solid color-mix(in srgb, CanvasText 18%, transparent);
+  border-radius: 8px;
+}
+
+label { display: block; margin: 14px 0 6px; font-weight: 600; }
+input {
+  box-sizing: border-box;
+  min-width: 0;
+  width: 100%;
+  padding: 8px 10px;
+  color: FieldText;
+  background: Field;
+  border: 1px solid color-mix(in srgb, CanvasText 35%, transparent);
+  border-radius: 4px;
+}
+
+.input-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+.help, .warning, .disclosure { line-height: 1.45; }
+.help, .warning { margin: 6px 0 10px; color: GrayText; font-size: .92rem; }
+.disclosure { padding: 12px; background: color-mix(in srgb, AccentColor 9%, Canvas); border-radius: 5px; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+button { padding: 8px 13px; border: 1px solid AccentColor; border-radius: 4px; color: AccentColorText; background: AccentColor; }
+button.secondary { color: ButtonText; background: ButtonFace; border-color: color-mix(in srgb, ButtonText 35%, transparent); }
+button.danger { color: white; background: #a4000f; border-color: #a4000f; }
+button:disabled { opacity: .55; }
+#state[data-state="connected"] { color: #188038; font-weight: 600; }
+#result[data-state="error"] { color: #b3261e; }
+#result ul { padding-left: 22px; }
+.danger-actions { padding-top: 12px; border-top: 1px solid color-mix(in srgb, CanvasText 12%, transparent); }
+.agent-card { margin-top: 12px; padding: 14px; border: 1px solid color-mix(in srgb, CanvasText 16%, transparent); border-radius: 6px; }
+.agent-card h3 { margin: 0 0 6px; font-size: 1rem; }
+.agent-model, .agent-tested, .agent-reason, .verification-progress { margin: 5px 0; }
+.agent-tested, .agent-reason { color: GrayText; }
+.compatibility-state { font-weight: 600; }
+.compatibility-checks { display: grid; grid-template-columns: minmax(9rem, 1fr) auto; gap: 4px 12px; margin: 10px 0; }
+.compatibility-checks dt, .compatibility-checks dd { margin: 0; }
+.compatibility-checks dd { text-align: right; }
+.verification-progress { font-weight: 600; }

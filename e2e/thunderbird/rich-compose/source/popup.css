@@ -1,0 +1,73 @@
+:root {
+  color-scheme: light dark;
+  font: message-box;
+}
+
+body {
+  margin: 0;
+  min-width: 560px;
+}
+
+main {
+  padding: 14px;
+}
+
+h1 {
+  font-size: 1.25rem;
+  margin-top: 0;
+}
+
+h2 {
+  font-size: 1rem;
+}
+
+section,
+fieldset {
+  border: 1px solid color-mix(in srgb, currentColor 30%, transparent);
+  margin: 10px 0;
+  padding: 10px;
+}
+
+label {
+  display: block;
+  margin: 6px 0;
+}
+
+select,
+button {
+  margin: 3px;
+  padding: 5px 8px;
+}
+
+.warning {
+  background: color-mix(in srgb, #b446c2 12%, transparent);
+  padding: 9px;
+}
+
+.whole-list-actions {
+  border-color: color-mix(in srgb, #26843b 65%, currentColor);
+}
+
+.negative-diagnostic {
+  border: 2px dashed #c60016;
+  margin: 8px 3px;
+  padding: 7px;
+}
+
+.negative-diagnostic p {
+  font-weight: bold;
+  margin: 4px;
+}
+
+#status[data-error="true"] {
+  color: #c60016;
+}
+
+textarea {
+  box-sizing: border-box;
+  display: block;
+  font: 12px monospace;
+  margin-top: 5px;
+  resize: vertical;
+  width: 100%;
+}

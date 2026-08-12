@@ -1,0 +1,24 @@
+{
+  "manifest_version": 2,
+  "name": "ThunderClaw Rich Compose R0 Spike",
+  "description": "Development-only Thunderbird rich-compose editor and undo feasibility harness.",
+  "version": "0.0.1",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "thunderclaw-rich-compose-r0@example.invalid",
+      "strict_min_version": "128.0"
+    }
+  },
+  "permissions": [
+    "compose"
+  ],
+  "background": {
+    "scripts": [
+      "background.js"
+    ]
+  },
+  "compose_action": {
+    "default_title": "ThunderClaw R0 rich-compose spike",
+    "default_popup": "popup.html"
+  }
+}

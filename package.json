@@ -1,0 +1,37 @@
+{
+  "name": "thunderclaw",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "ThunderClaw monorepo",
+  "license": "Apache-2.0",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build:plugin && npm run build:extension",
+    "build:plugin": "npm run build --workspace @thunderclaw/openclaw-plugin",
+    "build:extension": "node scripts/build-extension.mjs",
+    "pack:plugin": "node scripts/package-openclaw-plugin.mjs",
+    "pack:source": "node scripts/package-extension-source.mjs",
+    "pack:release": "npm run pack:plugin && npm run build:extension && npm run pack:source",
+    "test:e2e:thunderbird": "sh scripts/run-thunderbird-e2e.sh",
+    "test:e2e:thunderbird:upgrade": "sh scripts/run-thunderbird-upgrade-e2e.sh",
+    "test:e2e:thunderbird:rich-compose": "sh scripts/run-thunderbird-rich-compose-e2e.sh",
+    "qualify:real-agent": "node e2e/qualification/real-agent/run.mjs",
+    "test": "node --import tsx --test 'test/**/*.test.ts'",
+    "typecheck": "tsc --noEmit && tsc -p packages/thunderbird-extension/tsconfig.json",
+    "spike:client": "tsx scripts/spike-client.ts",
+    "spike:cancel": "tsx scripts/cancel-spike.ts",
+    "qualify:pairing": "tsx scripts/qualify-pairing.ts",
+    "qualify:pairing:recovery": "tsx scripts/qualify-pairing-recovery.ts"
+  },
+  "devDependencies": {
+    "@types/node": "24.10.1",
+    "esbuild": "^0.25.10",
+    "openclaw": "2026.7.2-beta.7",
+    "postject": "^1.0.0-alpha.6",
+    "tsx": "4.20.6",
+    "typescript": "5.9.3"
+  }
+}

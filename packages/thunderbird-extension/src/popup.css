@@ -1,0 +1,22 @@
+:root { color-scheme: light dark; font: message-box; }
+[hidden] { display: none !important; }
+body { margin: 0; width: 360px; background: Canvas; color: CanvasText; }
+header { display: flex; gap: 10px; align-items: center; padding: 14px 16px; border-bottom: 1px solid color-mix(in srgb, CanvasText 18%, transparent); }
+header img { width: 34px; height: 34px; }
+header div { display: grid; gap: 2px; }
+small { color: color-mix(in srgb, CanvasText 65%, transparent); }
+main { display: grid; gap: 12px; padding: 14px 16px 16px; }
+label { display: grid; gap: 5px; font-size: 0.9rem; }
+select, textarea, input, button { box-sizing: border-box; width: 100%; font: inherit; }
+select, textarea, input { padding: 7px; border: 1px solid color-mix(in srgb, CanvasText 28%, transparent); border-radius: 6px; background: Field; color: FieldText; }
+textarea { resize: vertical; }
+button { padding: 8px 10px; border: 1px solid color-mix(in srgb, CanvasText 25%, transparent); border-radius: 6px; cursor: pointer; }
+button.primary { background: #2563eb; border-color: #2563eb; color: white; }
+button:disabled { opacity: 0.55; cursor: default; }
+#preview { display: grid; gap: 8px; padding-top: 12px; border-top: 1px solid color-mix(in srgb, CanvasText 18%, transparent); }
+#replacement { white-space: pre-wrap; max-height: 220px; overflow: auto; padding: 10px; background: color-mix(in srgb, CanvasText 7%, Canvas); border-radius: 6px; }
+#summary { margin: 0; font-size: 0.86rem; }
+.actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+#error { margin: 0; padding: 9px; border-radius: 6px; background: color-mix(in srgb, #dc2626 15%, Canvas); color: #dc2626; }
+#message-result { display: grid; gap: 8px; padding-top: 12px; border-top: 1px solid color-mix(in srgb, CanvasText 18%, transparent); }
+#message-result p, #privacy-note { margin: 0; }

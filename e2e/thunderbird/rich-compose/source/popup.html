@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ThunderClaw Rich Compose R0</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <main>
+    <h1>Rich compose R0</h1>
+    <p class="warning">Development-only editor test. It never contacts OpenClaw or any network service. Use a disposable draft containing no private content.</p>
+
+    <fieldset>
+      <legend>Trial metadata</legend>
+      <label>Compose origin
+        <select id="origin">
+          <option value="new">New</option>
+          <option value="reply">Reply</option>
+          <option value="forward-inline">Forward inline</option>
+          <option value="reopened-draft">Reopened draft</option>
+        </select>
+      </label>
+      <label>Paragraph default
+        <select id="paragraph-default">
+          <option value="unknown">Not recorded</option>
+          <option value="paragraph">Paragraph</option>
+          <option value="body-text">Body text</option>
+        </select>
+      </label>
+    </fieldset>
+
+    <section>
+      <h2>Inspect and capture</h2>
+      <button id="inspect" type="button">Inspect editor DOM</button>
+      <button id="capture" type="button">Capture selection</button>
+      <button id="exact" type="button">Export exact DOM</button>
+      <p>Inspect redacts text. Exact DOM exports the recursive live-node state, including attributes omitted by Gecko's HTML serializer, and is for disposable fixtures only.</p>
+    </section>
+
+    <section>
+      <h2>Apply candidate</h2>
+      <button id="inline" type="button" disabled>Apply inline fixture</button>
+      <fieldset class="whole-list-actions">
+        <legend>Supported whole-list candidates (Thunderbird 153+)</legend>
+        <button id="list-rewrite" type="button" disabled>Rewrite whole list</button>
+        <button id="list-add" type="button" disabled>Add whole-list items</button>
+        <button id="list-remove" type="button" disabled>Remove whole-list items</button>
+        <button id="list-reorder" type="button" disabled>Reorder whole list</button>
+      </fieldset>
+      <div class="negative-diagnostic">
+        <button id="blocks" type="button" disabled>Diagnostic: mixed block fixture (not whole-list support)</button>
+        <p>This legacy mixed-block control is an unsupported negative diagnostic. It is always disabled for a complete-list capture.</p>
+      </div>
+      <button id="rollback" type="button" disabled>Induce postcondition failure</button>
+      <p>The fixture is built locally from attribute-free allowlisted elements. A failed postcondition invokes exactly one native Undo and verifies exact restoration.</p>
+    </section>
+
+    <section>
+      <h2>Undo and redo</h2>
+      <button id="undo" type="button" disabled>ThunderClaw Undo</button>
+      <button id="redo" type="button" disabled>ThunderClaw Redo</button>
+      <button id="verify-pre" type="button" disabled>Verify Ctrl+Z result</button>
+      <button id="verify-post" type="button" disabled>Verify Ctrl+Y result</button>
+    </section>
+
+    <p id="status" role="status">Ready.</p>
+    <label for="report">Local evidence report</label>
+    <textarea id="report" rows="20" readonly></textarea>
+    <button id="copy" type="button">Copy report</button>
+  </main>
+  <script src="popup.js"></script>
+</body>
+</html>

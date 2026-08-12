@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>ThunderClaw</title>
+    <link rel="stylesheet" href="popup.css">
+  </head>
+  <body>
+    <header>
+      <img src="icons/thunderclaw-64.png" alt="">
+      <div><strong>ThunderClaw</strong><small id="status">Connecting…</small></div>
+    </header>
+    <main>
+      <label>Agent<select id="agent" disabled></select></label>
+      <label>Action<select id="action">
+        <option value="summarize">Summarize</option>
+        <option value="translate">Translate</option>
+      </select></label>
+      <label id="source-label" hidden>From
+        <input id="source-language" list="languages" value="Auto-detect">
+      </label>
+      <label id="target-label"><span id="target-caption">Summary language</span>
+        <input id="target-language" list="languages" placeholder="English or en-US">
+      </label>
+      <datalist id="languages">
+        <option value="English"><option value="Spanish"><option value="French"><option value="German">
+        <option value="Italian"><option value="Portuguese"><option value="Dutch"><option value="Polish">
+        <option value="Chinese (Simplified)"><option value="Chinese (Traditional)"><option value="Japanese"><option value="Korean">
+        <option value="Arabic"><option value="Hindi"><option value="Ukrainian"><option value="Russian">
+      </datalist>
+      <button id="run" class="primary" disabled>Summarize message</button>
+      <section id="message-result" hidden>
+        <p id="result-description"></p>
+        <div id="translation-actions" class="actions" hidden>
+          <button id="show-original">Show original</button>
+          <button id="show-translation" class="primary">Show translation</button>
+        </div>
+        <button id="dismiss">Dismiss result</button>
+      </section>
+      <p id="privacy-note"><small>The displayed message text is sent through your configured OpenClaw agent.</small></p>
+      <p id="error" role="alert" hidden></p>
+    </main>
+    <script src="message-popup.js"></script>
+  </body>
+</html>

@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ThunderClaw settings</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <main>
+    <h1>ThunderClaw connection</h1>
+    <p class="intro">Connect Thunderbird directly to the ThunderClaw plugin on your OpenClaw host.</p>
+
+    <section aria-labelledby="connection-heading">
+      <h2 id="connection-heading">OpenClaw endpoint</h2>
+      <label for="endpoint">API endpoint</label>
+      <div class="input-row">
+        <input id="endpoint" type="url" inputmode="url" autocomplete="off" spellcheck="false" placeholder="https://openclaw.example/thunderclaw/v1">
+        <button id="normalize" type="button" class="secondary">Normalize</button>
+      </div>
+      <p class="help">HTTPS is required except for explicit <code>127.0.0.1</code> or <code>[::1]</code> loopback endpoints.</p>
+
+      <p class="disclosure">Pair asks Thunderbird to grant only the configured scheme and hostname. Thunderbird’s grant necessarily covers every port and path on that hostname. The installed add-on declares the ability to request other HTTPS hosts later, but ThunderClaw confines its requests to this endpoint and fixed pairing and product routes.</p>
+
+      <div class="actions">
+        <button id="pair" type="button">Pair this Thunderbird</button>
+        <button id="claim" type="button" class="secondary" disabled>Claim approved pairing</button>
+        <button id="cancel-pairing" type="button" class="secondary" disabled>Cancel pairing</button>
+        <button id="diagnose" type="button" class="secondary" disabled>Test connection</button>
+        <button id="rotate" type="button" class="secondary" disabled>Rotate credential</button>
+      </div>
+      <div id="pairing" aria-live="polite"></div>
+    </section>
+
+    <section aria-labelledby="status-heading">
+      <h2 id="status-heading">Connection status</h2>
+      <p id="state" role="status">Loading…</p>
+      <div id="result" aria-live="polite"></div>
+      <div class="actions danger-actions">
+        <button id="disconnect" type="button" class="secondary" disabled>Disconnect</button>
+        <button id="forget" type="button" class="danger" disabled>Forget connection</button>
+      </div>
+    </section>
+
+    <section aria-labelledby="agents-heading">
+      <h2 id="agents-heading">Configured agents</h2>
+      <p class="disclosure">Verifying an agent makes up to two synthetic model calls through its configured provider and may incur provider charges. Verification does not send or use email content.</p>
+      <div id="agents" aria-live="polite"><p>Test the connection to load configured agents.</p></div>
+    </section>
+  </main>
+  <script src="options.js"></script>
+</body>
+</html>

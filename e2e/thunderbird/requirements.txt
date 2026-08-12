@@ -1,0 +1,17 @@
+blessed==1.48.0
+distro==1.9.0
+jinxed==2.1.0
+marionette-driver==3.7.1
+mozdevice==4.2.0
+mozfile==3.0.0
+mozinfo==1.2.3
+mozlog==8.1.0
+mozprocess==1.4.0
+mozprofile==3.0.0
+mozrunner==8.4.0
+mozsystemmonitor==1.0.1
+mozterm==1.0.0
+mozversion==2.4.0
+psutil==7.2.2
+six==1.17.0
+wcwidth==0.8.2

@@ -1,0 +1,63 @@
+{
+  "manifest_version": 2,
+  "name": "ThunderClaw",
+  "description": "Reviewable OpenClaw-powered writing and reading assistance in Thunderbird.",
+  "version": "0.1.0",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "thunderclaw@addons.thunderbird.net",
+      "strict_min_version": "128.0"
+    }
+  },
+  "permissions": [
+    "compose",
+    "messagesRead",
+    "scripting",
+    "storage"
+  ],
+  "optional_permissions": [
+    "https://*/*",
+    "http://127.0.0.1/*",
+    "http://[::1]/*"
+  ],
+  "background": {
+    "scripts": [
+      "background.js"
+    ]
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
+  "compose_action": {
+    "default_title": "ThunderClaw",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/thunderclaw-16.png",
+      "20": "icons/thunderclaw-20.png",
+      "24": "icons/thunderclaw-24.png",
+      "32": "icons/thunderclaw-32.png",
+      "48": "icons/thunderclaw-48.png",
+      "64": "icons/thunderclaw-64.png"
+    }
+  },
+  "message_display_action": {
+    "default_title": "ThunderClaw",
+    "default_popup": "message-popup.html",
+    "default_icon": {
+      "16": "icons/thunderclaw-16.png",
+      "20": "icons/thunderclaw-20.png",
+      "24": "icons/thunderclaw-24.png",
+      "32": "icons/thunderclaw-32.png",
+      "48": "icons/thunderclaw-48.png",
+      "64": "icons/thunderclaw-64.png"
+    }
+  },
+  "icons": {
+    "32": "icons/thunderclaw-32.png",
+    "48": "icons/thunderclaw-48.png",
+    "64": "icons/thunderclaw-64.png",
+    "96": "icons/thunderclaw-96.png",
+    "128": "icons/thunderclaw-128.png"
+  }
+}
