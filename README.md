@@ -30,6 +30,10 @@
 > are open for review and contribution, but installable release artifacts are
 > not published yet. Follow the [roadmap](docs/roadmap.md) for release progress.
 
+> [!NOTE]
+> **OpenClaw requirement:** ThunderClaw requires OpenClaw `2026.7.2-beta.7` or
+> newer. See the [compatibility policy](docs/compatibility.md) for details.
+
 ## AI assistance without handing over your inbox
 
 ThunderClaw brings useful writing and reading tools into desktop Thunderbird
@@ -99,6 +103,9 @@ OpenClaw core patch. Provider, model, agent, and provider-key configuration
 remain in OpenClaw.
 
 ## Installation and pairing
+
+ThunderClaw requires OpenClaw `2026.7.2-beta.7` or newer. See the
+[compatibility policy](docs/compatibility.md) before installing.
 
 A release consists of two matching-version artifacts:
 
