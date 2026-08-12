@@ -22,31 +22,79 @@ jobs:
     name: Tests, types, and packages
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    outputs:
+      run_full: ${{ steps.changes.outputs.run_full }}
 
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          fetch-depth: 0
           persist-credentials: false
 
+      - name: Classify changes
+        id: changes
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          TARGET_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        shell: bash
+        run: |
+          run_full=true
+
+          if [[ "${{ github.event_name }}" != "workflow_dispatch" \
+            && -n "$BASE_SHA" \
+            && ! "$BASE_SHA" =~ ^0+$ \
+            && -n "$TARGET_SHA" ]]; then
+            run_full=false
+
+            while IFS= read -r -d '' file; do
+              case "$file" in
+                docs/*)
+                  ;;
+                */*)
+                  run_full=true
+                  break
+                  ;;
+                *.md)
+                  ;;
+                *)
+                  run_full=true
+                  break
+                  ;;
+              esac
+            done < <(git diff --name-only -z "$BASE_SHA" "$TARGET_SHA")
+          fi
+
+          echo "run_full=$run_full" >> "$GITHUB_OUTPUT"
+
+      - name: Documentation-only change
+        if: steps.changes.outputs.run_full == 'false'
+        run: echo "Full CI is not required for documentation-only changes."
+
       - name: Install managed runtimes
+        if: steps.changes.outputs.run_full == 'true'
         uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4
 
       - name: Install dependencies
+        if: steps.changes.outputs.run_full == 'true'
         run: mise exec -- npm ci
 
       - name: Run deterministic tests
+        if: steps.changes.outputs.run_full == 'true'
         run: mise exec -- npm test
 
       - name: Typecheck
+        if: steps.changes.outputs.run_full == 'true'
         run: mise exec -- npm run typecheck
 
       - name: Build release packages
+        if: steps.changes.outputs.run_full == 'true'
         run: mise exec -- npm run pack:release
 
   thunderbird-e2e:
     name: Thunderbird ${{ matrix.thunderbird }}
     needs: checks
+    if: needs.checks.outputs.run_full == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     strategy:
@@ -85,6 +133,7 @@ jobs:
   openclaw-integration:
     name: Pinned OpenClaw integration
     needs: checks
+    if: needs.checks.outputs.run_full == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 25
 
