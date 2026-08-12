@@ -8,7 +8,14 @@ import { spawnSync } from "node:child_process";
 
 const root = resolve(import.meta.dirname, "..");
 const compose = ["compose", "-f", "compose.spike.yaml"];
-const stateRoot = join(root, ".spike", "thunderclaw-openclaw");
+const qualificationContainer = process.env.THUNDERCLAW_QUALIFICATION_CONTAINER;
+const qualificationStateRoot = process.env.THUNDERCLAW_QUALIFICATION_STATE_ROOT;
+const qualificationGatewayImage = process.env.THUNDERCLAW_QUALIFICATION_GATEWAY_IMAGE
+  ?? "ghcr.io/openclaw/openclaw:2026.7.2-beta.7";
+if (Boolean(qualificationContainer) !== Boolean(qualificationStateRoot)) {
+  throw new Error("container qualification requires both its container and state root");
+}
+const stateRoot = qualificationStateRoot ? resolve(qualificationStateRoot) : join(root, ".spike", "thunderclaw-openclaw");
 const openClawConfig = join(stateRoot, "openclaw.json");
 const dryRun = process.argv.includes("--dry-run");
 const noInstall = process.argv.includes("--no-install");
@@ -44,10 +51,36 @@ function command(program: string, args: string[], options: CommandOptions = {}):
 }
 
 function docker(...args: string[]): string {
+  if (qualificationContainer) {
+    const [operation, ...rest] = args;
+    if (operation === "exec" && rest[0] === "-T" && rest[1] === "gateway") {
+      return command("docker", ["exec", qualificationContainer, ...rest.slice(2)]);
+    }
+    if (operation === "restart" && rest.length === 1 && rest[0] === "gateway") {
+      return command("docker", ["restart", qualificationContainer]);
+    }
+    if (operation === "logs" && rest.at(-1) === "gateway") {
+      return command("docker", ["logs", ...rest.slice(0, -1), qualificationContainer]);
+    }
+    if (operation === "port" && rest[0] === "gateway" && rest[1] === "18789") {
+      return command("docker", ["port", qualificationContainer, "18789/tcp"]);
+    }
+    throw new Error(`unsupported container qualification Docker operation: ${args.join(" ")}`);
+  }
   return command("docker", [...compose, ...args]);
 }
 
 function inspectGateway(): void {
+  if (qualificationContainer) {
+    const running = command("docker", ["inspect", "--format", "{{.State.Running}}", qualificationContainer]).trim();
+    if (running !== "true") throw new Error("the pinned Gateway container must already be running");
+    const actualImage = command("docker", ["inspect", "--format", "{{.Image}}", qualificationContainer]).trim();
+    const expectedImage = command("docker", ["image", "inspect", "--format", "{{.Id}}", qualificationGatewayImage]).trim();
+    if (actualImage !== expectedImage) throw new Error("the Gateway container does not use the pinned image");
+    docker("logs", "--tail=120", "gateway");
+    gatewayCall("health", {});
+    return;
+  }
   const ps = docker("ps", "--format", "json").trim().split("\n").filter(Boolean).map((line) => JSON.parse(line) as Record<string, unknown>);
   const gateway = ps.find((entry) => entry.Service === "gateway");
   if (!gateway || !String(gateway.State ?? "").toLowerCase().includes("running")) {
@@ -73,10 +106,10 @@ function gatewayCall(method: string, params: Record<string, unknown>): unknown {
 
 async function waitForGatewayHealth(): Promise<void> {
   for (let attempt = 0; attempt < 30; attempt += 1) {
-    const result = spawnSync("docker", [
-      ...compose, "exec", "-T", "gateway", "node", "openclaw.mjs", "gateway", "call", "health", "--json",
-    ], { cwd: root, encoding: "utf8", maxBuffer: 16 * 1024 * 1024 });
-    if (result.status === 0) return;
+    try {
+      docker("exec", "-T", "gateway", "node", "openclaw.mjs", "gateway", "call", "health", "--json");
+      return;
+    } catch { /* Gateway restart is still settling. */ }
     await new Promise((resolveDelay) => setTimeout(resolveDelay, 1_000));
   }
   throw new Error("the restored Gateway did not become healthy");
@@ -97,7 +130,10 @@ function packCandidate(): string {
 
 function waitForPairingStatus(origin: string): Promise<void> {
   return retry(async () => {
-    const response = await fetch(`${origin}/thunderclaw/pairing/v1/status`, { redirect: "error" });
+    const response = await fetch(`${origin}/thunderclaw/pairing/v1/status`, {
+      redirect: "error",
+      headers: { connection: "close" },
+    });
     if (!response.ok) throw new Error(`pairing status returned HTTP ${response.status}`);
     const body = await response.json() as Record<string, unknown>;
     if (body.protocolVersion !== 1 || body.pairingAvailable !== true) throw new Error("pairing v1 is unavailable");
@@ -146,6 +182,7 @@ async function jsonCall(origin: string, path: string, options: { method?: "GET" 
     method: options.method ?? (options.body === undefined ? "GET" : "POST"),
     redirect: "error",
     headers: {
+      connection: "close",
       ...(options.body === undefined ? {} : { "content-type": "application/json" }),
       ...(options.bearer ? { authorization: `Bearer ${options.bearer}` } : {}),
     },
@@ -165,7 +202,10 @@ function scanRawCredentials(rawCredentials: readonly string[]): void {
   if (rawCredentials.length === 0 || rawCredentials.some((value) => value.length < 40)) {
     throw new Error("raw credential scan received invalid canaries");
   }
-  const logResult = spawnSync("docker", [...compose, "logs", "--no-color", "gateway"], {
+  const logArgs = qualificationContainer
+    ? ["logs", qualificationContainer]
+    : [...compose, "logs", "--no-color", "gateway"];
+  const logResult = spawnSync("docker", logArgs, {
     cwd: root,
     encoding: "buffer",
     maxBuffer: 64 * 1024 * 1024,
@@ -200,7 +240,8 @@ function scanRawCredentials(rawCredentials: readonly string[]): void {
   }
 }
 
-async function qualify(origin: string): Promise<void> {
+async function qualify(initialOrigin: string): Promise<void> {
+  let origin = initialOrigin;
   const requestId = identifier();
   const deviceId = identifier();
   const credentialId = identifier();
@@ -217,6 +258,7 @@ async function qualify(origin: string): Promise<void> {
     claimVerifier: verifier("thunderclaw-pairing-claim-v1", claimCredential),
   } });
   expectStatus(issued, 201, "public pairing request");
+  process.stdout.write("Pairing request issued.\n");
   if (issued.body.requestId !== requestId || typeof issued.body.approvalCode !== "string") {
     throw new Error("public pairing request response is invalid");
   }
@@ -226,10 +268,12 @@ async function qualify(origin: string): Promise<void> {
     throw new Error("operator request listing did not include the pending request");
   }
   gatewayCall("thunderclaw.pairing.approve", { requestId, approvalCode: issued.body.approvalCode });
+  process.stdout.write("Pairing request approved through the Gateway.\n");
 
   expectStatus(await jsonCall(origin, "/thunderclaw/pairing/v1/claim", { method: "POST", bearer: claimCredential }), 200, "one-time claim");
   expectStatus(await jsonCall(origin, "/thunderclaw/pairing/v1/claim", { method: "POST", bearer: claimCredential }), 401, "claim replay rejection");
   expectStatus(await jsonCall(origin, "/thunderclaw/v1/status", { bearer: deviceCredential }), 200, "authenticated product status");
+  process.stdout.write("Claim and authenticated product status passed.\n");
 
   const nextCredentialId = identifier();
   const nextCredential = secret(nextCredentialId);
@@ -243,16 +287,21 @@ async function qualify(origin: string): Promise<void> {
   }), 200, "credential rotation");
   expectStatus(await jsonCall(origin, "/thunderclaw/v1/status", { bearer: deviceCredential }), 401, "rotated credential rejection");
   expectStatus(await jsonCall(origin, "/thunderclaw/v1/status", { bearer: nextCredential }), 200, "new credential product status");
+  process.stdout.write("Credential rotation passed.\n");
 
   docker("restart", "gateway");
+  origin = endpoint();
   await waitForPairingStatus(origin);
   expectStatus(await jsonCall(origin, "/thunderclaw/v1/status", { bearer: nextCredential }), 200, "credential restart persistence");
+  process.stdout.write("Credential restart persistence passed.\n");
 
   expectStatus(await jsonCall(origin, "/thunderclaw/pairing/v1/revoke", { method: "POST", bearer: nextCredential }), 200, "self revocation");
   expectStatus(await jsonCall(origin, "/thunderclaw/v1/status", { bearer: nextCredential }), 401, "revoked credential rejection");
   docker("restart", "gateway");
+  origin = endpoint();
   await waitForPairingStatus(origin);
   expectStatus(await jsonCall(origin, "/thunderclaw/v1/status", { bearer: nextCredential }), 401, "revocation restart persistence");
+  process.stdout.write("Revocation and restart persistence passed.\n");
   scanRawCredentials([claimCredential, deviceCredential, nextCredential]);
 }
 

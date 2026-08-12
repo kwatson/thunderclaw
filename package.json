@@ -18,6 +18,7 @@
     "test:e2e:thunderbird": "sh scripts/run-thunderbird-e2e.sh",
     "test:e2e:thunderbird:upgrade": "sh scripts/run-thunderbird-upgrade-e2e.sh",
     "test:e2e:thunderbird:rich-compose": "sh scripts/run-thunderbird-rich-compose-e2e.sh",
+    "test:integration:openclaw": "bash scripts/run-openclaw-ci.sh",
     "qualify:real-agent": "node e2e/qualification/real-agent/run.mjs",
     "test": "node --import tsx --test 'test/**/*.test.ts'",
     "typecheck": "tsc --noEmit && tsc -p packages/thunderbird-extension/tsconfig.json",

@@ -1,0 +1,104 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CI: "true"
+
+jobs:
+  checks:
+    name: Tests, types, and packages
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Install managed runtimes
+        uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4
+
+      - name: Install dependencies
+        run: mise exec -- npm ci
+
+      - name: Run deterministic tests
+        run: mise exec -- npm test
+
+      - name: Typecheck
+        run: mise exec -- npm run typecheck
+
+      - name: Build release packages
+        run: mise exec -- npm run pack:release
+
+  thunderbird-e2e:
+    name: Thunderbird ${{ matrix.thunderbird }}
+    needs: checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        thunderbird:
+          - 128.14.0esr
+          - 153.0.1esr
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Install managed runtimes
+        uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4
+
+      - name: Install dependencies
+        run: mise exec -- npm ci
+
+      - name: Run real Thunderbird tests
+        env:
+          THUNDERCLAW_E2E_VERSIONS: ${{ matrix.thunderbird }}
+        run: mise exec -- npm run test:e2e:thunderbird
+
+      - name: Upload failure evidence
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: thunderbird-${{ matrix.thunderbird }}-failure
+          path: build/e2e/thunderbird/${{ matrix.thunderbird }}/
+          if-no-files-found: warn
+          retention-days: 7
+
+  openclaw-integration:
+    name: Pinned OpenClaw integration
+    needs: checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Install managed runtimes
+        uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4
+
+      - name: Install dependencies
+        run: mise exec -- npm ci
+
+      - name: Qualify against pinned OpenClaw
+        run: mise exec -- npm run test:integration:openclaw

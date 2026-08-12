@@ -1,0 +1,103 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repository_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+gateway_image="ghcr.io/openclaw/openclaw:2026.7.2-beta.7@sha256:d41807ff1e5c925ff75e71ed2b755cdea59da1431d1f4fde5051a16a3337e9ce"
+temporary_root=$(mktemp -d /tmp/thunderclaw-openclaw-ci.XXXXXX)
+state_root="${temporary_root}/state"
+evidence_root="${repository_root}/build/openclaw-ci-${$}"
+container_name="thunderclaw-openclaw-ci-${$}"
+gateway_token=$(mise exec -- node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("base64url"))')
+
+cleanup() {
+  docker rm --force "${container_name}" >/dev/null 2>&1 || true
+  case "${evidence_root}" in
+    "${repository_root}"/build/openclaw-ci-*)
+      if test -e "${evidence_root}"; then find "${evidence_root}" -depth -delete; fi
+      ;;
+    *) printf '%s\n' "Refusing to clean unexpected evidence path" >&2 ;;
+  esac
+  case "${temporary_root}" in
+    /tmp/thunderclaw-openclaw-ci.*) find "${temporary_root}" -depth -delete ;;
+    *) printf '%s\n' "Refusing to clean unexpected temporary path" >&2 ;;
+  esac
+}
+trap cleanup EXIT HUP INT TERM
+
+mkdir -p "${state_root}/workspace"
+
+container_args=(
+  --user "$(id -u):$(id -g)"
+  --env HOME=/home/node
+  --env OPENCLAW_DISABLE_BONJOUR=1
+  --env "OPENCLAW_GATEWAY_TOKEN=${gateway_token}"
+  --mount "type=bind,src=${state_root},dst=/home/node/.openclaw"
+  --mount "type=bind,src=${repository_root},dst=/workspace/thunderclaw,readonly"
+)
+
+cd "${repository_root}"
+candidate=$(mise exec -- node scripts/package-openclaw-plugin.mjs | tail -n 1)
+case "${candidate}" in
+  "${repository_root}"/build/*.tgz) ;;
+  *) printf '%s\n' "Plugin packager reported an unsafe archive path" >&2; exit 1 ;;
+esac
+test -f "${candidate}"
+
+docker run --rm "${container_args[@]}" "${gateway_image}" \
+  node openclaw.mjs onboard \
+    --non-interactive \
+    --mode local \
+    --auth-choice skip \
+    --gateway-auth token \
+    --gateway-token-ref-env OPENCLAW_GATEWAY_TOKEN \
+    --gateway-bind lan \
+    --gateway-port 18789 \
+    --workspace /home/node/.openclaw/workspace \
+    --skip-bootstrap \
+    --skip-channels \
+    --skip-search \
+    --skip-skills \
+    --skip-ui \
+    --skip-health \
+    --no-install-daemon \
+    --suppress-gateway-token-output \
+    --accept-risk
+
+docker run --rm "${container_args[@]}" "${gateway_image}" \
+  node openclaw.mjs plugins install --force \
+    "npm-pack:/workspace/thunderclaw/build/$(basename "${candidate}")"
+
+docker run --rm "${container_args[@]}" "${gateway_image}" \
+  node openclaw.mjs config set plugins.entries.thunderclaw.enabled true --strict-json
+
+docker run --detach \
+  --name "${container_name}" \
+  --init \
+  --security-opt no-new-privileges:true \
+  --cap-drop ALL \
+  --publish 127.0.0.1::18789 \
+  "${container_args[@]}" \
+  "${gateway_image}" \
+  node openclaw.mjs gateway run --port 18789 >/dev/null
+
+for attempt in $(seq 1 30); do
+  if docker exec "${container_name}" node openclaw.mjs gateway call health --json >/dev/null 2>&1; then
+    break
+  fi
+  if test "${attempt}" -eq 30; then
+    printf '%s\n' "The ephemeral OpenClaw Gateway did not become healthy" >&2
+    exit 1
+  fi
+  sleep 1
+done
+
+THUNDERCLAW_QUALIFICATION_CONTAINER="${container_name}" \
+THUNDERCLAW_QUALIFICATION_STATE_ROOT="${state_root}" \
+THUNDERCLAW_QUALIFICATION_GATEWAY_IMAGE="${gateway_image}" \
+  mise exec -- npm run qualify:pairing -- --no-install
+
+THUNDERCLAW_QUALIFICATION_CONTAINER="${container_name}" \
+THUNDERCLAW_RECOVERY_OUTPUT_DIRECTORY="${evidence_root}/pairing-recovery" \
+  mise exec -- npm run qualify:pairing:recovery
+
+printf '%s\n' "Ephemeral pinned-OpenClaw qualification passed."

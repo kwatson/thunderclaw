@@ -30,6 +30,36 @@ For extension changes:
 mise exec -- npm run build:extension
 ```
 
+## GitHub Actions
+
+The `CI` workflow runs on pull requests, pushes to `main`, and manual
+dispatches. Its hosted Ubuntu jobs run the deterministic test suite,
+typechecking, all release package builds, the pinned Thunderbird 128 and 153
+Docker matrix, and secretless integration against the pinned OpenClaw Gateway.
+Failed Thunderbird jobs retain their synthetic evidence for seven days.
+
+The OpenClaw integration job creates a fresh temporary state directory, onboards
+without a model provider, installs the exact packed ThunderClaw candidate, and
+qualifies public pairing, operator approval, one-time claim, authenticated
+status, rotation, revocation, restart persistence, raw-credential absence, and
+OpenClaw backup/restore compatibility. It removes only its exact temporary
+container and state when complete. Run the same lane locally with:
+
+```text
+mise exec -- npm run test:integration:openclaw
+```
+
+No self-hosted runner is required for this workflow. Future Windows release
+qualification should use a dedicated, controlled self-hosted Windows runner,
+because hosted Linux and Windows runners cannot establish the required
+Thunderbird/OpenClaw profile, ACL, filesystem, and upgrade behavior. Exact
+artifact real-agent qualification should also run only in a protected
+environment with a configured verified agent; it must never run for fork pull
+requests or expose its credentials and retained evidence to untrusted jobs.
+The Thunderbird upgrade lane also remains outside ordinary CI until its frozen
+baseline XPI is stored as an immutable, reviewable CI input instead of ignored
+local build output.
+
 Before a release candidate:
 
 ```text

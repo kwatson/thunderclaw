@@ -8,7 +8,10 @@ import { PairingRegistry } from "../packages/openclaw-plugin/src/pairing-registr
 
 const root = resolve(new URL("..", import.meta.url).pathname);
 const compose = ["compose", "-f", "compose.spike.yaml"];
-const outputDirectory = join(root, "build", "pairing-recovery-qualification");
+const qualificationContainer = process.env.THUNDERCLAW_QUALIFICATION_CONTAINER;
+const outputDirectory = process.env.THUNDERCLAW_RECOVERY_OUTPUT_DIRECTORY
+  ? resolve(process.env.THUNDERCLAW_RECOVERY_OUTPUT_DIRECTORY)
+  : join(root, "build", "pairing-recovery-qualification");
 const containerArchive = `/tmp/thunderclaw-pairing-recovery-${randomUUID()}.tar.gz`;
 
 function command(program: string, args: string[], capture = true): string {
@@ -22,7 +25,16 @@ function command(program: string, args: string[], capture = true): string {
   return result.stdout.trim();
 }
 
-function docker(...args: string[]): string { return command("docker", [...compose, ...args]); }
+function docker(...args: string[]): string {
+  if (qualificationContainer) {
+    const [operation, ...rest] = args;
+    if (operation === "exec" && rest[0] === "-T" && rest[1] === "gateway") {
+      return command("docker", ["exec", qualificationContainer, ...rest.slice(2)]);
+    }
+    throw new Error(`unsupported container qualification Docker operation: ${args.join(" ")}`);
+  }
+  return command("docker", [...compose, ...args]);
+}
 function assert(value: unknown, message: string): asserts value { if (!value) throw new Error(message); }
 function sha256(path: string): string { return createHash("sha256").update(readFileSync(path)).digest("hex"); }
 
@@ -31,9 +43,16 @@ function safeArchiveEntry(entry: string): boolean {
 }
 
 async function main(): Promise<void> {
-  const ps = docker("ps", "--status", "running", "--services").split(/\r?\n/u);
-  assert(ps.includes("gateway"), "the pinned Gateway must already be running");
-  const gatewayContainer = docker("ps", "-q", "gateway");
+  const gatewayContainer = qualificationContainer
+    ? command("docker", ["inspect", "--format", "{{.Id}}", qualificationContainer])
+    : docker("ps", "-q", "gateway");
+  if (qualificationContainer) {
+    assert(command("docker", ["inspect", "--format", "{{.State.Running}}", qualificationContainer]) === "true",
+      "the pinned Gateway container must already be running");
+  } else {
+    const ps = docker("ps", "--status", "running", "--services").split(/\r?\n/u);
+    assert(ps.includes("gateway"), "the pinned Gateway must already be running");
+  }
   assert(/^[a-f0-9]{12,64}$/u.test(gatewayContainer), "could not resolve the exact Gateway container");
   docker("exec", "-T", "gateway", "node", "openclaw.mjs", "gateway", "call", "health", "--json");
   mkdirSync(outputDirectory, { recursive: true, mode: 0o700 });
