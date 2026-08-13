@@ -193,6 +193,25 @@ h1 {
   transform: translateX(3px);
 }
 
+.secondary-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  min-height: 3.2rem;
+  padding: 0.75rem 0.3rem;
+  color: var(--navy);
+  font-size: 0.88rem;
+  font-weight: 800;
+  text-decoration-color: rgb(24 49 83 / 35%);
+  text-underline-offset: 0.28em;
+}
+
+.secondary-action:hover,
+.secondary-action:focus-visible {
+  text-decoration-color: currentColor;
+}
+
 .flow {
   display: flex;
   align-items: center;
@@ -244,6 +263,159 @@ h1 {
   height: auto;
   filter: drop-shadow(0 1.6rem 1.3rem rgb(24 49 83 / 14%));
   transform: translateY(1rem) rotate(-1.5deg);
+}
+
+.install {
+  position: relative;
+  padding: clamp(4.5rem, 8vw, 8rem) clamp(1.4rem, 5vw, 5rem);
+  border-top: 1px solid var(--line);
+  background: rgb(255 255 255 / 24%);
+}
+
+.install-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(17rem, 0.6fr);
+  column-gap: clamp(2rem, 7vw, 7rem);
+  align-items: end;
+  margin-bottom: clamp(2.5rem, 5vw, 4.5rem);
+}
+
+.install .section-kicker {
+  margin: 0 0 1.1rem;
+  color: #087f73;
+}
+
+.install h2 {
+  margin: 0;
+  font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  font-size: clamp(2.8rem, 5vw, 5.3rem);
+  font-weight: 700;
+  letter-spacing: -0.055em;
+  line-height: 0.96;
+  text-wrap: balance;
+}
+
+.install-heading > p {
+  margin: 0 0 0.35rem;
+  color: var(--navy-soft);
+  font-size: clamp(0.98rem, 1.5vw, 1.12rem);
+  line-height: 1.65;
+  text-wrap: pretty;
+}
+
+.install-steps {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  margin: 0;
+  padding: 1px;
+  border-radius: clamp(0.9rem, 1.6vw, 1.4rem);
+  background: var(--line);
+  list-style: none;
+  overflow: hidden;
+}
+
+.install-steps > li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 1.2rem;
+  min-width: 0;
+  padding: clamp(1.5rem, 3vw, 2.5rem);
+  background: var(--cream);
+}
+
+.step-number {
+  display: grid;
+  place-items: center;
+  width: 2.7rem;
+  height: 2.7rem;
+  border-radius: 50%;
+  background: var(--teal);
+  color: #092f3c;
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.step-copy {
+  min-width: 0;
+}
+
+.step-copy h3 {
+  margin: 0.15rem 0 0.65rem;
+  font-size: 1.08rem;
+  letter-spacing: -0.02em;
+}
+
+.step-copy p {
+  margin: 0;
+  color: var(--navy-soft);
+  font-size: 0.9rem;
+  line-height: 1.62;
+}
+
+.step-copy p + p {
+  margin-top: 0.9rem;
+}
+
+.step-copy pre {
+  max-width: 100%;
+  margin: 1rem 0;
+  padding: 0.9rem 1rem;
+  overflow-x: auto;
+  border: 1px solid rgb(24 49 83 / 12%);
+  border-radius: 0.65rem;
+  background: var(--navy);
+  color: var(--cream);
+  font-size: clamp(0.72rem, 1.4vw, 0.82rem);
+  line-height: 1.5;
+  -webkit-overflow-scrolling: touch;
+}
+
+.step-copy code,
+.install-note code {
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+}
+
+.text-link,
+.step-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--navy);
+  font-size: 0.82rem;
+  font-weight: 850;
+  text-underline-offset: 0.24em;
+}
+
+.step-action {
+  margin-top: 1.15rem;
+  padding: 0.7rem 1rem;
+  border-radius: 999px;
+  background: var(--navy);
+  color: var(--cream);
+  text-decoration: none;
+}
+
+.pairing-link {
+  margin-top: 1rem;
+}
+
+.step-action:hover,
+.step-action:focus-visible {
+  background: #21456f;
+}
+
+.install-note {
+  margin: 1.5rem 0 0;
+  color: var(--navy-soft);
+  font-size: 0.82rem;
+  line-height: 1.6;
+  text-align: center;
+}
+
+.install-note code {
+  color: var(--navy);
 }
 
 .showcase {
@@ -396,6 +568,15 @@ footer a {
     grid-template-columns: 1fr;
   }
 
+  .install-heading {
+    grid-template-columns: 1fr;
+  }
+
+  .install-heading > p {
+    max-width: 42rem;
+    margin-top: 1.5rem;
+  }
+
   .showcase-heading > p:last-child {
     max-width: 42rem;
     margin-top: 1.5rem;
@@ -457,6 +638,20 @@ footer a {
 
   .reading-grid {
     grid-template-columns: 1fr;
+  }
+
+  .install-steps {
+    grid-template-columns: 1fr;
+  }
+
+  .install-steps > li {
+    grid-template-columns: 2.4rem minmax(0, 1fr);
+    gap: 0.9rem;
+  }
+
+  .step-number {
+    width: 2.4rem;
+    height: 2.4rem;
   }
 
   footer {

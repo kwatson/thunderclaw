@@ -1,5 +1,15 @@
 # ThunderClaw release policy
 
+## Published release
+
+ThunderClaw `v0.1.0` is publicly available from the
+[GitHub release](https://github.com/kwatson/thunderclaw/releases/tag/v0.1.0),
+[ClawHub](https://clawhub.ai/thunderclaw/plugins/openclaw-plugin), and
+[Thunderbird Add-ons](https://addons.thunderbird.net/en-US/thunderbird/addon/thunderclaw/).
+The GitHub release contains the qualified plugin archive, XPI, Mozilla reviewer
+source archive, checksums, and provenance. Marketplace installations use the
+corresponding published channel artifacts.
+
 ## Release artifacts
 
 A ThunderClaw release produces:
@@ -82,9 +92,10 @@ a GitHub release whose notes are the matching changelog section and attaches:
 - `release-provenance.json`.
 
 GitHub also records attestations for the three distributable archives. A
-GitHub release does not publish to ClawHub or Thunderbird Add-ons. Their first
-submissions remain manual bootstrap operations using these exact qualified
-bytes; later marketplace automation remains future work.
+GitHub release does not by itself publish to ClawHub or Thunderbird Add-ons.
+The initial `v0.1.0` marketplace publications were completed manually using
+the exact qualified release bytes; marketplace-update automation remains
+future work.
 
 No operating-system package or helper is part of the release graph.
 
@@ -95,12 +106,12 @@ The protected tag workflow is the blocking technical gate. A release may be
 approved when all of its jobs pass and the maintainer has reviewed the
 candidate metadata, checksums, provenance, and known limitations.
 
-For `v0.1.0`, active day-to-day use on Windows and macOS supplies practical
-desktop smoke evidence in addition to the hosted native and real-Thunderbird
-lanes. While the workflow waits for approval, the maintainer may optionally
-install its exact candidate XPI on either active Thunderbird installation and
-repeat Generate, Preview, Apply, and Undo. This is a useful final confidence
-check, not a second exhaustive blocking matrix.
+Active day-to-day use on Windows and macOS supplies practical desktop smoke
+evidence in addition to the hosted native and real-Thunderbird lanes. While a
+release workflow waits for approval, the maintainer may optionally install its
+exact candidate XPI on either active Thunderbird installation and repeat
+Generate, Preview, Apply, and Undo. This is a useful final confidence check,
+not a second exhaustive blocking matrix.
 
 An upgrade from a preceding public ThunderClaw release is not applicable to
 `v0.1.0`. Its accepted XPI becomes the immutable baseline for upgrade testing
@@ -153,9 +164,9 @@ on the next release.
 Broader same-profile upgrade, restart, permission, credential-lifecycle,
 Disconnect/Forget, compose/message, remote HTTPS failure, and shell/Docker/SSH
 CLI matrices improve repeatability and regression detection. They are tracked
-in [`roadmap.md`](roadmap.md), but are not blockers for the first public
-release. This scope choice does not weaken product fail-closed behavior or
-permit a failed blocking workflow job to be waived.
+in [`roadmap.md`](roadmap.md); they were not blockers for `v0.1.0` and remain
+post-release hardening work. This scope choice does not weaken product
+fail-closed behavior or permit a failed blocking workflow job to be waived.
 
 ## CI design for the public repository
 
@@ -183,14 +194,15 @@ platform support is an explicit product decision.
 
 ## Publication
 
-Thunderbird Add-ons and ClawHub require an initial human/bootstrap publication.
-The OpenClaw plugin is packed as an npm-style archive and that exact `.tgz` is
-submitted to ClawHub. The exact qualified `.xpi` and its matching reviewer
-source archive are submitted to Thunderbird Add-ons.
+Until protected marketplace automation is implemented, Thunderbird Add-ons
+and ClawHub updates are deliberate human publication steps. The OpenClaw plugin
+is packed as an npm-style archive and that exact `.tgz` is submitted to
+ClawHub. The exact qualified `.xpi` and its matching reviewer source archive
+are submitted to Thunderbird Add-ons.
 
-### Thunderbird Add-ons first submission
+### Thunderbird Add-ons submission
 
-The initial listing must:
+The listing and each submitted version must:
 
 - upload the exact qualified XPI and attach its matching reviewer source
   archive; the source archive is required because the XPI contains generated
@@ -217,18 +229,19 @@ credentials through ATN's private reviewer field. Never place credentials,
 endpoint secrets, or real mail in public listing text. After signing and
 approval, download the ATN-signed XPI and smoke-test that distributed file.
 
-### ClawHub first publication
+### ClawHub publication
 
 ClawHub requires a publisher owner matching the npm package scope. Before
-release, confirm that the publishing account controls the `thunderclaw` owner
-for `@thunderclaw/openclaw-plugin`. Validate the candidate with the current
-ClawHub CLI and dry-run the exact GitHub release `.tgz` with explicit source
-attribution before publishing it:
+publication, confirm that the publishing account controls the `thunderclaw`
+owner for `@thunderclaw/openclaw-plugin`. Validate the candidate with the
+current ClawHub CLI and dry-run the exact GitHub release `.tgz` with explicit
+source attribution before publishing it:
 
 ```bash
-release_tag=v0.1.0
+release_tag=vX.Y.Z
+release_version=${release_tag#v}
 release_commit=$(git rev-list --max-count=1 "$release_tag")
-plugin_archive=thunderclaw-openclaw-plugin-0.1.0.tgz
+plugin_archive=thunderclaw-openclaw-plugin-${release_version}.tgz
 validation_root=$(mktemp -d)
 tar -xzf "$plugin_archive" -C "$validation_root"
 clawhub package validate "$validation_root/package"
@@ -242,7 +255,7 @@ clawhub package publish "$plugin_archive" \
 ```
 
 Review the resolved name, version, file count, source tag, and commit. Repeat
-the same command without `--dry-run` to perform the authorized first publish;
+the same command without `--dry-run` to perform the authorized publication;
 do not allow the CLI to repack a source folder in place of the qualified
 archive. A new release may remain out of normal install surfaces until ClawHub
 finishes its automated security checks and verification. Once visible, install

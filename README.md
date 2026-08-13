@@ -14,7 +14,7 @@
   <a href="https://github.com/kwatson/thunderclaw/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/kwatson/thunderclaw/actions/workflows/ci.yml/badge.svg"></a>
   <a href="LICENSE"><img alt="Apache 2.0 license" src="https://img.shields.io/badge/license-Apache%202.0-blue.svg"></a>
   <a href="docs/compatibility.md"><img alt="Thunderbird 128+" src="https://img.shields.io/badge/Thunderbird-128%2B-0A84FF?logo=thunderbird&logoColor=white"></a>
-  <a href="docs/roadmap.md"><img alt="Status: pre-release" src="https://img.shields.io/badge/status-pre--release-orange"></a>
+  <a href="https://github.com/kwatson/thunderclaw/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/kwatson/thunderclaw?display_name=tag&amp;label=release"></a>
 </p>
 
 <p align="center">
@@ -26,9 +26,10 @@
 </p>
 
 > [!IMPORTANT]
-> ThunderClaw is preparing its first public release. The code and documentation
-> are open for review and contribution, but installable release artifacts are
-> not published yet. Follow the [roadmap](docs/roadmap.md) for release progress.
+> ThunderClaw `v0.1.0` is available now. Install the extension from
+> [Thunderbird Add-ons](https://addons.thunderbird.net/en-US/thunderbird/addon/thunderclaw/)
+> and its matching OpenClaw plugin from
+> [ClawHub](https://clawhub.ai/thunderclaw/plugins/openclaw-plugin).
 
 > [!NOTE]
 > **OpenClaw requirement:** ThunderClaw requires OpenClaw `2026.7.2-beta.7` or
@@ -149,10 +150,19 @@ remain in OpenClaw.
 ThunderClaw requires OpenClaw `2026.7.2-beta.7` or newer. See the
 [compatibility policy](docs/compatibility.md) before installing.
 
-A release consists of two matching-version artifacts:
+Install both matching `v0.1.0` components:
 
-1. the ThunderClaw Thunderbird MailExtension; and
-2. the `@thunderclaw/openclaw-plugin` package for OpenClaw.
+1. Install **ThunderClaw** from its
+   [Thunderbird Add-ons listing](https://addons.thunderbird.net/en-US/thunderbird/addon/thunderclaw/).
+2. Install and enable the
+   [`@thunderclaw/openclaw-plugin` package on ClawHub](https://clawhub.ai/thunderclaw/plugins/openclaw-plugin)
+   on the OpenClaw host:
+
+   ```bash
+   openclaw plugins install clawhub:@thunderclaw/openclaw-plugin
+   openclaw plugins enable thunderclaw
+   openclaw gateway restart
+   ```
 
 Thunderbird initiates pairing and displays a short approval code. An
 authenticated OpenClaw operator approves the matching request with:
@@ -197,12 +207,11 @@ the runtime contract across the HTTP boundary. Start with the
 
 ## Project status
 
-ThunderClaw is ready to cut its first public release candidate. The remaining
-work is to run and approve the protected build-once release workflow, submit
-its exact qualified artifacts to Thunderbird Add-ons and ClawHub, and verify
-the signed and published packages. The [roadmap](docs/roadmap.md) is the
-authoritative list of unfinished work; broader lifecycle matrices remain
-post-release hardening rather than blockers for `v0.1.0`.
+ThunderClaw `v0.1.0` is the first public release and is available from
+[Thunderbird Add-ons](https://addons.thunderbird.net/en-US/thunderbird/addon/thunderclaw/)
+and [ClawHub](https://clawhub.ai/thunderclaw/plugins/openclaw-plugin). The
+[roadmap](docs/roadmap.md) is the authoritative list of unfinished work and
+post-release hardening.
 
 Bug reports, documentation improvements, tests, and focused code changes are
 welcome. For substantial behavior, protocol, dependency, or UI changes, please

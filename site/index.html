@@ -45,13 +45,14 @@
 
       <main class="hero">
         <div class="hero-copy">
-          <p class="eyebrow"><span aria-hidden="true"></span> Open source · Pre-release</p>
+          <p class="eyebrow"><span aria-hidden="true"></span> Open source · Available now</p>
           <h1>A helpful claw<br>for your inbox.</h1>
           <p class="lede">OpenClaw-powered writing and reading assistance for Thunderbird. Generate thoughtful suggestions, review every change, and keep the final say.</p>
           <div class="hero-actions">
-            <a class="primary-action" href="https://github.com/kwatson/thunderclaw">
-              Explore on GitHub <span aria-hidden="true">→</span>
+            <a class="primary-action" href="#install">
+              Install ThunderClaw <span aria-hidden="true">↓</span>
             </a>
+            <a class="secondary-action" href="https://addons.thunderbird.net/en-US/thunderbird/addon/thunderclaw/">View Thunderbird add-on <span aria-hidden="true">↗</span></a>
           </div>
           <ol class="flow" aria-label="ThunderClaw editing flow">
             <li>Generate</li>
@@ -66,6 +67,59 @@
           <img src="./assets/thunderclaw-character.webp" width="1024" height="609" alt="ThunderClaw, a teal hermit crab carrying a cream mailbox and offering a letter">
         </div>
       </main>
+
+      <section class="install" id="install" aria-labelledby="install-title">
+        <div class="install-heading">
+          <div>
+            <p class="section-kicker">Install ThunderClaw</p>
+            <h2 id="install-title">From OpenClaw to your inbox<br>in four clear steps.</h2>
+          </div>
+          <p>ThunderClaw has two matching parts: a plugin for your OpenClaw Gateway and a signed extension for Thunderbird. Install both, then pair them once.</p>
+        </div>
+
+        <ol class="install-steps">
+          <li>
+            <span class="step-number" aria-hidden="true">01</span>
+            <div class="step-copy">
+              <h3>Get OpenClaw ready</h3>
+              <p>Use OpenClaw 2026.7.2-beta.7 or newer with a configured agent, then confirm that its Gateway is running.</p>
+              <pre><code>openclaw gateway status</code></pre>
+              <a class="text-link" href="https://docs.openclaw.ai/install">OpenClaw installation guide <span aria-hidden="true">↗</span></a>
+            </div>
+          </li>
+          <li>
+            <span class="step-number" aria-hidden="true">02</span>
+            <div class="step-copy">
+              <h3>Install the OpenClaw plugin</h3>
+              <p>Install the published package directly from ClawHub, enable it, and restart the Gateway so the new plugin is loaded.</p>
+              <pre><code>openclaw plugins install clawhub:@thunderclaw/openclaw-plugin
+openclaw plugins enable thunderclaw
+openclaw gateway restart</code></pre>
+              <a class="text-link" href="https://clawhub.ai/thunderclaw/plugins/openclaw-plugin">View ThunderClaw on ClawHub <span aria-hidden="true">↗</span></a>
+            </div>
+          </li>
+          <li>
+            <span class="step-number" aria-hidden="true">03</span>
+            <div class="step-copy">
+              <h3>Add ThunderClaw to Thunderbird</h3>
+              <p>Open the official listing in Thunderbird 128 or newer, choose <strong>Add to Thunderbird</strong>, and approve the requested permissions.</p>
+              <a class="step-action" href="https://addons.thunderbird.net/en-US/thunderbird/addon/thunderclaw/">Get the Thunderbird extension <span aria-hidden="true">↗</span></a>
+            </div>
+          </li>
+          <li>
+            <span class="step-number" aria-hidden="true">04</span>
+            <div class="step-copy">
+              <h3>Connect and pair</h3>
+              <p>Open ThunderClaw’s settings in Thunderbird, enter the endpoint shown by your OpenClaw installation, and choose <strong>Pair this Thunderbird</strong>. Then run the guided approval command:</p>
+              <pre><code>openclaw thunderclaw</code></pre>
+              <p>Match the approval code, approve the request, then return to Thunderbird to <strong>Claim approved pairing</strong> and test the connection.</p>
+              <a class="text-link pairing-link" href="https://github.com/kwatson/thunderclaw/blob/main/docs/installation-and-pairing.md">Detailed pairing and troubleshooting guide <span aria-hidden="true">↗</span></a>
+            </div>
+          </li>
+        </ol>
+
+        <p class="install-note"><strong>Connecting to another machine?</strong> Use an HTTPS endpoint. Plain HTTP is accepted only for explicit <code>127.0.0.1</code> or <code>[::1]</code> loopback addresses.</p>
+      </section>
 
       <section class="showcase" id="in-action" aria-labelledby="showcase-title">
         <div class="showcase-heading">
