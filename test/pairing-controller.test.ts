@@ -137,7 +137,7 @@ test("beginPair keeps raw secrets in background custody and exposes only approva
     return { requestId: material.requestId, approvalCode: "ABCDE-23456", expiresAt: "2099-01-01T00:00:00.000Z" };
   });
   const controller = new ConnectionController();
-  const state = await controller.beginPair(apiBase);
+  const state = await controller.beginPair(apiBase, true);
   assert.equal(state.phase, "awaiting_approval");
   assert.equal(state.approvalCode, "ABCDE-23456");
   const issued = captured as unknown as PairingRequestMaterial;
@@ -168,7 +168,7 @@ test("claim atomically activates the prospective credential and consumes one-tim
       deviceId: material.deviceId, deviceName: material.deviceName };
   });
   const controller = new ConnectionController();
-  await controller.beginPair(apiBase);
+  await controller.beginPair(apiBase, true);
   const state = await controller.claimPairing();
   assert.equal(state.phase, "authorized_untested");
   assert.equal(Object.hasOwn(harness.data, PENDING_PAIRING_KEY), false);
@@ -189,7 +189,7 @@ test("an in-flight one-time claim serializes Cancel and Forget until its prospec
   const claimed = deferred<ReturnType<typeof publicDevice>>();
   patchPairing(context, "claim", async function () { return claimed.promise; });
   const controller = new ConnectionController();
-  await controller.beginPair(apiBase);
+  await controller.beginPair(apiBase, true);
   const claim = controller.claimPairing();
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal((harness.data[PENDING_PAIRING_KEY] as { claimAmbiguous: boolean }).claimAmbiguous, true);
@@ -421,7 +421,7 @@ test("an ambiguous claim is recovered by probing the prospective product credent
   };
   context.after(() => { BrowserThunderClawDirectClient.prototype.status = originalStatus; });
   const controller = new ConnectionController();
-  await controller.beginPair(apiBase);
+  await controller.beginPair(apiBase, true);
   const recovered = await controller.claimPairing();
   assert.equal(recovered.phase, "authorized_untested");
   assert.equal(Object.hasOwn(harness.data, PENDING_PAIRING_KEY), false);
@@ -444,7 +444,7 @@ test("a copied ambiguous pending profile fails closed when its prospective crede
   };
   context.after(() => { BrowserThunderClawDirectClient.prototype.status = originalStatus; });
   const first = new ConnectionController();
-  await first.beginPair(apiBase);
+  await first.beginPair(apiBase, true);
   await assert.rejects(first.claimPairing(), (error: unknown) => error instanceof DirectClientError && error.kind === "network");
   const restarted = new ConnectionController();
   await assert.rejects(restarted.claimPairing(), (error: unknown) => error instanceof DirectClientError && error.code === "CLAIM_OUTCOME_AMBIGUOUS");
@@ -481,7 +481,7 @@ test("credential mutation exclusion prevents Forget from racing an in-flight cla
     return new Promise((resolve) => { resolveClaim = resolve; });
   });
   const controller = new ConnectionController();
-  await controller.beginPair(apiBase);
+  await controller.beginPair(apiBase, true);
   const claiming = controller.claimPairing();
   await new Promise((resolve) => setImmediate(resolve));
   await assert.rejects(controller.forget(), (error: unknown) => error instanceof DirectClientError && error.code === "CREDENTIAL_ACTION_ACTIVE");

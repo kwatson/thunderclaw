@@ -24,9 +24,20 @@ test("compose and message actions disclose their exact email-content transmissio
   const composeMarkup = await readFile(new URL("../packages/thunderbird-extension/src/popup.html", import.meta.url), "utf8");
   const messageMarkup = await readFile(new URL("../packages/thunderbird-extension/src/message-popup.html", import.meta.url), "utf8");
   assert.match(composeMarkup,
-    /The selected text, draft and quoted context, subject, and recipients are sent through your configured OpenClaw agent\./u);
+    /The selected text, entire visible authored draft body, extracted quoted message history, subject, and recipients are sent through your configured OpenClaw agent\./u);
   assert.match(messageMarkup,
-    /The displayed message text, subject, and author are sent through your configured OpenClaw agent\./u);
+    /The entire visible rendered message body, including visible quoted history and signatures, plus its subject and author are sent through your configured OpenClaw agent\./u);
+});
+
+test("options discloses email transmission and requires consent before pairing", async () => {
+  const markup = await readFile(new URL("../packages/thunderbird-extension/src/options.html", import.meta.url), "utf8");
+  assert.match(markup, /Compose actions send selected text, the entire visible authored draft body, extracted quoted message history, subject, and recipients\./u);
+  assert.match(markup, /Message actions send the entire visible rendered message body, including visible quoted history and signatures, plus its subject and author\./u);
+  assert.match(markup, /configured OpenClaw agent and its configured model provider/u);
+  assert.match(markup, /Hooks installed in that OpenClaw Gateway can technically access it\./u);
+  assert.match(markup, /id="consent-accepted"[^>]*type="checkbox"[^>]*required/u);
+  assert.match(markup, /id="pair"[^>]*data-action="pair"[^>]*disabled/u);
+  assert.match(markup, /Disconnect or Forget connection to withdraw consent and stop further use\./u);
 });
 
 test("message-view translation mutates only captured text nodes and remains reversible", async () => {

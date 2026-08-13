@@ -31,10 +31,20 @@
         <button id="normalize" type="button" hidden aria-hidden="true" tabindex="-1">Normalize</button>
       </div>
 
+      <section id="data-consent" class="data-consent" aria-labelledby="data-consent-heading">
+        <h3 id="data-consent-heading">Email data sent when you use ThunderClaw</h3>
+        <p>Compose actions send selected text, the entire visible authored draft body, extracted quoted message history, subject, and recipients. Message actions send the entire visible rendered message body, including visible quoted history and signatures, plus its subject and author. This data passes through your configured OpenClaw agent and its configured model provider. Hooks installed in that OpenClaw Gateway can technically access it.</p>
+        <label class="consent-control" for="consent-accepted">
+          <input id="consent-accepted" type="checkbox" required aria-describedby="consent-help">
+          <span>I consent to this email data being sent when I use ThunderClaw.</span>
+        </label>
+        <p id="consent-help" class="help">Pairing stays disabled until you consent. Disconnect or Forget connection to withdraw consent and stop further use.</p>
+      </section>
+
       <div id="pairing" class="pairing-card"></div>
 
       <div class="primary-actions">
-        <button id="pair" type="button" data-action="pair">Start pairing</button>
+        <button id="pair" type="button" data-action="pair" disabled>Start pairing</button>
         <button id="claim" type="button" data-action="claim" disabled>Finish pairing</button>
         <button id="cancel-pairing" type="button" class="secondary" data-action="cancel-pairing" disabled>Cancel pairing</button>
         <button id="diagnose" type="button" data-action="diagnose" disabled>Test connection</button>

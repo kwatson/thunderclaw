@@ -814,7 +814,10 @@ export class ConnectionController {
     return { credentialId, rawCredential, credentialVerifier: await pairingVerifier("device", rawCredential) };
   }
 
-  async beginPair(apiBaseInput: unknown): Promise<PublicState> {
+  async beginPair(apiBaseInput: unknown, consentAccepted: unknown): Promise<PublicState> {
+    if (consentAccepted !== true) {
+      throw new DirectClientError("configuration", "CONSENT_REQUIRED", "Consent to the disclosed email data transmission is required before pairing.");
+    }
     return this.exclusiveCredentialMutation(() => this.beginPairExclusive(apiBaseInput));
   }
 
@@ -1566,19 +1569,19 @@ export class ConnectionController {
   }
 }
 
-function requestShape(message: unknown): { requestId: string; method: string; apiBase?: unknown; agentId?: string; probeRunId?: string } | null {
+function requestShape(message: unknown): { requestId: string; method: string; apiBase?: unknown; consentAccepted?: boolean; agentId?: string; probeRunId?: string } | null {
   const record = ownRecord(message);
   if (!record || !validIdentifier(record.requestId) || typeof record.method !== "string") return null;
-  const allowed = record.method === "beginPair" ? new Set(["requestId", "method", "apiBase"])
+  const allowed = record.method === "beginPair" ? new Set(["requestId", "method", "apiBase", "consentAccepted"])
     : record.method === "verifyAgent" || record.method === "cancelAgentVerification"
       ? new Set(["requestId", "method", "agentId", "probeRunId"])
       : new Set(["requestId", "method"]);
   if (!["state", "beginPair", "claimPairing", "cancelPairing", "rotateCredential", "diagnose", "verifyAgent", "cancelAgentVerification", "disconnect", "forget"].includes(record.method)
       || Object.keys(record).some((key) => !allowed.has(key))
-      || (record.method === "beginPair" && !Object.hasOwn(record, "apiBase"))
+      || (record.method === "beginPair" && (!Object.hasOwn(record, "apiBase") || typeof record.consentAccepted !== "boolean"))
       || ((record.method === "verifyAgent" || record.method === "cancelAgentVerification")
         && (!validIdentifier(record.agentId) || !validIdentifier(record.probeRunId)))) return null;
-  return record as { requestId: string; method: string; apiBase?: unknown; agentId?: string; probeRunId?: string };
+  return record as { requestId: string; method: string; apiBase?: unknown; consentAccepted?: boolean; agentId?: string; probeRunId?: string };
 }
 
 export function installOptionsConnectionController(): ConnectionController {
@@ -1602,7 +1605,7 @@ export function installOptionsConnectionController(): ConnectionController {
         try {
           let value: unknown;
           if (request.method === "state") value = await controller.getState();
-          else if (request.method === "beginPair") value = await controller.beginPair(request.apiBase);
+          else if (request.method === "beginPair") value = await controller.beginPair(request.apiBase, request.consentAccepted);
           else if (request.method === "claimPairing") value = await controller.claimPairing();
           else if (request.method === "cancelPairing") value = await controller.cancelPairing();
           else if (request.method === "rotateCredential") value = await controller.rotateCredential();

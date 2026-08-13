@@ -150,6 +150,24 @@ function installBrowser(harness: BrowserHarness): () => void {
   };
 }
 
+test("the controller rejects pairing without an exact affirmative consent assertion", async () => {
+  const harness = browserHarness({}, [permissionPattern]);
+  const restore = installBrowser(harness);
+  try {
+    const controller = new ConnectionController();
+    await controller.getState();
+    const setsBefore = harness.storageSets.length;
+    const containsBefore = harness.permissionContains.length;
+    await assert.rejects(controller.beginPair(apiBase, false), (error: unknown) =>
+      error instanceof DirectClientError && error.code === "CONSENT_REQUIRED");
+    await assert.rejects(controller.beginPair(apiBase, "true"), (error: unknown) =>
+      error instanceof DirectClientError && error.code === "CONSENT_REQUIRED");
+    assert.equal(harness.storageSets.length, setsBefore);
+    assert.equal(harness.permissionContains.length, containsBefore);
+    assert.equal(Object.hasOwn(harness.data, PENDING_PAIRING_KEY), false);
+  } finally { restore(); }
+});
+
 async function settle(): Promise<void> {
   await new Promise((resolve) => setImmediate(resolve));
   await Promise.resolve();
@@ -221,8 +239,8 @@ test("retirement intent cannot be superseded by reverse-order Diagnose or Author
       const retiring = controller[action]();
       assert.equal(controller.isFeatureBindingCurrent(lease.binding), false);
       await assert.rejects(controller.diagnose(), (error: unknown) => error instanceof DirectClientError && error.code === "CONNECTION_RETIRING");
-      await assert.rejects(controller.beginPair(null), (error: unknown) => error instanceof DirectClientError && ["CONNECTION_RETIRING", "CREDENTIAL_ACTION_ACTIVE"].includes(error.code));
-      await assert.rejects(controller.beginPair(apiBase), (error: unknown) => error instanceof DirectClientError && ["CONNECTION_RETIRING", "CREDENTIAL_ACTION_ACTIVE"].includes(error.code));
+      await assert.rejects(controller.beginPair(null, true), (error: unknown) => error instanceof DirectClientError && ["CONNECTION_RETIRING", "CREDENTIAL_ACTION_ACTIVE"].includes(error.code));
+      await assert.rejects(controller.beginPair(apiBase, true), (error: unknown) => error instanceof DirectClientError && ["CONNECTION_RETIRING", "CREDENTIAL_ACTION_ACTIVE"].includes(error.code));
       await assert.rejects(controller.acquireFeatureLease(), (error: unknown) => error instanceof DirectClientError && error.code === "CONNECTION_RETIRING");
       assert.equal(controller.isFeatureBindingCurrent(lease.binding), false);
       cleanup.resolve();
@@ -244,7 +262,7 @@ test("permission-event retirement remains fenced against reverse-order connectio
     harness.emitRemoved([permissionPattern]);
     assert.equal(controller.isFeatureBindingCurrent(lease.binding), false);
     await assert.rejects(controller.diagnose(), (error: unknown) => error instanceof DirectClientError && error.code === "CONNECTION_RETIRING");
-    await assert.rejects(controller.beginPair(apiBase), (error: unknown) => error instanceof DirectClientError && error.code === "CONNECTION_RETIRING");
+    await assert.rejects(controller.beginPair(apiBase, true), (error: unknown) => error instanceof DirectClientError && error.code === "CONNECTION_RETIRING");
     cleanup.resolve();
     for (let index = 0; index < 5; index += 1) await settle();
     assert.equal((await controller.getState()).phase, "disconnect_ambiguous");
@@ -267,7 +285,7 @@ test("permission-preflight retirement cannot be superseded after revocation is o
     await settle();
     assert.equal(controller.isFeatureBindingCurrent(lease.binding), false);
     await assert.rejects(controller.diagnose(), (error: unknown) => error instanceof DirectClientError && error.code === "CONNECTION_RETIRING");
-    await assert.rejects(controller.beginPair(apiBase), (error: unknown) => error instanceof DirectClientError && error.code === "CONNECTION_RETIRING");
+    await assert.rejects(controller.beginPair(apiBase, true), (error: unknown) => error instanceof DirectClientError && error.code === "CONNECTION_RETIRING");
     cleanup.resolve();
     assert.equal((await checking).phase, "disconnect_ambiguous");
     assert.equal(controller.isFeatureBindingCurrent(lease.binding), false);
@@ -431,7 +449,7 @@ test("authorization rechecks permission after storage and fails closed if the gr
   const restore = installBrowser(harness);
   try {
     const controller = new ConnectionController();
-    await assert.rejects(controller.beginPair(apiBase), (error: unknown) => error instanceof DirectClientError && error.code === "HOST_PERMISSION_REMOVED");
+    await assert.rejects(controller.beginPair(apiBase, true), (error: unknown) => error instanceof DirectClientError && error.code === "HOST_PERMISSION_REMOVED");
     const state = await controller.getState();
     assert.equal(state.connected, false);
     assert.equal(state.permissionGranted, false);
@@ -448,7 +466,7 @@ test("a failed pairing request removes and verifies an unowned hostname grant", 
   try {
     Object.defineProperty(globalThis, "fetch", { configurable: true, value: async () => { throw new Error("offline"); } });
     const controller = new ConnectionController();
-    await assert.rejects(controller.beginPair(failedApiBase), (error: unknown) => error instanceof DirectClientError && error.kind === "network");
+    await assert.rejects(controller.beginPair(failedApiBase, true), (error: unknown) => error instanceof DirectClientError && error.kind === "network");
     assert.deepEqual(harness.permissionRemoves, [{ origins: [failedPermission] }]);
     assert.equal(harness.permissionContains.some((value) => JSON.stringify(value) === JSON.stringify({ origins: [failedPermission] })), true);
     assert.equal(harness.grantedOrigins.has(failedPermission), false);
@@ -768,7 +786,7 @@ test("switching endpoints after disconnect removes the old permission and never 
   try {
     const controller = new ConnectionController();
     await controller.disconnect();
-    const next = await controller.beginPair(nextApiBase);
+    const next = await controller.beginPair(nextApiBase, true);
     assert.equal(next.apiBase, nextApiBase);
     assert.equal(next.phase, "awaiting_approval");
     assert.equal(next.connected, false);
@@ -804,6 +822,8 @@ test("options controller accepts only its exact extension-owned options port and
     assert.equal(accepted.disconnected, 1, "extra fields including tokens fail closed");
     await settle();
     for (const invalid of [
+      { requestId: "request-consent-missing", method: "beginPair", apiBase },
+      { requestId: "request-consent-wrong-type", method: "beginPair", apiBase, consentAccepted: "true" },
       { requestId: "request-b", method: "verifyAgent", agentId: "agent-a" },
       { requestId: "request-c", method: "verifyAgent", agentId: "agent-a", probeRunId: "probe-a", extra: true },
       { requestId: "request-d", method: "cancelAgentVerification", agentId: "agent-a", probeRunId: "bad id" },
@@ -847,7 +867,7 @@ test("a pairing request serializes a racing disconnect", async () => {
   const restore = installBrowser(harness);
   try {
     const controller = new ConnectionController();
-    const authorizing = controller.beginPair(apiBase);
+    const authorizing = controller.beginPair(apiBase, true);
     await settle();
     await assert.rejects(controller.disconnect(), (error: unknown) => error instanceof DirectClientError && error.code === "CREDENTIAL_ACTION_ACTIVE");
     permission.resolve(true);
@@ -930,7 +950,7 @@ test("a retained permission after failed disconnect blocks authorization to ever
     try {
       const controller = new ConnectionController();
       await assert.rejects(controller.disconnect(), (error: unknown) => error instanceof DirectClientError && error.code === "PERMISSION_REMOVAL_FAILED");
-      await assert.rejects(controller.beginPair(candidateApiBase),
+      await assert.rejects(controller.beginPair(candidateApiBase, true),
         (error: unknown) => error instanceof DirectClientError && error.code === "PERMISSION_CLEANUP_REQUIRED");
       assert.equal(Object.hasOwn(harness.data, CREDENTIAL_KEY), false);
       assert.equal((harness.data[SETTINGS_KEY] as { permissionPattern: string }).permissionPattern, permissionPattern);
@@ -992,7 +1012,7 @@ test("authorization can claim its grant while startup permission enumeration is 
   const restore = installBrowser(harness);
   try {
     const controller = new ConnectionController();
-    const state = await controller.beginPair(apiBase);
+    const state = await controller.beginPair(apiBase, true);
     assert.equal(state.phase, "awaiting_approval");
     assert.equal(harness.grantedOrigins.has(permissionPattern), true);
     assert.deepEqual(harness.permissionRemoves, []);
@@ -1068,7 +1088,7 @@ test("an active authorization durably records onAdded before reconciliation so r
 
     harness.containsAnswers.push(permissionPreflight.promise);
     harness.grantedOrigins.add(permissionPattern);
-    port.emit({ requestId: "pair-before-crash", method: "beginPair", apiBase });
+    port.emit({ requestId: "pair-before-crash", method: "beginPair", apiBase, consentAccepted: true });
     assert.equal(harness.permissionContains.length > 0, true, "authorization reached its deferred permission preflight");
     harness.emitAdded([permissionPattern]);
     await settle();
@@ -1146,7 +1166,7 @@ test("a successful same-pattern authorization claims an onAdded candidate before
     harness.emitAdded([permissionPattern]);
     await settle();
     assert.deepEqual(harness.data[PENDING_CLEANUP_KEY], [permissionPattern]);
-    const state = await controller.beginPair(apiBase);
+    const state = await controller.beginPair(apiBase, true);
     assert.equal(state.phase, "awaiting_approval");
     for (const callback of graceCallbacks) callback();
     await settle();
@@ -1171,7 +1191,7 @@ test("cleanup-ledger errors crossing the options port are fixed-shape and omit t
     installOptionsConnectionController();
     const port = mockPort();
     harness.connect(port);
-    port.emit({ requestId: "pair-ledger", method: "beginPair", apiBase: candidateApiBase });
+    port.emit({ requestId: "pair-ledger", method: "beginPair", apiBase: candidateApiBase, consentAccepted: true });
     await settle();
     await settle();
     const response = port.posted.find((value: any) => value.requestId === "pair-ledger");

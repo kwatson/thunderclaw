@@ -87,6 +87,26 @@ underlined spans. Unsupported shapes are rejected rather than guessed at.
 See the [product contract](docs/product-contract.md) for exact capability and
 eligibility rules.
 
+## Data sent to OpenClaw
+
+ThunderClaw sends email content only after you invoke a writing, translation,
+or summary action:
+
+- **Compose actions** send the selected target, the entire visible authored
+  draft body, extracted quoted message history, subject, and To/Cc/Bcc
+  recipients.
+- **Message actions** send the entire visible rendered message body—including
+  visible quoted history and signatures—plus its subject and author.
+
+ThunderClaw does not send attachment contents, hidden message content, or
+message headers other than those listed above through its transformation
+routes. The content passes through the OpenClaw Gateway you configure to the
+selected agent and configured model provider. Configured fallback providers
+and hooks installed in that Gateway may also process it. ThunderClaw's
+developer operates no service that receives this content.
+
+Read the full [privacy policy](docs/privacy-policy.md) before use.
+
 ## How it stays safe
 
 Email is untrusted input, so ThunderClaw is intentionally narrow by design.
@@ -193,6 +213,7 @@ open an issue before investing in an implementation.
 - [Product contract](docs/product-contract.md) — supported behavior and review boundaries
 - [Compatibility](docs/compatibility.md) — supported runtimes and upgrade policy
 - [Security and privacy](docs/security-and-privacy.md) — trust, credentials, disclosure, and residual risks
+- [Privacy policy](docs/privacy-policy.md) — ATN-ready data practices and listing disclosure collateral
 - [Installation and pairing](docs/installation-and-pairing.md) — installation and operator/user pairing
 - [Development](docs/development.md) — development environment and plugin updates
 - [Testing](docs/testing.md) — test layers and qualification matrices

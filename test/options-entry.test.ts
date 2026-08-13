@@ -5,6 +5,7 @@ type EventHandler = () => void;
 
 class FakeElement {
   value = "";
+  checked = false;
   disabled = false;
   readOnly = false;
   hidden = false;
@@ -43,7 +44,7 @@ function settle(): Promise<void> {
 }
 
 const OPTIONS_IDS = [
-  "endpoint", "normalize", "pair", "claim", "cancel-pairing", "diagnose", "rotate", "disconnect", "forget",
+  "endpoint", "consent-accepted", "data-consent", "normalize", "pair", "claim", "cancel-pairing", "diagnose", "rotate", "disconnect", "forget",
   "state", "result", "agents", "pairing", "state-indicator", "connection-panel", "agents-panel", "document-root",
 ];
 
@@ -52,6 +53,7 @@ test("Pair requests permission directly in the click gesture and denial performs
   const elements = new Map(ids.map((id) => [id, new FakeElement()]));
   const pair = elements.get("pair")!;
   const endpoint = elements.get("endpoint")!;
+  elements.get("consent-accepted")!.checked = true;
   endpoint.value = "https://gateway.example:8443/thunderclaw/v1/";
 
   let inClick = false;
@@ -128,6 +130,58 @@ test("the options source sequences pairing after the direct permission promise a
   assert.match(source, /endpointInput\.addEventListener\("blur"/u);
   assert.match(html, /id="normalize"[^>]*hidden[^>]*aria-hidden="true"/u);
   assert.match(html, /id="result"[^>]*role="status"[^>]*aria-live="polite"[^>]*aria-atomic="true"/u);
+  assert.match(html, /id="consent-accepted"[^>]*type="checkbox"[^>]*required/u);
+  assert.match(html, /Compose actions send selected text, the entire visible authored draft body, extracted quoted message history, subject, and recipients\./u);
+  assert.match(html, /Message actions send the entire visible rendered message body, including visible quoted history and signatures, plus its subject and author\./u);
+  assert.match(html, /configured OpenClaw agent and its configured model provider/u);
+  assert.match(html, /Hooks installed in that OpenClaw Gateway can technically access it\./u);
+  assert.match(source, /request\("beginPair", \{ apiBase: endpoint\.apiBase, consentAccepted: true \}\)/u);
+});
+
+test("pairing remains inert until the user affirmatively checks the data consent control", async () => {
+  const elements = new Map(OPTIONS_IDS.map((id) => [id, new FakeElement()]));
+  elements.get("endpoint")!.value = "https://gateway.example:8443/thunderclaw/v1";
+  const posted: Array<Record<string, unknown>> = [];
+  const responseListeners: Array<(message: unknown) => void> = [];
+  let permissionCalls = 0;
+  const port = {
+    postMessage(message: Record<string, unknown>) { posted.push(message); },
+    onMessage: { addListener(listener: (message: unknown) => void) { responseListeners.push(listener); } },
+    onDisconnect: { addListener() {} },
+  };
+  const descriptors = new Map(["document", "browser"].map((name) => [name, Object.getOwnPropertyDescriptor(globalThis, name)]));
+  Object.defineProperty(globalThis, "document", { configurable: true, value: {
+    getElementById(id: string) { return elements.get(id) ?? null; },
+    createElement() { return new FakeElement(); },
+    documentElement: elements.get("document-root"),
+  } });
+  Object.defineProperty(globalThis, "browser", { configurable: true, value: {
+    runtime: { connect: () => port },
+    permissions: { request() { permissionCalls += 1; return Promise.resolve(true); } },
+  } });
+  try {
+    await import(`../packages/thunderbird-extension/src/options-entry.js?consent-gate=${Date.now()}`);
+    const stateRequest = posted.find((message) => message.method === "state")!;
+    for (const listener of responseListeners) listener({
+      requestId: stateRequest.requestId,
+      ok: true,
+      value: { phase: "not_configured", configured: false, permissionGranted: false },
+    });
+    await settle();
+    assert.equal(elements.get("consent-accepted")!.checked, false);
+    assert.equal(elements.get("pair")!.disabled, true);
+    elements.get("pair")!.click(() => undefined);
+    await settle();
+    assert.equal(permissionCalls, 0);
+    assert.equal(posted.some((message) => message.method === "beginPair"), false);
+    assert.equal(elements.get("result")!.textContent, "Consent is required before pairing can begin.");
+    assert.equal(elements.get("consent-accepted")!.focusCalls, 1);
+  } finally {
+    for (const [name, descriptor] of descriptors) {
+      if (descriptor) Object.defineProperty(globalThis, name, descriptor);
+      else Reflect.deleteProperty(globalThis, name);
+    }
+  }
 });
 
 test("port loss and background cleanup status never make options revoke a possibly winning grant", async () => {
@@ -140,6 +194,7 @@ test("port loss and background cleanup status never make options revoke a possib
     const ids = OPTIONS_IDS;
     const elements = new Map(ids.map((id) => [id, new FakeElement()]));
     const endpoint = elements.get("endpoint")!;
+    elements.get("consent-accepted")!.checked = true;
     const result = elements.get("result")!;
     endpoint.value = "https://gateway.example:8443/thunderclaw/v1";
     let inClick = false;

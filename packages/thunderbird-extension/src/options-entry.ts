@@ -6,6 +6,8 @@ declare const browser: any;
 
 const OPTIONS_PORT_NAME = "thunderclaw-options-v1";
 const endpointInput = requiredElement<HTMLInputElement>("endpoint");
+const consentAccepted = requiredElement<HTMLInputElement>("consent-accepted");
+const dataConsent = requiredElement<HTMLElement>("data-consent");
 const normalizeButton = requiredElement<HTMLButtonElement>("normalize");
 const pairButton = requiredElement<HTMLButtonElement>("pair");
 const claimButton = requiredElement<HTMLButtonElement>("claim");
@@ -223,10 +225,13 @@ function updateControls(): void {
   setAttribute(connectionPanel, "aria-busy", String(busy));
   setAttribute(agentsOutput, "aria-busy", String(unavailable));
   const pairingActive = phase === "awaiting_approval" || phase === "pairing_expired";
+  const canStartPairing = ["not_configured", "disconnected"].includes(String(phase));
   endpointInput.disabled = busy;
   endpointInput.readOnly = configured || granted || pairingActive;
   normalizeButton.disabled = unavailable;
-  pairButton.disabled = unavailable || cleanupRequired || !["not_configured", "disconnected"].includes(String(phase));
+  consentAccepted.disabled = unavailable || cleanupRequired || !canStartPairing;
+  dataConsent.hidden = !canStartPairing;
+  pairButton.disabled = unavailable || cleanupRequired || !canStartPairing || !consentAccepted.checked;
   claimButton.disabled = unavailable || phase !== "awaiting_approval";
   cancelPairingButton.disabled = unavailable || (phase !== "awaiting_approval" && phase !== "pairing_expired");
   diagnoseButton.disabled = unavailable || (phase !== "authorized_untested" && phase !== "ready");
@@ -461,8 +466,15 @@ endpointInput.addEventListener("blur", () => {
   if (endpointInput.value.trim().length > 0 && !endpointInput.readOnly) normalizeEndpoint(false);
 });
 
+consentAccepted.addEventListener("change", updateControls);
+
 pairButton.addEventListener("click", () => {
   if (busy) return;
+  if (!consentAccepted.checked) {
+    setResult("Consent is required before pairing can begin.", "error");
+    focusElement(consentAccepted);
+    return;
+  }
   let endpoint;
   try {
     endpoint = canonicalizeApiBase(endpointInput.value);
@@ -486,7 +498,7 @@ pairButton.addEventListener("click", () => {
     if (!granted) throw new Error("Thunderbird did not grant access to the configured OpenClaw host.");
     let value: unknown;
     try {
-      value = await request("beginPair", { apiBase: endpoint.apiBase });
+      value = await request("beginPair", { apiBase: endpoint.apiBase, consentAccepted: true });
     } catch (error) {
       if (!(error instanceof OptionsRequestError) || error.permissionCleanup !== "complete") {
         throw new Error(`${localMessage(error)} Background permission cleanup is pending; if it remains, revoke ThunderClaw host access in Add-ons Manager.`);
@@ -565,6 +577,7 @@ disconnectButton.addEventListener("click", () => {
   setBusy(true);
   setResult("Disconnecting this Thunderbird from OpenClaw…");
   void request("disconnect").then((value) => {
+    consentAccepted.checked = false;
     renderState(value);
     setResult("Disconnected. OpenClaw confirmed revocation before Thunderbird removed its local credential and host permission.", "success");
     scheduleFocus(endpointInput);
@@ -581,6 +594,7 @@ forgetButton.addEventListener("click", () => {
   setBusy(true);
   setResult("Removing the local connection…");
   void request("forget").then((value) => {
+    consentAccepted.checked = false;
     endpointInput.value = "";
     renderState(value);
     const state = typeof value === "object" && value !== null ? value as Record<string, unknown> : {};

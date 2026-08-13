@@ -134,8 +134,11 @@ on the next release.
 
 ### Documentation and privacy
 
-- Installation, pairing, compatibility, privacy disclosure, and recovery docs
-  match the exact artifacts.
+- Installation, pairing, compatibility, recovery, and the full Thunderbird
+  Add-ons privacy policy match the exact artifacts. The policy effective date
+  and monitored privacy contact are filled, its full text is entered directly
+  in the listing's privacy-policy field, and its listing-ready summary appears
+  in the add-on description.
 - Marketplace, README, and website screenshots reflect the accepted XPI and
   use synthetic mail and connection data. They expose no real endpoint,
   approval code, device identifier, account detail, or message content.

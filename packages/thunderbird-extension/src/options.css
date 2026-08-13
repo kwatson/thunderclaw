@@ -94,6 +94,25 @@ input:focus-visible, button:focus-visible, summary:focus-visible {
 }
 input:read-only { color: GrayText; background: var(--surface-subtle); }
 
+.data-consent {
+  margin-top: 20px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-subtle);
+}
+.data-consent h3 { margin: 0 0 8px; font-size: 1rem; }
+.data-consent > p { margin: 0; line-height: 1.45; }
+.consent-control {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin: 14px 0 0;
+  line-height: 1.4;
+}
+.consent-control input { width: auto; margin: 3px 0 0; flex: 0 0 auto; }
+.data-consent .help { margin-top: 7px; }
+
 .help, .disclosure, .verification-disclosure { line-height: 1.45; }
 .help { margin: 7px 0 0; color: GrayText; font-size: .9rem; }
 .disclosure { margin: 10px 0 0; color: GrayText; }
