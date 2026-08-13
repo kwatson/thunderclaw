@@ -16,6 +16,10 @@ test("hosted OpenClaw qualification is pinned, secretless, and ephemeral", async
   assert.match(script, /npm run qualify:pairing -- --no-install/u);
   assert.match(script, /npm run qualify:pairing:recovery/u);
   assert.doesNotMatch(script, /\.env\.openclaw/u);
+  assert.match(script, /THUNDERCLAW_OPENCLAW_PLUGIN_TGZ/u);
+  assert.match(script, /validate-candidate-artifact\.mjs plugin-tgz/u);
+  assert.match(script, /npm-pack:\/workspace\/thunderclaw-candidate\.tgz/u);
+  assert.match(script, /cmp -s "\$\{candidate\}"/u);
 
   assert.match(workflow, /openclaw-integration:/u);
   assert.match(workflow, /runs-on: ubuntu-24\.04/u);

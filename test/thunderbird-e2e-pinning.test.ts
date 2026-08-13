@@ -14,4 +14,8 @@ test("real Thunderbird E2E pins and isolates the supported version matrix", asyn
   assert.match(script, /find "\$\{version_artifacts\}" -mindepth 1 -delete/u);
   assert.match(script, /pre-matrix runner/u);
   assert.match(script, /Unsupported pinned Thunderbird E2E version/u);
+  assert.match(script, /THUNDERCLAW_E2E_XPI\+x/u);
+  assert.match(script, /validate-candidate-artifact\.mjs xpi/u);
+  assert.match(script, /cmp -s "\$\{candidate_xpi\}"/u);
+  assert.doesNotMatch(script, /^mise exec -- npm run build:extension$/mu);
 });

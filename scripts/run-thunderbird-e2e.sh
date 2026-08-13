@@ -26,7 +26,16 @@ for version in ${versions}; do
 done
 
 cd "${repository_root}"
-mise exec -- npm run build:extension
+if [ "${THUNDERCLAW_E2E_XPI+x}" = x ]; then
+  if [ -z "${THUNDERCLAW_E2E_XPI}" ]; then
+    echo "THUNDERCLAW_E2E_XPI must name an existing candidate XPI" >&2
+    exit 2
+  fi
+  candidate_xpi=${THUNDERCLAW_E2E_XPI}
+else
+  candidate_xpi=$(mise exec -- npm run --silent build:extension | tail -n 1)
+fi
+mise exec -- node scripts/validate-candidate-artifact.mjs xpi "${candidate_xpi}"
 mkdir -p "${artifact_root}"
 # Remove only the known files/directories published by the pre-matrix runner.
 # Version directories below are cleaned independently immediately before copy.
@@ -36,9 +45,14 @@ for legacy_trial in trial-1 trial-2; do
     find "${artifact_root}/${legacy_trial}" -depth -delete
   fi
 done
-cp "${repository_root}/build/thunderclaw-extension.xpi" "${staging_root}/thunderclaw-extension.xpi"
+cp "${candidate_xpi}" "${staging_root}/thunderclaw-extension.xpi"
 chmod 0755 "${staging_root}"
 chmod 0644 "${staging_root}/thunderclaw-extension.xpi"
+mise exec -- node scripts/validate-candidate-artifact.mjs xpi "${staging_root}/thunderclaw-extension.xpi"
+cmp -s "${candidate_xpi}" "${staging_root}/thunderclaw-extension.xpi" || {
+  echo "Staged XPI bytes differ from the validated candidate" >&2
+  exit 1
+}
 
 overall_status=0
 for version in ${versions}; do

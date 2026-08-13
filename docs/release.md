@@ -5,7 +5,7 @@
 A ThunderClaw release produces:
 
 1. one npm-style OpenClaw plugin `.tgz` for ClawHub;
-2. one signed Thunderbird `.xpi` for Thunderbird Add-ons; and
+2. one Thunderbird `.xpi` for Thunderbird Add-ons; and
 3. one allowlisted source archive for Mozilla extension review.
 
 The plugin and extension carry the same release version. Their package
@@ -28,6 +28,63 @@ mise exec -- npm run pack:release
 
 The reviewer archive stages [`SOURCE_REVIEW.md`](../SOURCE_REVIEW.md) as its
 root `README.md` build guide.
+
+## GitHub release workflow
+
+Repository administrators must create a GitHub Actions environment named
+`release`, add the required human reviewers, and restrict deployment to
+release tags. The current repository environment requires approval from
+`kwatson`, permits that sole release maintainer to approve a run they started,
+and accepts only `v*` tags. The workflow grants write permissions only to the
+job behind that environment. All build and qualification jobs remain
+read-only.
+
+Prepare a release on `main` after updating all four manifest version
+declarations, their four `package-lock.json` mirrors, and the matching
+`CHANGELOG.md` section. The following commands locally validate the metadata,
+create an annotated tag, and push only that tag (replace `v0.1.0` with the
+intended version):
+
+```bash
+git switch main
+git pull --ff-only origin main
+release_tag=v0.1.0
+release_notes=$(mktemp)
+rm "$release_notes"
+mise exec -- node scripts/release-metadata.mjs \
+  --tag "$release_tag" \
+  --notes-output "$release_notes"
+rm "$release_notes"
+git tag --annotate "$release_tag" --message "ThunderClaw ${release_tag#v}"
+git push origin "$release_tag"
+```
+
+A maintainer with tag signing configured may use `git tag --sign` instead.
+
+The tag workflow deliberately triggers broadly on `v*`, then fails unless the
+tag is canonical `vX.Y.Z`, its commit is contained in `origin/main`, matches the
+root package, both component packages, and Thunderbird manifest, and has
+exactly one non-empty changelog section. Do not move or reuse a published tag.
+
+The workflow builds the three artifacts once, scans their unpacked contents
+with a version-and-digest-pinned secret scanner, records SHA-256 checksums and
+build provenance, qualifies the downloaded plugin and XPI bytes on Linux and
+Windows without rebuilding them, and runs the native filesystem/security gate
+on Apple Silicon macOS. It also rebuilds the XPI from the downloaded reviewer
+source archive and compares its complete unpacked entry set and contents with
+the candidate. After those gates and `release` environment approval, it creates
+a GitHub release whose notes are the matching changelog section and attaches:
+
+- `thunderclaw-openclaw-plugin-X.Y.Z.tgz`;
+- `thunderclaw-thunderbird-X.Y.Z.xpi`;
+- `thunderclaw-thunderbird-source-X.Y.Z.zip`;
+- `SHA256SUMS`; and
+- `release-provenance.json`.
+
+GitHub also records attestations for the three distributable archives. A
+GitHub release does not publish to ClawHub or Thunderbird Add-ons. Their first
+submissions remain manual bootstrap operations using these exact qualified
+bytes; later marketplace automation remains future work.
 
 No operating-system package or helper is part of the release graph.
 

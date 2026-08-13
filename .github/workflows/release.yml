@@ -1,0 +1,423 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CI: "true"
+
+jobs:
+  build:
+    name: Validate and build once
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    outputs:
+      version: ${{ steps.metadata.outputs.version }}
+
+    steps:
+      - name: Check out tagged source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify tag commit belongs to main
+        shell: bash
+        run: |
+          git fetch --no-tags origin '+refs/heads/main:refs/remotes/origin/main'
+          git merge-base --is-ancestor "$GITHUB_SHA" refs/remotes/origin/main || {
+            echo "Release tag commit must be contained in origin/main" >&2
+            exit 1
+          }
+
+      - name: Install managed runtimes
+        uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4
+
+      - name: Validate tag, manifests, lockfile, and changelog
+        id: metadata
+        shell: bash
+        run: |
+          mkdir -p build
+          mise exec -- node scripts/release-metadata.mjs \
+            --tag "$GITHUB_REF_NAME" \
+            --notes-output build/release-notes.md
+          version=${GITHUB_REF_NAME#v}
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Install locked dependencies
+        run: mise exec -- npm ci
+
+      - name: Run deterministic tests
+        run: mise exec -- npm test
+
+      - name: Typecheck
+        run: mise exec -- npm run typecheck
+
+      - name: Build the three release artifacts once
+        run: mise exec -- npm run pack:release
+
+      - name: Assemble checksums and provenance
+        env:
+          RELEASE_VERSION: ${{ steps.metadata.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          release_root=build/release
+          mkdir "$release_root"
+          mv "build/thunderclaw-openclaw-plugin-${RELEASE_VERSION}.tgz" \
+            "$release_root/thunderclaw-openclaw-plugin-${RELEASE_VERSION}.tgz"
+          mv build/thunderclaw-extension.xpi \
+            "$release_root/thunderclaw-thunderbird-${RELEASE_VERSION}.xpi"
+          mv "build/thunderclaw-extension-source-${RELEASE_VERSION}.zip" \
+            "$release_root/thunderclaw-thunderbird-source-${RELEASE_VERSION}.zip"
+          mv build/release-notes.md "$release_root/release-notes.md"
+          (
+            cd "$release_root"
+            sha256sum \
+              "thunderclaw-openclaw-plugin-${RELEASE_VERSION}.tgz" \
+              "thunderclaw-thunderbird-${RELEASE_VERSION}.xpi" \
+              "thunderclaw-thunderbird-source-${RELEASE_VERSION}.zip" \
+              > SHA256SUMS
+          )
+          RELEASE_ROOT="$release_root" mise exec -- node --input-type=module <<'NODE'
+          import { readFile, stat, writeFile } from "node:fs/promises";
+          import path from "node:path";
+
+          const root = process.env.RELEASE_ROOT;
+          const records = (await readFile(path.join(root, "SHA256SUMS"), "utf8"))
+            .trim().split("\n").map((line) => {
+              const match = /^([a-f0-9]{64})  ([^/]+)$/u.exec(line);
+              if (!match) throw new Error(`Invalid checksum record: ${line}`);
+              return { sha256: match[1], name: match[2] };
+            });
+          const artifacts = [];
+          for (const record of records) {
+            artifacts.push({ ...record, size: (await stat(path.join(root, record.name))).size });
+          }
+          const provenance = {
+            format: "thunderclaw-release-provenance-v1",
+            source: {
+              repository: process.env.GITHUB_SERVER_URL + "/" + process.env.GITHUB_REPOSITORY,
+              commit: process.env.GITHUB_SHA,
+              tag: process.env.GITHUB_REF_NAME,
+            },
+            build: {
+              workflow: process.env.GITHUB_WORKFLOW_REF,
+              run: process.env.GITHUB_SERVER_URL + "/" + process.env.GITHUB_REPOSITORY
+                + "/actions/runs/" + process.env.GITHUB_RUN_ID,
+              attempt: Number(process.env.GITHUB_RUN_ATTEMPT),
+            },
+            artifacts,
+          };
+          await writeFile(path.join(root, "release-provenance.json"), `${JSON.stringify(provenance, null, 2)}\n`);
+          NODE
+
+      - name: Scan unpacked release contents for secrets
+        env:
+          RELEASE_VERSION: ${{ steps.metadata.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          scanner_root=$(mktemp -d /tmp/thunderclaw-gitleaks.XXXXXX)
+          scan_root=$(mktemp -d /tmp/thunderclaw-release-scan.XXXXXX)
+          trap 'find "$scanner_root" "$scan_root" -depth -delete' EXIT
+          curl --fail --location --proto '=https' --tlsv1.2 \
+            --output "$scanner_root/gitleaks.tar.gz" \
+            https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz
+          echo '551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb  gitleaks.tar.gz' \
+            | (cd "$scanner_root" && sha256sum --check -)
+          tar -xzf "$scanner_root/gitleaks.tar.gz" -C "$scanner_root" gitleaks
+          mkdir "$scan_root/plugin" "$scan_root/xpi" "$scan_root/source"
+          tar -xzf "build/release/thunderclaw-openclaw-plugin-${RELEASE_VERSION}.tgz" -C "$scan_root/plugin"
+          unzip -q "build/release/thunderclaw-thunderbird-${RELEASE_VERSION}.xpi" -d "$scan_root/xpi"
+          unzip -q "build/release/thunderclaw-thunderbird-source-${RELEASE_VERSION}.zip" -d "$scan_root/source"
+          set +e
+          "$scanner_root/gitleaks" dir "$scan_root" \
+            --no-banner --redact --report-format json --report-path "$scanner_root/report.json" \
+            >/dev/null 2>&1
+          scan_status=$?
+          set -e
+          if [ "$scan_status" -ne 0 ]; then
+            REPORT_PATH="$scanner_root/report.json" mise exec -- node --input-type=module <<'NODE'
+            import { readFile } from "node:fs/promises";
+            const findings = JSON.parse(await readFile(process.env.REPORT_PATH, "utf8"));
+            for (const finding of findings) {
+              console.error(`${finding.File ?? "unknown path"}: ${finding.RuleID ?? "unknown rule"}`);
+            }
+            NODE
+            echo "Release content secret scan failed" >&2
+            exit "$scan_status"
+          fi
+
+      - name: Upload immutable release candidate
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: thunderclaw-release-${{ steps.metadata.outputs.version }}
+          path: build/release/
+          if-no-files-found: error
+          retention-days: 14
+
+  openclaw-qualification:
+    name: Qualify prebuilt OpenClaw plugin
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+
+    steps:
+      - name: Check out tagged source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Install managed runtimes
+        uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4
+
+      - name: Install locked dependencies
+        run: mise exec -- npm ci
+
+      - name: Download release candidate
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: thunderclaw-release-${{ needs.build.outputs.version }}
+          path: release
+
+      - name: Verify and qualify exact plugin bytes
+        env:
+          THUNDERCLAW_OPENCLAW_PLUGIN_TGZ: ${{ github.workspace }}/release/thunderclaw-openclaw-plugin-${{ needs.build.outputs.version }}.tgz
+        shell: bash
+        run: |
+          (cd release && sha256sum --check SHA256SUMS)
+          mise exec -- npm run test:integration:openclaw
+
+  thunderbird-qualification:
+    name: Qualify prebuilt Thunderbird extension
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+
+    steps:
+      - name: Check out tagged source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Install managed runtimes
+        uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4
+
+      - name: Install locked dependencies
+        run: mise exec -- npm ci
+
+      - name: Download release candidate
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: thunderclaw-release-${{ needs.build.outputs.version }}
+          path: release
+
+      - name: Verify and qualify exact extension bytes
+        env:
+          THUNDERCLAW_E2E_VERSIONS: 153.0.1esr
+          THUNDERCLAW_E2E_XPI: ${{ github.workspace }}/release/thunderclaw-thunderbird-${{ needs.build.outputs.version }}.xpi
+        shell: bash
+        run: |
+          (cd release && sha256sum --check SHA256SUMS)
+          mise exec -- npm run test:e2e:thunderbird
+
+      - name: Upload failure evidence
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: thunderclaw-release-thunderbird-failure-${{ needs.build.outputs.version }}
+          path: build/e2e/thunderbird/153.0.1esr/
+          if-no-files-found: warn
+          retention-days: 7
+
+  native-qualification:
+    name: Native qualification (${{ matrix.platform }})
+    needs: build
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: Windows
+            runner: windows-2025
+            thunderbird: 153.0.1esr
+            sha512: 6eb6e341554f7ebd7a1da0936cd0f9feae12bd3db544c29a536f7d70f502c7fdfa28473d56516e2337a54ce6feaf02b16b24026846f2946f9c9d41195b302b3c
+            run_thunderbird_e2e: true
+          - platform: macOS ARM
+            runner: macos-15
+            run_thunderbird_e2e: false
+
+    steps:
+      - name: Check out tagged source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Install managed runtimes
+        uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4
+
+      - name: Install Python
+        if: matrix.run_thunderbird_e2e
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: e2e/thunderbird/requirements.txt
+
+      - name: Install locked dependencies
+        run: mise exec -- npm ci
+
+      - name: Run deterministic tests
+        run: mise exec -- npm test
+
+      - name: Qualify native filesystem security
+        run: mise exec -- npm run qualify:native-filesystem
+
+      - name: Download release candidate
+        if: matrix.run_thunderbird_e2e
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: thunderclaw-release-${{ needs.build.outputs.version }}
+          path: release
+
+      - name: Verify candidate checksums
+        if: matrix.run_thunderbird_e2e
+        shell: bash
+        run: (cd release && sha256sum --check SHA256SUMS)
+
+      - name: Install Marionette dependencies
+        if: matrix.run_thunderbird_e2e
+        run: python -m pip install --disable-pip-version-check -r e2e/thunderbird/requirements.txt
+
+      - name: Install pinned Thunderbird on Windows
+        if: matrix.run_thunderbird_e2e && runner.os == 'Windows'
+        id: thunderbird-windows
+        shell: pwsh
+        run: ./scripts/install-native-thunderbird.ps1 -Version '${{ matrix.thunderbird }}' -Sha512 '${{ matrix.sha512 }}'
+
+      - name: Run native Thunderbird qualification with exact XPI
+        if: matrix.run_thunderbird_e2e
+        shell: bash
+        env:
+          THUNDERBIRD_EXECUTABLE: ${{ steps.thunderbird-windows.outputs.thunderbird }}
+          THUNDERBIRD_APPLICATION_INI: ${{ steps.thunderbird-windows.outputs.application_ini }}
+          THUNDERBIRD_ARTIFACTS: build/e2e/native/${{ runner.os }}/${{ matrix.thunderbird }}
+        run: |
+          python e2e/thunderbird/run_compose.py \
+            --xpi "release/thunderclaw-thunderbird-${{ needs.build.outputs.version }}.xpi" \
+            --artifacts "$THUNDERBIRD_ARTIFACTS" \
+            --expected-version '${{ matrix.thunderbird }}' \
+            --thunderbird "$THUNDERBIRD_EXECUTABLE" \
+            --application-ini "$THUNDERBIRD_APPLICATION_INI" \
+            --user-js e2e/thunderbird/user.js
+
+      - name: Upload native qualification evidence
+        if: ${{ matrix.run_thunderbird_e2e && !cancelled() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: thunderclaw-release-native-${{ runner.os }}-${{ needs.build.outputs.version }}
+          path: build/e2e/native/${{ runner.os }}/${{ matrix.thunderbird }}/
+          if-no-files-found: warn
+          retention-days: 14
+
+  source-qualification:
+    name: Reproduce XPI from reviewer source
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    steps:
+      - name: Install managed runtimes
+        uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4
+
+      - name: Download release candidate
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: thunderclaw-release-${{ needs.build.outputs.version }}
+          path: release
+
+      - name: Verify source archive reproduces the candidate XPI
+        env:
+          RELEASE_VERSION: ${{ needs.build.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd release && sha256sum --check SHA256SUMS)
+          reproduction_root=$(mktemp -d /tmp/thunderclaw-source-reproduction.XXXXXX)
+          candidate_root=$(mktemp -d /tmp/thunderclaw-candidate-xpi.XXXXXX)
+          rebuilt_root=$(mktemp -d /tmp/thunderclaw-rebuilt-xpi.XXXXXX)
+          trap 'find "$reproduction_root" "$candidate_root" "$rebuilt_root" -depth -delete' EXIT
+          unzip -q "release/thunderclaw-thunderbird-source-${RELEASE_VERSION}.zip" -d "$reproduction_root"
+          source_root="$reproduction_root/thunderclaw-extension-source-${RELEASE_VERSION}"
+          test -f "$source_root/README.md"
+          (
+            cd "$source_root"
+            mise trust --yes
+            mise install
+            mise exec -- npm ci
+            mise exec -- npm run build:extension
+          )
+          unzip -q "release/thunderclaw-thunderbird-${RELEASE_VERSION}.xpi" -d "$candidate_root"
+          unzip -q "$source_root/build/thunderclaw-extension.xpi" -d "$rebuilt_root"
+          diff --recursive --brief "$candidate_root" "$rebuilt_root"
+
+  release:
+    name: Approve and create GitHub release
+    needs:
+      - build
+      - openclaw-qualification
+      - thunderbird-qualification
+      - native-qualification
+      - source-qualification
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment:
+      name: release
+    permissions:
+      attestations: write
+      contents: write
+      id-token: write
+
+    steps:
+      - name: Download qualified release candidate
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: thunderclaw-release-${{ needs.build.outputs.version }}
+          path: release
+
+      - name: Verify qualified bytes
+        run: (cd release && sha256sum --check SHA256SUMS)
+
+      - name: Attest release artifact provenance
+        uses: actions/attest-build-provenance@96278af6caaf10aea03fd8d33a09a777ca52d62f # v3.2.0
+        with:
+          subject-path: |
+            release/thunderclaw-openclaw-plugin-${{ needs.build.outputs.version }}.tgz
+            release/thunderclaw-thunderbird-${{ needs.build.outputs.version }}.xpi
+            release/thunderclaw-thunderbird-source-${{ needs.build.outputs.version }}.zip
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            "release/thunderclaw-openclaw-plugin-${{ needs.build.outputs.version }}.tgz" \
+            "release/thunderclaw-thunderbird-${{ needs.build.outputs.version }}.xpi" \
+            "release/thunderclaw-thunderbird-source-${{ needs.build.outputs.version }}.zip" \
+            release/SHA256SUMS \
+            release/release-provenance.json \
+            --verify-tag \
+            --title "ThunderClaw ${{ needs.build.outputs.version }}" \
+            --notes-file release/release-notes.md
