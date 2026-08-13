@@ -6,12 +6,18 @@ on:
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      release_qualification:
+        description: Run expensive pre-release qualification
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 env:
@@ -91,17 +97,31 @@ jobs:
         if: steps.changes.outputs.run_full == 'true'
         run: mise exec -- npm run pack:release
 
+      - name: Record candidate XPI digest
+        if: github.event_name == 'workflow_dispatch' && inputs.release_qualification == true && steps.changes.outputs.run_full == 'true'
+        run: sha256sum build/thunderclaw-extension.xpi > build/thunderclaw-extension.xpi.sha256
+
+      - name: Upload candidate XPI
+        if: github.event_name == 'workflow_dispatch' && inputs.release_qualification == true && steps.changes.outputs.run_full == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: thunderclaw-ci-candidate
+          path: |
+            build/thunderclaw-extension.xpi
+            build/thunderclaw-extension.xpi.sha256
+          if-no-files-found: error
+          retention-days: 7
+
   thunderbird-e2e:
     name: Thunderbird ${{ matrix.thunderbird }}
     needs: checks
-    if: needs.checks.outputs.run_full == 'true'
+    if: github.event_name == 'workflow_dispatch' && inputs.release_qualification == true && needs.checks.outputs.run_full == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     strategy:
       fail-fast: false
       matrix:
         thunderbird:
-          - 128.14.0esr
           - 153.0.1esr
 
     steps:
@@ -130,10 +150,109 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
 
+  native-platform:
+    name: Native qualification on ${{ matrix.platform }}
+    needs: checks
+    if: github.event_name == 'workflow_dispatch' && inputs.release_qualification == true && needs.checks.outputs.run_full == 'true'
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: Windows
+            runner: windows-2025
+            thunderbird: 153.0.1esr
+            sha512: 6eb6e341554f7ebd7a1da0936cd0f9feae12bd3db544c29a536f7d70f502c7fdfa28473d56516e2337a54ce6feaf02b16b24026846f2946f9c9d41195b302b3c
+            run_thunderbird_e2e: true
+          - platform: macOS
+            runner: macos-15
+            run_thunderbird_e2e: false
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Install managed runtimes
+        uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4
+
+      - name: Install Python
+        if: matrix.run_thunderbird_e2e
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: e2e/thunderbird/requirements.txt
+
+      - name: Install dependencies
+        run: mise exec -- npm ci
+
+      - name: Run native deterministic tests
+        run: mise exec -- npm test
+
+      - name: Qualify native filesystem security
+        run: mise exec -- npm run qualify:native-filesystem
+
+      - name: Download candidate XPI
+        if: matrix.run_thunderbird_e2e
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: thunderclaw-ci-candidate
+          path: build
+
+      - name: Verify candidate XPI digest
+        if: matrix.run_thunderbird_e2e
+        shell: bash
+        run: |
+          node -e 'const fs=require("node:fs"),c=require("node:crypto"); const p="build/thunderclaw-extension.xpi"; const expected=fs.readFileSync(`${p}.sha256`,"utf8").split(/\s/u)[0]; const actual=c.createHash("sha256").update(fs.readFileSync(p)).digest("hex"); if(actual!==expected) process.exit(1)'
+
+      - name: Install Marionette dependencies
+        if: matrix.run_thunderbird_e2e
+        run: python -m pip install --disable-pip-version-check -r e2e/thunderbird/requirements.txt
+
+      - name: Install pinned Thunderbird on Windows
+        if: matrix.run_thunderbird_e2e && runner.os == 'Windows'
+        id: thunderbird-windows
+        shell: pwsh
+        run: ./scripts/install-native-thunderbird.ps1 -Version '${{ matrix.thunderbird }}' -Sha512 '${{ matrix.sha512 }}'
+
+      - name: Install pinned Thunderbird on macOS
+        if: matrix.run_thunderbird_e2e && runner.os == 'macOS'
+        id: thunderbird-macos
+        shell: bash
+        run: ./scripts/install-native-thunderbird.sh '${{ matrix.thunderbird }}' '${{ matrix.sha512 }}'
+
+      - name: Run native Thunderbird qualification
+        if: matrix.run_thunderbird_e2e
+        shell: bash
+        env:
+          THUNDERBIRD_EXECUTABLE: ${{ steps.thunderbird-windows.outputs.thunderbird || steps.thunderbird-macos.outputs.thunderbird }}
+          THUNDERBIRD_APPLICATION_INI: ${{ steps.thunderbird-windows.outputs.application_ini || steps.thunderbird-macos.outputs.application_ini }}
+          THUNDERBIRD_ARTIFACTS: build/e2e/native/${{ runner.os }}/${{ matrix.thunderbird }}
+        run: |
+          python e2e/thunderbird/run_compose.py \
+            --xpi build/thunderclaw-extension.xpi \
+            --artifacts "${THUNDERBIRD_ARTIFACTS}" \
+            --expected-version '${{ matrix.thunderbird }}' \
+            --thunderbird "${THUNDERBIRD_EXECUTABLE}" \
+            --application-ini "${THUNDERBIRD_APPLICATION_INI}" \
+            --user-js e2e/thunderbird/user.js
+
+      - name: Upload native qualification evidence
+        if: ${{ matrix.run_thunderbird_e2e && !cancelled() && (failure() || github.event_name != 'pull_request') }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: thunderbird-${{ matrix.thunderbird }}-${{ runner.os }}
+          path: build/e2e/native/${{ runner.os }}/${{ matrix.thunderbird }}/
+          if-no-files-found: warn
+          retention-days: 14
+
   openclaw-integration:
     name: Pinned OpenClaw integration
     needs: checks
-    if: needs.checks.outputs.run_full == 'true'
+    if: github.event_name == 'workflow_dispatch' && inputs.release_qualification == true && needs.checks.outputs.run_full == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 25
 

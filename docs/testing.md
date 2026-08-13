@@ -10,8 +10,9 @@ ThunderClaw uses four complementary layers:
    loopback backend.
 3. Pinned OpenClaw and real configured-agent qualification using synthetic
    accounts/content and exact artifacts.
-4. Cross-platform release acceptance for Windows profile/filesystem behavior,
-   remote HTTPS, upgrade, and publication artifacts.
+4. Cross-platform release acceptance for Windows, macOS, and Linux
+   profile/filesystem behavior, remote HTTPS, upgrade, and publication
+   artifacts.
 
 Passing a lower layer does not substitute for a higher layer.
 
@@ -32,33 +33,65 @@ mise exec -- npm run build:extension
 
 ## GitHub Actions
 
-The `CI` workflow runs on pull requests, pushes to `main`, and manual
-dispatches. Its hosted Ubuntu jobs run the deterministic test suite,
-typechecking, all release package builds, the pinned Thunderbird 128 and 153
-Docker matrix, and secretless integration against the pinned OpenClaw Gateway.
-Failed Thunderbird jobs retain their synthetic evidence for seven days.
+The `CI` workflow runs its ordinary Ubuntu checks on pull requests, pushes to
+`main`, and manual dispatches. Those checks cover the deterministic test suite,
+typechecking, and release-package builds.
 
-The OpenClaw integration job creates a fresh temporary state directory, onboards
-without a model provider, installs the exact packed ThunderClaw candidate, and
-qualifies public pairing, operator approval, one-time claim, authenticated
-status, rotation, revocation, restart persistence, raw-credential absence, and
-OpenClaw backup/restore compatibility. It removes only its exact temporary
-container and state when complete. Run the same lane locally with:
+The costlier pinned Thunderbird 153 Docker lane, pinned secretless OpenClaw
+integration, and hosted Windows/macOS qualification run only when a maintainer
+manually dispatches the workflow with **Run expensive pre-release
+qualification** enabled. Immediately before accepting a release candidate, go
+to **Actions**, select **CI**, choose **Run workflow**, select the exact
+candidate branch, enable that option, and run it. A pull request, push, tag, or
+GitHub release does not trigger these jobs. Failed Thunderbird jobs retain
+their synthetic evidence for seven days.
+
+The manually triggered OpenClaw integration job creates a fresh temporary state
+directory, onboards without a model provider, installs the exact packed
+ThunderClaw candidate, and qualifies public pairing, operator approval,
+one-time claim, authenticated status, rotation, revocation, restart
+persistence, raw-credential absence, and OpenClaw backup/restore compatibility.
+It removes only its exact temporary container and state when complete. Run the
+same lane locally with:
 
 ```text
 mise exec -- npm run test:integration:openclaw
 ```
 
-No self-hosted runner is required for this workflow. Future Windows release
-qualification should use a dedicated, controlled self-hosted Windows runner,
-because hosted Linux and Windows runners cannot establish the required
-Thunderbird/OpenClaw profile, ACL, filesystem, and upgrade behavior. Exact
-artifact real-agent qualification should also run only in a protected
-environment with a configured verified agent; it must never run for fork pull
-requests or expose its credentials and retained evidence to untrusted jobs.
-The Thunderbird upgrade lane also remains outside ordinary CI until its frozen
-baseline XPI is stored as an immutable, reviewable CI input instead of ignored
-local build output.
+The first native desktop lanes use fresh GitHub-hosted Windows and macOS
+runners. They are intentionally secretless trials: the native filesystem gate
+uses the production pairing registry and checks restart persistence, raw-secret
+absence, platform permissions, link/reparse-point rejection, and hard-link
+rejection. Run it on either native platform with:
+
+```text
+mise exec -- npm run qualify:native-filesystem
+```
+
+A green hosted trial is evidence for that bounded gate, not proof of the full
+Thunderbird/OpenClaw release matrix. Both hosted native-filesystem/security
+lanes and the Windows Thunderbird 153 compose trial are established. Move a
+lane to a dedicated ephemeral self-hosted worker only if a documented
+hosted-runner limitation prevents a
+required native behavior from being exercised. Exact-artifact real-agent
+qualification runs only in a protected environment with a configured verified
+agent; it must never run for fork pull requests or expose credentials or
+retained evidence to untrusted jobs. The Thunderbird upgrade lane also remains
+outside ordinary CI until its frozen baseline XPI is stored as an immutable,
+reviewable CI input instead of ignored local build output.
+
+The release-only Apple Silicon lane currently runs the deterministic and native
+macOS filesystem/security gates, but not the real-Thunderbird compose trial.
+Thunderbird 153 listens on Marionette but does not create the initial automation
+session within the client's 360-second timeout on GitHub's `macos-15` runner. The
+workaround for the related missing GPU helper tracked by
+[Mozilla bug 2053898](https://bugzilla.mozilla.org/show_bug.cgi?id=2053898) does
+not unblock that session. Linux and Windows continue to qualify the real
+Thunderbird 153 compose flow. Current-version ThunderClaw operation has also
+been manually smoke-tested on a MacBook Air. That is accepted platform smoke
+evidence, while the hosted macOS compose lane remains a repeatability
+improvement to revisit after Thunderbird 154 is released with its packaging
+fix.
 
 Before a release candidate:
 
@@ -87,10 +120,11 @@ plugin and XPI bytes produced by the release build.
 
 ## Real Thunderbird matrix
 
-`test:e2e:thunderbird` builds the current XPI and installs that exact artifact
-temporarily in official pinned Thunderbird 128 ESR and 153 builds. Each trial
-uses a fresh synthetic profile and a network-isolated container with an
-in-process deterministic backend.
+Routine hosted CI builds the current XPI and installs that exact artifact in
+the official pinned Thunderbird 153 build. The same harness retains an opt-in
+Thunderbird 128 ESR lane for manual compatibility checks. Each trial uses a
+fresh synthetic profile and a network-isolated container with an in-process
+deterministic backend.
 
 The core compose scenario verifies:
 
@@ -125,9 +159,26 @@ must cover removal of retired authentication state, endpoint and permission
 retention, pairing, graceful restart, connection diagnostics, rotation,
 Disconnect with remote revocation, re-pairing, and Forget.
 
-The release matrix repeats the relevant flow on Windows because POSIX container
-behavior cannot prove Windows profile ACL, reparse-point, locking, or permission
-semantics.
+The release matrix repeats the relevant flow on Windows and macOS because a
+Linux container cannot prove Windows ACL/reparse-point behavior or macOS
+profile permission, link, locking, certificate, and upgrade behavior.
+
+## Native filesystem qualification
+
+`qualify:native-filesystem` is a bounded, content-free gate for GitHub-hosted
+Windows and macOS runners. It opens the production `PairingRegistry`, completes
+a synthetic pairing, authenticates before and after close/reopen, scans the
+SQLite files for raw synthetic secrets, and rejects a linked plugin directory
+and multiply-linked database. On macOS it also verifies and repairs `0700`
+directory and `0600` database modes. On Windows it reads native ACLs and fails
+unless ownership and effective allowed access are limited to the current
+identity, Creator Owner, LocalSystem, and Administrators.
+
+The harness writes no retained state and removes its exact temporary directory.
+Its JSON stdout contains platform metadata, file names, check names, and the
+result only. It does not establish Thunderbird UI behavior, TLS trust behavior,
+upgrade behavior, or the security of an arbitrary user-supplied OpenClaw state
+root; those remain separate release gates.
 
 ## Pairing qualification
 

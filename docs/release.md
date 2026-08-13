@@ -46,13 +46,16 @@ No operating-system package or helper is part of the release graph.
 
 ### Thunderbird
 
-- Pinned Thunderbird 128 and 153 deterministic E2E pass.
+- Pinned Thunderbird 153 deterministic E2E passes; run the opt-in Thunderbird
+  128 compatibility lane when a change touches the 128-specific boundary.
 - Upgrade from the preceding accepted extension passes in one retained profile.
 - Compose text, supported rich behavior, message summary/translation,
   stale-result, permission, cancellation, Apply/Undo/Redo, Draft, and SMTP/MIME
   matrices pass.
-- Windows profile ACL/filesystem, optional host permission, restart, upgrade,
-  rotation, revocation, Disconnect, Forget, compose, and message behavior pass.
+- Native Windows, macOS, and Linux profile/filesystem behavior passes, including
+  Windows ACL/reparse-point and macOS POSIX mode/link checks.
+- Windows and macOS optional host permission, restart, upgrade, rotation,
+  revocation, Disconnect, Forget, compose, and message behavior pass.
 - The supported remote HTTPS endpoint passes normal and certificate-failure
   paths without weakened trust.
 
@@ -100,15 +103,17 @@ The public repository should implement these layers:
 - `real-agent-qualification`: protected manual/release-candidate environment;
 - `release-qualification`: build-once artifact promotion and all blocking
   Linux/container gates;
-- Windows qualification on a controlled self-hosted runner where hosted
-  infrastructure cannot reproduce Thunderbird/OpenClaw/profile behavior; and
+- GitHub-hosted Windows and macOS native qualification first, with a controlled
+  ephemeral self-hosted runner only where hosted infrastructure demonstrably
+  cannot reproduce required Thunderbird/OpenClaw/profile behavior; and
 - published-artifact smoke tests after marketplace publication.
 
 Prefer hosted Linux for secretless and container-faithful work. Use self-hosted
 workers only for behavior that cannot be faithfully covered on hosted runners.
 Windows and macOS assurance must be described honestly rather than implied by
-Linux success. Unsupported platforms should not become accidental permanent
-release blockers; platform support is an explicit product decision.
+Linux success or manual use. A bounded native-filesystem pass is not a full
+Thunderbird lifecycle pass. Unsupported platforms should not become accidental
+permanent release blockers; platform support is an explicit product decision.
 
 ## Publication
 

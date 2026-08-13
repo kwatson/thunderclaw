@@ -10,10 +10,11 @@ provenance and CI artifacts.
 
 Remaining production gates:
 
-1. Complete Windows Thunderbird qualification for profile ACL/filesystem,
-   optional host permission, same-profile upgrade/restart, credential rotation,
-   operator revocation, Disconnect, Forget, compose, and message behavior.
-2. Complete the same compose/message and credential-lifecycle matrix through
+1. Complete the remaining native Thunderbird release matrix: same-profile
+   upgrade/restart, optional host permission, credential rotation and
+   revocation, Disconnect/Forget, compose, and message behavior on Windows and
+   macOS.
+2. Complete the compose/message and credential-lifecycle matrix through
    the supported remote HTTPS endpoint, including certificate failures and
    ambiguous network outcomes.
 3. Complete direct-shell, Docker TTY/non-TTY, and supported SSH qualification
@@ -28,9 +29,9 @@ Remaining production gates:
 1. Configure the public repository with protected branches, secretless CI,
    dependency and security automation, documentation checks, and build-once
    artifact promotion.
-2. Promote the tracked real Thunderbird and real-agent qualification tooling
-   into CI, using hosted Linux first and controlled self-hosted Windows where
-   required.
+2. Promote the tracked real-agent qualification tooling into protected
+   pre-release CI, and re-enable hosted macOS real-Thunderbird automation after
+   Thunderbird 154.
 3. Bootstrap Thunderbird Add-ons and ClawHub publication, then move
    updates to protected automated publishing and post-publication smoke tests.
 4. Publish user-facing installation, privacy, support, release notes, and
@@ -42,8 +43,6 @@ Remaining production gates:
   execution boundary. “Newer” remains unsupported until the matrix passes.
 - Add a default-process-isolation Thunderbird browser-chrome or WebDriver BiDi
   lane when the required browsing-context support is available.
-- Decide whether macOS is a supported release platform and, if so, add its
-  filesystem, lifecycle, and Thunderbird qualification.
 - Consider a graphical OpenClaw pairing-administration page only if a released,
   supported external-tab admin-action bridge can invoke scoped Gateway methods
   without exposing a broad credential. The CLI remains the complete operator

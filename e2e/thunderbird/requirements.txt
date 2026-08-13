@@ -12,6 +12,7 @@ mozrunner==8.4.0
 mozsystemmonitor==1.0.1
 mozterm==1.0.0
 mozversion==2.4.0
-psutil==7.2.2
+psutil==5.9.8; sys_platform == "darwin"
+psutil==7.2.2; sys_platform != "darwin"
 six==1.17.0
 wcwidth==0.8.2

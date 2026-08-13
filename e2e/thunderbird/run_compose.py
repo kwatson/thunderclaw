@@ -8,6 +8,7 @@ import json
 import shutil
 import socket
 import subprocess
+import sys
 import tempfile
 import time
 import traceback
@@ -60,6 +61,29 @@ def wait_for_port(port: int, process: subprocess.Popen[str], timeout: float = 30
             return False
 
     wait_until("Marionette port", ready, timeout)
+
+
+def unused_local_port() -> int:
+    """Select a Marionette port without depending on a runner-global default."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
+        listener.bind(("127.0.0.1", 0))
+        return int(listener.getsockname()[1])
+
+
+def stop_process(process: subprocess.Popen[str]) -> None:
+    """Allow Thunderbird to finish profile shutdown before forcing it to exit."""
+    if process.poll() is not None:
+        return
+    try:
+        process.wait(timeout=10)
+        return
+    except subprocess.TimeoutExpired:
+        process.terminate()
+    try:
+        process.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.wait(timeout=5)
 
 
 def chrome(client: Marionette, script: str, args: list[Any] | None = None) -> Any:
@@ -588,30 +612,38 @@ def run_trial(
     stub_port: int,
     expected_version: str,
     expected_build_id: str,
+    thunderbird: Path,
+    user_js: Path,
+    headless: bool,
 ) -> dict[str, Any]:
     trial_dir = artifacts / f"trial-{number}"
     trial_dir.mkdir(parents=True, exist_ok=True)
     profile = Path(tempfile.mkdtemp(prefix=f"thunderclaw-e2e-{number}-"))
-    shutil.copyfile("/opt/thunderclaw-e2e/user.js", profile / "user.js")
+    shutil.copyfile(user_js, profile / "user.js")
+    marionette_port = unused_local_port()
+    with (profile / "user.js").open("a", encoding="utf-8", newline="\n") as preferences:
+        preferences.write(f'user_pref("marionette.port", {marionette_port});\n')
     log_path = trial_dir / "thunderbird.log"
     with log_path.open("w", encoding="utf-8") as log:
+        command = [
+            str(thunderbird),
+            "--marionette",
+            "-remote-allow-system-access",
+            "-no-remote",
+        ]
+        if headless:
+            command.append("--headless")
+        command.extend(["-profile", str(profile)])
         process = subprocess.Popen(
-            [
-                "thunderbird",
-                "--marionette",
-                "-remote-allow-system-access",
-                "-no-remote",
-                "-profile",
-                str(profile),
-            ],
+            command,
             stdout=log,
             stderr=subprocess.STDOUT,
             text=True,
         )
         client: Marionette | None = None
         try:
-            wait_for_port(2828, process)
-            client = Marionette(host="127.0.0.1", port=2828)
+            wait_for_port(marionette_port, process)
+            client = Marionette(host="127.0.0.1", port=marionette_port)
             capabilities = client.start_session()
             runtime = chrome(client, "return { version: Services.appinfo.version, buildId: Services.appinfo.appBuildID };")
             if runtime != {"version": expected_version, "buildId": expected_build_id}:
@@ -672,13 +704,7 @@ return ExtensionParent.GlobalManager.extensionMap.has(arguments[0]);
                     client.quit(in_app=True)
                 except BaseException:
                     pass
-            if process.poll() is None:
-                process.terminate()
-                try:
-                    process.wait(timeout=10)
-                except subprocess.TimeoutExpired:
-                    process.kill()
-                    process.wait(timeout=5)
+            stop_process(process)
             shutil.rmtree(profile, ignore_errors=True)
 
 
@@ -706,13 +732,26 @@ def main() -> int:
     parser.add_argument("--xpi", required=True, type=Path)
     parser.add_argument("--artifacts", required=True, type=Path)
     parser.add_argument("--expected-version", required=True)
+    parser.add_argument("--thunderbird", type=Path, default=Path(shutil.which("thunderbird") or "thunderbird"))
+    parser.add_argument("--application-ini", type=Path, default=Path("/opt/thunderbird/application.ini"))
+    parser.add_argument("--user-js", type=Path, default=Path("/opt/thunderclaw-e2e/user.js"))
+    parser.add_argument("--headless", action="store_true")
     args = parser.parse_args()
+    args.xpi = args.xpi.resolve()
+    args.artifacts = args.artifacts.resolve()
+    args.thunderbird = args.thunderbird.resolve()
+    args.application_ini = args.application_ini.resolve()
+    args.user_js = args.user_js.resolve()
     args.artifacts.mkdir(parents=True, exist_ok=True)
     if not args.xpi.is_file():
         raise FileNotFoundError(args.xpi)
+    if not args.thunderbird.is_file():
+        raise FileNotFoundError(args.thunderbird)
+    if not args.user_js.is_file():
+        raise FileNotFoundError(args.user_js)
     application = configparser.ConfigParser()
-    if not application.read("/opt/thunderbird/application.ini"):
-        raise FileNotFoundError("/opt/thunderbird/application.ini")
+    if not application.read(args.application_ini):
+        raise FileNotFoundError(args.application_ini)
     actual_version = application["App"]["Version"]
     actual_build_id = application["App"]["BuildID"]
     expected_app_version = args.expected_version.removesuffix("esr")
@@ -723,6 +762,8 @@ def main() -> int:
         "version": actual_version,
         "buildId": actual_build_id,
         "extensionId": EXTENSION_ID,
+        "platform": sys.platform,
+        "headless": args.headless,
         "xpiSha256": hashlib.sha256(args.xpi.read_bytes()).hexdigest(),
         "coverage": {
             "kind": "real-compose-action-popup",
@@ -745,6 +786,9 @@ def main() -> int:
                 server.server_address[1],
                 actual_version,
                 actual_build_id,
+                args.thunderbird,
+                args.user_js,
+                args.headless,
             ))
     except BaseException as error:
         caught = error

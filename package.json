@@ -21,6 +21,7 @@
     "test:e2e:thunderbird:rich-compose": "sh scripts/run-thunderbird-rich-compose-e2e.sh",
     "test:integration:openclaw": "bash scripts/run-openclaw-ci.sh",
     "qualify:real-agent": "node e2e/qualification/real-agent/run.mjs",
+    "qualify:native-filesystem": "tsx scripts/qualify-native-filesystem.ts",
     "test": "node --import tsx --test 'test/**/*.test.ts'",
     "typecheck": "tsc --noEmit && tsc -p packages/thunderbird-extension/tsconfig.json",
     "spike:client": "tsx scripts/spike-client.ts",

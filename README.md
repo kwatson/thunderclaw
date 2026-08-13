@@ -156,8 +156,9 @@ the runtime contract across the HTTP boundary. Start with the
 ## Project status
 
 ThunderClaw is working toward its first public release candidate. The remaining
-gates include Windows and remote-HTTPS qualification, pairing CLI coverage, and
-qualification of the exact distributable bytes. The
+gates include the remaining native lifecycle matrix, remote-HTTPS
+qualification, pairing CLI coverage, and qualification of the exact
+distributable bytes. The
 [roadmap](docs/roadmap.md) is the authoritative list of unfinished work.
 
 Bug reports, documentation improvements, tests, and focused code changes are

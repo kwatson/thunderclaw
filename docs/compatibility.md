@@ -12,6 +12,23 @@
 “Newer” does not imply supported. A later Thunderbird or OpenClaw release must
 pass the relevant qualification lanes before the matrix changes.
 
+## Desktop platform status
+
+ThunderClaw is intended to support current Windows, macOS, and Linux desktop
+installations at its first public release. GitHub-hosted Windows and Apple
+Silicon macOS runners qualify the native filesystem/security boundary before
+release; Windows and Linux additionally run the automated real-Thunderbird 153
+compose flow. Current builds have been manually verified on Windows and on a
+MacBook Air, confirming current-version macOS operation while hosted macOS
+Thunderbird automation is deferred.
+
+The hosted macOS compose lane is a repeatability improvement, not a blocker for
+the current platform smoke claim. Thunderbird 153 cannot create its initial
+Marionette session on GitHub's `macos-15` runner even after applying the related
+GPU-helper workaround. Revisit that lane with Thunderbird 154. Remote HTTPS,
+certificate, upgrade/restart, permissions, credential lifecycle, and exact
+release-candidate evidence remain separate release requirements.
+
 ## Why OpenClaw 2026.7.2-beta.7 is the floor
 
 ThunderClaw requires the public `runEmbeddedAgent` contract to expose these
@@ -103,8 +120,9 @@ The manifest baseline remains Thunderbird 128. Structured compose features are
 additive runtime capabilities rather than a silent increase of the extension's
 global minimum.
 
-Release qualification uses official pinned Thunderbird 128 ESR and current
-qualified 153 builds. A new Thunderbird line must pass capture, Preview,
+Routine hosted release qualification uses the official pinned current
+Thunderbird 153 build. Thunderbird 128 remains contract-tested and available
+as an opt-in runtime compatibility lane. A new Thunderbird line must pass capture, Preview,
 Apply, rollback, Undo/Redo, Draft reopen, SMTP/MIME, message display, permission,
 and upgrade checks before it becomes a supported baseline.
 

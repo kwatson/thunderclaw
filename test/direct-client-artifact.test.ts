@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -131,9 +131,10 @@ test("isolated extension builds leave default artifacts and sentinels untouched"
       path.join(root, "scripts/build-extension.mjs"),
       "--isolated-parent", temporary,
     ], { cwd: root, encoding: "utf8" }).trim();
+    const canonicalTemporary = await realpath(temporary);
     assert.notEqual(firstOutput, secondOutput);
-    assert.equal(path.dirname(path.dirname(firstOutput)), temporary);
-    assert.equal(path.dirname(path.dirname(secondOutput)), temporary);
+    assert.equal(path.dirname(path.dirname(firstOutput)), canonicalTemporary);
+    assert.equal(path.dirname(path.dirname(secondOutput)), canonicalTemporary);
     assert.equal(await readFile(parentSentinel, "utf8"), "parent survives");
     assert.equal((await readFile(sentinel, "utf8")), "do not touch");
     assert.deepEqual(await readFile(defaultXpi), beforeXpi);
