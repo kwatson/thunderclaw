@@ -169,10 +169,16 @@ while (windows.hasMoreElements()) {
       }
       if (action === "pair") {
         const endpoint = document.querySelector("#endpoint");
-        if (!endpoint) return false;
+        const consent = document.querySelector("#consent-accepted");
+        const pair = document.querySelector("#pair");
+        if (!endpoint || !consent || !pair) return false;
         endpoint.value = value.endpoint;
         endpoint.dispatchEvent(new Event("input", { bubbles: true }));
-        document.querySelector("#pair")?.click();
+        consent.checked = true;
+        consent.dispatchEvent(new Event("input", { bubbles: true }));
+        consent.dispatchEvent(new Event("change", { bubbles: true }));
+        if (pair.disabled) return false;
+        pair.click();
         return true;
       }
     } catch (_) {}
