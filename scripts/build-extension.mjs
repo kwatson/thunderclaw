@@ -58,7 +58,7 @@ if (manifest.browser_specific_settings?.gecko?.id !== "thunderclaw@addons.thunde
   throw new Error("ThunderClaw extension must have the stable reviewed ID");
 }
 const requiredOptionalPermissions = ["https://*/*", "http://127.0.0.1/*", "http://[::1]/*"];
-const requiredPermissions = ["compose", "messagesRead", "scripting", "storage"];
+const requiredPermissions = ["compose", "messagesRead", "scripting", "sensitiveDataUpload", "storage"];
 if (JSON.stringify([...(manifest.permissions ?? [])].sort()) !== JSON.stringify(requiredPermissions)
     || !manifest.compose_action || !manifest.message_display_action
     || manifest.compose_scripts !== undefined) {

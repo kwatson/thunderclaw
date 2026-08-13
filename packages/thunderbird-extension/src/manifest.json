@@ -13,6 +13,7 @@
     "compose",
     "messagesRead",
     "scripting",
+    "sensitiveDataUpload",
     "storage"
   ],
   "optional_permissions": [

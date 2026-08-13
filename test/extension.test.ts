@@ -11,13 +11,22 @@ test("Thunderbird extension declares compose and message-view boundaries", async
   assert.deepEqual([repositoryPackage.version, pluginPackage.version, extensionPackage.version],
     [manifest.version, manifest.version, manifest.version]);
   assert.equal(manifest.browser_specific_settings.gecko.id, "thunderclaw@addons.thunderbird.net");
-  assert.deepEqual(manifest.permissions.sort(), ["compose", "messagesRead", "scripting", "storage"]);
+  assert.deepEqual(manifest.permissions.sort(), ["compose", "messagesRead", "scripting", "sensitiveDataUpload", "storage"]);
   assert.deepEqual(manifest.optional_permissions, ["https://*/*", "http://127.0.0.1/*", "http://[::1]/*"]);
   assert.equal(manifest.permissions.some((value: string) => /^(?:https?|\*):/u.test(value)), false);
   assert.deepEqual(manifest.options_ui, { page: "options.html", open_in_tab: true });
   assert.equal(manifest.compose_action.default_popup, "popup.html");
   assert.equal(manifest.message_display_action.default_popup, "message-popup.html");
   assert.equal(manifest.compose_scripts, undefined, "Thunderbird 128 requires programmatic compose-script registration");
+});
+
+test("compose and message actions disclose their exact email-content transmission", async () => {
+  const composeMarkup = await readFile(new URL("../packages/thunderbird-extension/src/popup.html", import.meta.url), "utf8");
+  const messageMarkup = await readFile(new URL("../packages/thunderbird-extension/src/message-popup.html", import.meta.url), "utf8");
+  assert.match(composeMarkup,
+    /The selected text, draft and quoted context, subject, and recipients are sent through your configured OpenClaw agent\./u);
+  assert.match(messageMarkup,
+    /The displayed message text, subject, and author are sent through your configured OpenClaw agent\./u);
 });
 
 test("message-view translation mutates only captured text nodes and remains reversible", async () => {

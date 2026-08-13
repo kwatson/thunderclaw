@@ -86,7 +86,8 @@ test("built XPI contains only the runtime allowlist and a classic browser IIFE",
     permissions?: string[];
     compose_scripts?: unknown;
   };
-  assert.deepEqual([...(packagedManifest.permissions ?? [])].sort(), ["compose", "messagesRead", "scripting", "storage"]);
+  assert.deepEqual([...(packagedManifest.permissions ?? [])].sort(),
+    ["compose", "messagesRead", "scripting", "sensitiveDataUpload", "storage"]);
   assert.equal(packagedManifest.compose_scripts, undefined,
     "Thunderbird 128 does not support the manifest compose_scripts key");
   const packagedJavaScript = names.filter((name) => name.endsWith(".js"))
