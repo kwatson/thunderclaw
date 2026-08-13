@@ -147,13 +147,13 @@ jobs:
           scan_status=$?
           set -e
           if [ "$scan_status" -ne 0 ]; then
-            REPORT_PATH="$scanner_root/report.json" mise exec -- node --input-type=module <<'NODE'
-            import { readFile } from "node:fs/promises";
-            const findings = JSON.parse(await readFile(process.env.REPORT_PATH, "utf8"));
-            for (const finding of findings) {
-              console.error(`${finding.File ?? "unknown path"}: ${finding.RuleID ?? "unknown rule"}`);
-            }
-            NODE
+            REPORT_PATH="$scanner_root/report.json" mise exec -- node --input-type=module --eval '
+              import { readFile } from "node:fs/promises";
+              const findings = JSON.parse(await readFile(process.env.REPORT_PATH, "utf8"));
+              for (const finding of findings) {
+                console.error(`${finding.File ?? "unknown path"}: ${finding.RuleID ?? "unknown rule"}`);
+              }
+            '
             echo "Release content secret scan failed" >&2
             exit "$scan_status"
           fi

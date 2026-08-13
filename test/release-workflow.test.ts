@@ -1,6 +1,30 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+
+function workflowRunBlocks(workflow: string): Array<{ line: number; script: string }> {
+  const lines = workflow.split("\n");
+  const blocks: Array<{ line: number; script: string }> = [];
+
+  for (const [index, line] of lines.entries()) {
+    const match = /^(\s*)run: \|\s*$/u.exec(line);
+    if (!match) continue;
+
+    const keyIndent = match[1].length;
+    const scriptIndent = keyIndent + 2;
+    const body: string[] = [];
+    for (let bodyIndex = index + 1; bodyIndex < lines.length; bodyIndex += 1) {
+      const bodyLine = lines[bodyIndex];
+      const indentation = /^(\s*)/u.exec(bodyLine)?.[1].length ?? 0;
+      if (bodyLine.trim() !== "" && indentation <= keyIndent) break;
+      body.push(bodyLine.slice(Math.min(bodyLine.length, scriptIndent)));
+    }
+    blocks.push({ line: index + 1, script: body.join("\n") });
+  }
+
+  return blocks;
+}
 
 test("tag release builds once, qualifies exact bytes, and gates publication", async () => {
   const workflow = await readFile(new URL("../.github/workflows/release.yml", import.meta.url), "utf8");
@@ -31,5 +55,14 @@ test("tag release builds once, qualifies exact bytes, and gates publication", as
 
   for (const reference of workflow.matchAll(/uses: [^@\n]+@([^\s#]+)/gu)) {
     assert.match(reference[1], /^[a-f0-9]{40}$/u, `action is not pinned to a full commit: ${reference[0]}`);
+  }
+});
+
+test("release workflow multiline run blocks have valid Bash syntax", async () => {
+  const workflow = await readFile(new URL("../.github/workflows/release.yml", import.meta.url), "utf8");
+
+  for (const block of workflowRunBlocks(workflow)) {
+    const result = spawnSync("bash", ["-n"], { input: block.script, encoding: "utf8" });
+    assert.equal(result.status, 0, `invalid shell syntax in run block at workflow line ${block.line}:\n${result.stderr}`);
   }
 });
