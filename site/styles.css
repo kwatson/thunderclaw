@@ -246,6 +246,104 @@ h1 {
   transform: translateY(1rem) rotate(-1.5deg);
 }
 
+.showcase {
+  position: relative;
+  padding: clamp(4.5rem, 8vw, 8rem) clamp(1.4rem, 5vw, 5rem);
+  background: var(--navy);
+  color: var(--cream);
+}
+
+.showcase::before {
+  position: absolute;
+  top: 0;
+  right: clamp(1.4rem, 5vw, 5rem);
+  left: clamp(1.4rem, 5vw, 5rem);
+  height: 1px;
+  background: rgb(255 251 235 / 16%);
+  content: "";
+}
+
+.showcase-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(17rem, 0.6fr);
+  column-gap: clamp(2rem, 7vw, 7rem);
+  align-items: end;
+  margin-bottom: clamp(2.5rem, 5vw, 4.5rem);
+}
+
+.section-kicker {
+  grid-column: 1 / -1;
+  margin: 0 0 1.1rem;
+  color: #64d9cb;
+  font-size: 0.73rem;
+  font-weight: 850;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+
+.showcase h2 {
+  margin: 0;
+  font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  font-size: clamp(2.8rem, 5vw, 5.3rem);
+  font-weight: 700;
+  letter-spacing: -0.055em;
+  line-height: 0.96;
+  text-wrap: balance;
+}
+
+.showcase-heading > p:last-child {
+  margin: 0 0 0.35rem;
+  color: #c4d3df;
+  font-size: clamp(0.98rem, 1.5vw, 1.12rem);
+  line-height: 1.65;
+  text-wrap: pretty;
+}
+
+.feature-shot {
+  min-width: 0;
+  margin: 0;
+}
+
+.shot-frame {
+  overflow: hidden;
+  border: 1px solid rgb(255 251 235 / 20%);
+  border-radius: clamp(0.8rem, 1.6vw, 1.3rem);
+  background: #f4f5f7;
+  box-shadow: 0 1.5rem 4rem rgb(5 15 28 / 28%);
+}
+
+.shot-frame-dark {
+  background: #202126;
+}
+
+.shot-frame img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.feature-shot figcaption {
+  margin-top: 1.25rem;
+  color: #b7cad8;
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+
+.feature-shot figcaption span {
+  display: block;
+  margin-bottom: 0.25rem;
+  color: var(--cream);
+  font-size: 1rem;
+  font-weight: 850;
+}
+
+.reading-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: clamp(1.5rem, 4vw, 4rem);
+  margin-top: clamp(3.5rem, 7vw, 6.5rem);
+}
+
 footer {
   display: flex;
   align-items: center;
@@ -292,6 +390,15 @@ footer a {
 
   .hero-visual img {
     width: min(83vw, 39rem);
+  }
+
+  .showcase-heading {
+    grid-template-columns: 1fr;
+  }
+
+  .showcase-heading > p:last-child {
+    max-width: 42rem;
+    margin-top: 1.5rem;
   }
 }
 
@@ -346,6 +453,10 @@ footer a {
 
   .hero-visual img {
     width: min(104vw, 32rem);
+  }
+
+  .reading-grid {
+    grid-template-columns: 1fr;
   }
 
   footer {

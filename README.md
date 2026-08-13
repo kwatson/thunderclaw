@@ -48,6 +48,28 @@ Every compose change follows the same deliberate flow:
 The current Thunderbird content remains authoritative throughout. Results are
 validated on both sides of the connection, and stale results fail closed.
 
+## See it in action
+
+Preview a writing improvement before choosing whether to apply it to the draft:
+
+<p align="center">
+  <img src="site/assets/screenshots/compose-preview.png" width="900" alt="ThunderClaw showing an improved email in a preview beside a Thunderbird compose window">
+</p>
+
+Reading tools keep generated results separate from the original message and
+make them easy to dismiss or reverse.
+
+<table>
+  <tr>
+    <td width="50%" align="center"><strong>Summarize a message</strong></td>
+    <td width="50%" align="center"><strong>Translate in place</strong></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="site/assets/screenshots/message-summary.png" alt="ThunderClaw displaying a summary above the original Thunderbird message"></td>
+    <td width="50%"><img src="site/assets/screenshots/message-translation.png" alt="ThunderClaw displaying a French translation with a control to restore the original message"></td>
+  </tr>
+</table>
+
 ## What it can do
 
 | In the composer | In a received message |
