@@ -197,11 +197,12 @@ the runtime contract across the HTTP boundary. Start with the
 
 ## Project status
 
-ThunderClaw is working toward its first public release candidate. The remaining
-gates include the remaining native lifecycle matrix, remote-HTTPS
-qualification, pairing CLI coverage, and qualification of the exact
-distributable bytes. The
-[roadmap](docs/roadmap.md) is the authoritative list of unfinished work.
+ThunderClaw is ready to cut its first public release candidate. The remaining
+work is to run and approve the protected build-once release workflow, submit
+its exact qualified artifacts to Thunderbird Add-ons and ClawHub, and verify
+the signed and published packages. The [roadmap](docs/roadmap.md) is the
+authoritative list of unfinished work; broader lifecycle matrices remain
+post-release hardening rather than blockers for `v0.1.0`.
 
 Bug reports, documentation improvements, tests, and focused code changes are
 welcome. For substantial behavior, protocol, dependency, or UI changes, please

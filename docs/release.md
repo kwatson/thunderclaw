@@ -185,8 +185,69 @@ platform support is an explicit product decision.
 
 Thunderbird Add-ons and ClawHub require an initial human/bootstrap publication.
 The OpenClaw plugin is packed as an npm-style archive and that exact `.tgz` is
-submitted to ClawHub. The exact qualified `.xpi`, plus the matching reviewer
-source archive when requested, is submitted to Thunderbird Add-ons.
+submitted to ClawHub. The exact qualified `.xpi` and its matching reviewer
+source archive are submitted to Thunderbird Add-ons.
+
+### Thunderbird Add-ons first submission
+
+The initial listing must:
+
+- upload the exact qualified XPI and attach its matching reviewer source
+  archive; the source archive is required because the XPI contains generated
+  bundles, and it must accompany every submitted version;
+- paste the full text of [`privacy-policy.md`](privacy-policy.md) directly into
+  the listing privacy-policy field and include its marked listing summary in
+  the public description;
+- use the dedicated screenshot fields for the approved synthetic screenshots,
+  and keep homepage and support URLs in their dedicated fields rather than the
+  description;
+- list the compose and displayed-message entry points, the separately
+  installed OpenClaw requirement, and the manual Generate/Preview/Apply/Undo
+  control model; and
+- provide private reviewer testing instructions for installing the matching
+  OpenClaw plugin, configuring a compatible agent/provider, pairing, and
+  exercising compose and message actions. Explain that remote endpoints require
+  HTTPS and that unencrypted HTTP is accepted only for canonical `127.0.0.1`
+  or `[::1]` endpoints on the same computer, after explicit permission and
+  pairing with a scoped credential. This documents the narrow loopback design
+  for review without claiming a policy exception that ATN has not published.
+
+If reviewers need credentials, provide only dedicated temporary test
+credentials through ATN's private reviewer field. Never place credentials,
+endpoint secrets, or real mail in public listing text. After signing and
+approval, download the ATN-signed XPI and smoke-test that distributed file.
+
+### ClawHub first publication
+
+ClawHub requires a publisher owner matching the npm package scope. Before
+release, confirm that the publishing account controls the `thunderclaw` owner
+for `@thunderclaw/openclaw-plugin`. Validate the candidate with the current
+ClawHub CLI and dry-run the exact GitHub release `.tgz` with explicit source
+attribution before publishing it:
+
+```bash
+release_tag=v0.1.0
+release_commit=$(git rev-list --max-count=1 "$release_tag")
+plugin_archive=thunderclaw-openclaw-plugin-0.1.0.tgz
+validation_root=$(mktemp -d)
+tar -xzf "$plugin_archive" -C "$validation_root"
+clawhub package validate "$validation_root/package"
+clawhub package publish "$plugin_archive" \
+  --family code-plugin \
+  --owner thunderclaw \
+  --source-repo https://github.com/kwatson/thunderclaw \
+  --source-ref "$release_tag" \
+  --source-commit "$release_commit" \
+  --dry-run
+```
+
+Review the resolved name, version, file count, source tag, and commit. Repeat
+the same command without `--dry-run` to perform the authorized first publish;
+do not allow the CLI to repack a source folder in place of the qualified
+archive. A new release may remain out of normal install surfaces until ClawHub
+finishes its automated security checks and verification. Once visible, install
+it through its public catalog identifier and verify the reported version and
+scan status.
 
 Channel requirements are maintained by
 [ClawHub package publishing](https://docs.openclaw.ai/clawhub/publishing),

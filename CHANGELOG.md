@@ -22,6 +22,9 @@ All notable changes to ThunderClaw are documented in this file.
 - A state-driven Thunderbird connection pane with plain-language status,
   prominent pairing codes, contextual actions, progressive agent details, and
   clearer recovery controls.
+- Explicit consent before pairing, point-of-use email transmission notices,
+  and a complete Thunderbird Add-ons privacy policy describing the exact data
+  sent through the user's OpenClaw Gateway, agent, and model provider.
 - Independent validation and stale-result protection on both sides of the
   extension/plugin boundary, including request identity, generation, target
   and context hashes, output limits, and exact rich-segment identifiers.

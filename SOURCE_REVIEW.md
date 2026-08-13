@@ -9,7 +9,7 @@ generated output, local state, and credentials.
 
 The release build is tested on Debian GNU/Linux 13 (`x86_64`) with:
 
-- Node.js 24.19.0 and its bundled npm 11.7.0;
+- Node.js 24.19.0 and npm 11.17.0;
 - [mise](https://mise.jdx.dev/) to install the pinned Node.js version; and
 - Info-ZIP `zip` 3.0 and `unzip` 6.0.
 
