@@ -14,8 +14,11 @@ provenance and CI artifacts.
    While the workflow is awaiting approval, optionally install its exact XPI
    on an actively used Windows or macOS Thunderbird profile and repeat a short
    Generate, Preview, Apply, and Undo smoke test.
-3. Approve creation of the GitHub release.
-4. Submit the exact GitHub release artifacts to Thunderbird Add-ons and
+3. Capture sanitized screenshots from the exact candidate XPI and prepare the
+   matching Thunderbird Add-ons, ClawHub, README, and website presentation.
+   Use synthetic mail and connection details only.
+4. Approve creation of the GitHub release.
+5. Submit the exact GitHub release artifacts to Thunderbird Add-ons and
    ClawHub for their initial manual publications.
 
 ## Next: publication automation

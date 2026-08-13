@@ -19,6 +19,9 @@ All notable changes to ThunderClaw are documented in this file.
   bounded repair and fallback behavior, and explicit cancellation.
 - User-approved pairing with a scoped ThunderClaw credential, including
   operator CLI administration, rotation, revocation, and recovery paths.
+- A state-driven Thunderbird connection pane with plain-language status,
+  prominent pairing codes, contextual actions, progressive agent details, and
+  clearer recovery controls.
 - Independent validation and stale-result protection on both sides of the
   extension/plugin boundary, including request identity, generation, target
   and context hashes, output limits, and exact rich-segment identifiers.

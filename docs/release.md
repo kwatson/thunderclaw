@@ -136,6 +136,9 @@ on the next release.
 
 - Installation, pairing, compatibility, privacy disclosure, and recovery docs
   match the exact artifacts.
+- Marketplace, README, and website screenshots reflect the accepted XPI and
+  use synthetic mail and connection data. They expose no real endpoint,
+  approval code, device identifier, account detail, or message content.
 - Users are told that relevant email and selected OpenClaw agent context go to
   the configured provider and that installed Gateway hooks are trusted code.
 - Local profile credential custody and residual compromise risk are disclosed.
