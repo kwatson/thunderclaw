@@ -2,6 +2,16 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
+test("ClawHub catalog metadata presents the ThunderClaw brand", async () => {
+  const pluginPackage = JSON.parse(await readFile(new URL("../packages/openclaw-plugin/package.json", import.meta.url), "utf8"));
+  const pluginManifest = JSON.parse(await readFile(new URL("../packages/openclaw-plugin/openclaw.plugin.json", import.meta.url), "utf8"));
+
+  assert.equal(pluginPackage.name, "@thunderclaw/openclaw-plugin");
+  assert.equal(pluginManifest.name, "ThunderClaw");
+  assert.equal(pluginPackage.description, pluginManifest.description);
+  assert.match(pluginManifest.icon, /^https:\/\//u);
+});
+
 test("Thunderbird extension declares compose and message-view boundaries", async () => {
   const manifest = JSON.parse(await readFile(new URL("../packages/thunderbird-extension/src/manifest.json", import.meta.url), "utf8"));
   const repositoryPackage = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));

@@ -2,7 +2,7 @@
   "name": "@thunderclaw/openclaw-plugin",
   "version": "0.1.0",
   "type": "module",
-  "description": "OpenClaw plugin for ThunderClaw",
+  "description": "Secure Thunderbird email transformations with paired-device access",
   "license": "Apache-2.0",
   "files": [
     "assets",
