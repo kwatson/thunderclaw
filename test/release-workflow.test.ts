@@ -51,6 +51,10 @@ test("tag release builds once, qualifies exact bytes, and gates publication", as
   assert.match(workflow, /contents: write/u);
   assert.match(workflow, /id-token: write/u);
   assert.match(workflow, /gh release create/u);
+  assert.match(
+    workflow,
+    /release:\n[\s\S]*?steps:\n\s+- name: Check out tagged source\n\s+uses: actions\/checkout@[a-f0-9]{40}[\s\S]*?persist-credentials: false[\s\S]*?gh release create/u,
+  );
   assert.doesNotMatch(workflow, /npm publish|addons\.mozilla\.org|clawhub/u);
 
   for (const reference of workflow.matchAll(/uses: [^@\n]+@([^\s#]+)/gu)) {
