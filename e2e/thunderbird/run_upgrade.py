@@ -76,8 +76,10 @@ return false;
     return {"optionsUrl": url, "permissionPrompt": prompt}
 
 
-def current_state(client: Marionette) -> str:
-    return str(harness.extension_document(client, "options.html", "text", "#state"))
+def current_phase(client: Marionette) -> str:
+    return str(harness.extension_document(client, "options.html", "dataset", {
+        "selector": "#connection-panel", "name": "phase",
+    }))
 
 
 def run(args: argparse.Namespace) -> dict:
@@ -102,11 +104,11 @@ return ExtensionParent.GlobalManager.extensionMap.get(arguments[0])?.manifest?.v
         harness.open_options(client)
         harness.wait_until("candidate options document", lambda: harness.chrome(
             client, harness.FIND_EXTENSION_DOCUMENT, ["options.html"]))
-        harness.wait_until("candidate startup", lambda: current_state(client) == "Not connected", 30)
+        harness.wait_until("candidate startup", lambda: current_phase(client) == "disconnected", 30)
         paired = harness.configure_connection(
             client,
             server.server_port,
-            initial_states=("Not connected",),
+            initial_phases=("disconnected",),
             open_new_options=False,
         )
 
@@ -118,33 +120,36 @@ return ExtensionParent.GlobalManager.extensionMap.has(arguments[0]);
 """, [harness.EXTENSION_ID]))
         harness.open_options(client)
         harness.wait_until("persisted options", lambda: harness.chrome(client, harness.FIND_EXTENSION_DOCUMENT, ["options.html"]))
-        harness.wait_until("persisted paired credential", lambda: current_state(client) == "Authorized — not yet tested")
+        harness.wait_until("persisted paired credential", lambda: current_phase(client) == "authorized_untested")
         if harness.extension_document(client, "options.html", "click", "#diagnose") is not True:
             raise RuntimeError("post-restart Diagnose was unavailable")
-        harness.wait_until("post-restart ready state", lambda: current_state(client) == "Connected — status and agents tested")
+        harness.wait_until("post-restart ready state", lambda: current_phase(client) == "ready")
         if harness.extension_document(client, "options.html", "click", "#rotate") is not True:
             raise RuntimeError("Rotate was unavailable")
         harness.wait_until("completed credential rotation", lambda: harness.extension_document(
             client, "options.html", "text", "#result"
-        ) == "The device credential was rotated. The replaced credential is no longer retained.")
+        ) == "Credential rotated. The previous credential is no longer retained.")
         if harness.extension_document(client, "options.html", "click", "#disconnect") is not True:
             raise RuntimeError("Disconnect was unavailable")
-        harness.wait_until("disconnected state", lambda: current_state(client) == "Not connected")
+        harness.wait_until("disconnected state", lambda: current_phase(client) == "disconnected")
         repaired = harness.configure_connection(
             client,
             server.server_port,
-            initial_states=("Not connected",),
+            initial_phases=("disconnected",),
             open_new_options=False,
         )
-        if harness.extension_document(client, "options.html", "click", "#forget") is not True:
+        if harness.extension_document(client, "options.html", "confirm-click", "#forget") is not True:
             raise RuntimeError("Forget was unavailable")
-        harness.wait_until("forgotten state", lambda: current_state(client) == "Not configured")
+        harness.wait_until("forgotten state", lambda: current_phase(client) == "not_configured")
+        harness.wait_until("Forget outcome", lambda: harness.extension_document(
+            client, "options.html", "dataset", {"selector": "#result", "name": "kind"}
+        ) in ("success", "error"))
         paths = [entry["path"] for entry in state.requests]
         required = ["/thunderclaw/pairing/v1/requests", "/thunderclaw/pairing/v1/claim",
                     "/thunderclaw/pairing/v1/rotate", "/thunderclaw/pairing/v1/revoke"]
         if any(path not in paths for path in required):
             raise AssertionError("upgrade lifecycle did not exercise every paired route")
-        return {"status": "passed", "legacy": legacy, "migrationState": "Not connected",
+        return {"status": "passed", "legacy": legacy, "migrationPhase": "disconnected",
                 "paired": paired, "restart": True, "rotation": True, "disconnect": True,
                 "repaired": repaired, "forget": True, "pairedRoutes": required}
     finally:

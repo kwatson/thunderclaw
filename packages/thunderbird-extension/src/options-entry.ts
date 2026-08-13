@@ -18,6 +18,9 @@ const stateOutput = requiredElement<HTMLElement>("state");
 const resultOutput = requiredElement<HTMLElement>("result");
 const agentsOutput = requiredElement<HTMLElement>("agents");
 const pairingOutput = requiredElement<HTMLElement>("pairing");
+const stateIndicator = document.getElementById("state-indicator");
+const connectionPanel = document.getElementById("connection-panel");
+const agentsPanel = document.getElementById("agents-panel");
 const port = browser.runtime.connect({ name: OPTIONS_PORT_NAME });
 const pending = new Map<string, { resolve(value: unknown): void; reject(error: Error): void }>();
 let busy = false;
@@ -38,6 +41,92 @@ function requiredElement<T extends HTMLElement>(id: string): T {
   const element = document.getElementById(id);
   if (!element) throw new Error(`Missing options element: ${id}`);
   return element as T;
+}
+
+function focusElement(element: HTMLElement): void {
+  if (typeof element.focus === "function") element.focus();
+}
+
+function scheduleFocus(element: HTMLElement): void {
+  globalThis.setTimeout(() => focusElement(element), 0);
+}
+
+function setAttribute(element: HTMLElement | null, name: string, value: string): void {
+  if (element && typeof element.setAttribute === "function") element.setAttribute(name, value);
+}
+
+function setResult(message: string, kind: "info" | "success" | "error" = "info"): void {
+  setAttribute(resultOutput, "role", kind === "error" ? "alert" : "status");
+  setAttribute(resultOutput, "aria-live", kind === "error" ? "assertive" : "polite");
+  resultOutput.dataset.state = kind;
+  resultOutput.dataset.kind = kind;
+  resultOutput.textContent = message;
+  if (kind === "error") scheduleFocus(resultOutput);
+}
+
+function formatExpiry(value: unknown): string {
+  if (typeof value !== "string") return "This code expires soon.";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "This code expires soon.";
+  return `Expires ${new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(parsed)}.`;
+}
+
+function renderPairing(state: Record<string, unknown>): void {
+  if (typeof state.approvalCode === "string") {
+    const heading = document.createElement("h3");
+    heading.tabIndex = -1;
+    heading.textContent = "Approve this pairing code in OpenClaw";
+    const instructions = document.createElement("ol");
+    instructions.className = "pairing-instructions";
+    const openManager = document.createElement("li");
+    openManager.textContent = "Ask the OpenClaw host operator to open the ThunderClaw manager using the installation's OpenClaw CLI.";
+    const approveCode = document.createElement("li");
+    approveCode.textContent = "Select this Thunderbird and approve this exact code:";
+    instructions.append(openManager, approveCode);
+    const codeRow = document.createElement("div");
+    codeRow.className = "pairing-code-row";
+    const code = document.createElement("p");
+    code.className = "pairing-code";
+    code.textContent = state.approvalCode;
+    const copy = document.createElement("button");
+    copy.type = "button";
+    copy.className = "secondary copy-code";
+    copy.dataset.action = "copy-pairing-code";
+    copy.textContent = "Copy code";
+    copy.addEventListener("click", () => {
+      let write: Promise<void> | undefined;
+      try {
+        write = navigator.clipboard?.writeText(String(state.approvalCode));
+      } catch {
+        setResult("The pairing code could not be copied automatically. Select and copy the code instead.", "error");
+        return;
+      }
+      if (!write) {
+        setResult("The pairing code could not be copied automatically. Select and copy the code instead.", "error");
+        return;
+      }
+      void write.then(() => {
+        copy.textContent = "Copied";
+        setResult("Pairing code copied.", "success");
+      }).catch(() => {
+        setResult("The pairing code could not be copied automatically. Select and copy the code instead.", "error");
+      });
+    });
+    const expiry = document.createElement("p");
+    expiry.className = "pairing-expiry";
+    expiry.textContent = `${formatExpiry(state.pairingExpiresAt)} After approval, return here and select Finish pairing.`;
+    codeRow.append(code, copy);
+    pairingOutput.replaceChildren(heading, instructions, codeRow, expiry);
+    return;
+  }
+  if (state.remoteCredentialPossiblyActive === true) {
+    const recovery = document.createElement("p");
+    recovery.className = "pairing-recovery";
+    recovery.textContent = "A device credential may still be active remotely. Retry the recovery action or use Forget connection, then verify revocation in OpenClaw administration.";
+    pairingOutput.replaceChildren(recovery);
+    return;
+  }
+  pairingOutput.replaceChildren();
 }
 
 function localMessage(error: unknown): string {
@@ -100,25 +189,28 @@ function renderState(value: unknown): void {
   const cleanupRequired = state.cleanupRequired === true;
   const phase = state.phase;
   stateOutput.textContent = cleanupRequired
-    ? "Permission cleanup required — retry Disconnect or revoke host access in Add-ons Manager"
+    ? "Permission cleanup needed — try disconnecting again or remove ThunderClaw access in Add-ons Manager"
     : phase === "ready"
-    ? "Connected — status and agents tested"
-    : phase === "awaiting_approval" ? "Pairing request awaiting OpenClaw operator approval"
+    ? "Connected — ThunderClaw can reach OpenClaw"
+    : phase === "awaiting_approval" ? "Approval needed — approve the code in OpenClaw"
       : phase === "pairing_expired" ? "Pairing request expired"
-      : phase === "rotation_ambiguous" ? "Credential rotation outcome uncertain — features are disabled"
-      : phase === "disconnect_ambiguous" ? "Remote revocation outcome uncertain — features are disabled"
-      : phase === "credential_expired" ? "Device credential expired — Disconnect, then pair again"
-      : phase === "credential_revoked" ? "Device credential was revoked — Disconnect, then pair again"
+      : phase === "rotation_ambiguous" ? "Connection paused — credential replacement could not be confirmed"
+      : phase === "disconnect_ambiguous" ? "Connection paused — remote disconnection could not be confirmed"
+      : phase === "credential_expired" ? "Connection expired — disconnect, then pair again"
+      : phase === "credential_revoked" ? "Connection revoked — disconnect, then pair again"
     : phase === "authorized_untested"
-      ? "Authorized — not yet tested"
-      : configured || granted ? "Not connected" : "Not configured";
-  stateOutput.dataset.state = phase === "ready" ? "connected" : "disconnected";
+      ? "Almost done — test the connection to load your agents"
+      : "Not connected";
+  const visualState = phase === "ready" ? "connected"
+    : cleanupRequired || ["awaiting_approval", "pairing_expired", "rotation_ambiguous", "disconnect_ambiguous", "credential_expired", "credential_revoked"].includes(String(phase))
+      ? "attention" : "disconnected";
+  stateOutput.dataset.state = visualState;
+  if (stateIndicator) stateIndicator.dataset.state = visualState;
+  if (connectionPanel) connectionPanel.dataset.phase = String(phase ?? "unknown");
+  if (agentsPanel) agentsPanel.hidden = !["authorized_untested", "ready"].includes(String(phase));
+  if (document.documentElement) document.documentElement.dataset.phase = String(phase ?? "unknown");
   if (typeof state.apiBase === "string") endpointInput.value = state.apiBase;
-  pairingOutput.textContent = typeof state.approvalCode === "string"
-    ? `Approval code: ${state.approvalCode}. Ask the OpenClaw host operator to open the ThunderClaw manager using the installation's OpenClaw CLI and approve this exact code. Then return here and select Claim approved pairing. Expires ${String(state.pairingExpiresAt)}.`
-    : state.remoteCredentialPossiblyActive === true
-      ? "A device credential may still be active remotely. Retry the recovery action or use Forget, then verify revocation in OpenClaw administration."
-      : "";
+  renderPairing(state);
   updateControls();
 }
 
@@ -128,7 +220,11 @@ function updateControls(): void {
   const cleanupRequired = lastState.cleanupRequired === true;
   const phase = lastState.phase;
   const unavailable = busy || verification !== null;
-  endpointInput.disabled = unavailable;
+  setAttribute(connectionPanel, "aria-busy", String(busy));
+  setAttribute(agentsOutput, "aria-busy", String(unavailable));
+  const pairingActive = phase === "awaiting_approval" || phase === "pairing_expired";
+  endpointInput.disabled = busy;
+  endpointInput.readOnly = configured || granted || pairingActive;
   normalizeButton.disabled = unavailable;
   pairButton.disabled = unavailable || cleanupRequired || !["not_configured", "disconnected"].includes(String(phase));
   claimButton.disabled = unavailable || phase !== "awaiting_approval";
@@ -137,10 +233,18 @@ function updateControls(): void {
   rotateButton.disabled = unavailable || !["authorized_untested", "ready", "rotation_ambiguous"].includes(String(phase));
   disconnectButton.disabled = unavailable || (!configured && !granted && !cleanupRequired);
   forgetButton.disabled = unavailable || !configured;
+  pairButton.hidden = !["not_configured", "disconnected"].includes(String(phase));
+  claimButton.hidden = phase !== "awaiting_approval";
+  cancelPairingButton.hidden = phase !== "awaiting_approval" && phase !== "pairing_expired";
+  diagnoseButton.hidden = phase !== "authorized_untested" && phase !== "ready";
+  diagnoseButton.textContent = phase === "ready" ? "Test again" : "Test connection";
+  diagnoseButton.className = phase === "ready" ? "secondary" : "";
 }
 
 function setBusy(value: boolean): void {
   busy = value;
+  setAttribute(connectionPanel, "aria-busy", String(value));
+  setAttribute(agentsOutput, "aria-busy", String(value || verification !== null));
   updateControls();
 }
 
@@ -202,7 +306,9 @@ function renderAgents(values: unknown[]): void {
     }
     const tested = document.createElement("p");
     tested.className = "agent-tested";
-    tested.textContent = lastProbe && typeof lastProbe.testedAt === "string" ? `Last tested: ${lastProbe.testedAt}` : "Last tested: Never";
+    tested.textContent = lastProbe && typeof lastProbe.testedAt === "string"
+      ? `Last tested: ${new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(lastProbe.testedAt))}`
+      : "Last tested: Never";
     const reason = document.createElement("p");
     reason.className = "agent-reason";
     reason.textContent = typeof compatibility.reason === "string" ? compatibility.reason : "Compatibility evidence is unavailable.";
@@ -212,6 +318,8 @@ function renderAgents(values: unknown[]): void {
     verify.type = "button";
     verify.textContent = compatibility.state === "unverified" ? "Verify agent" : "Retry verification";
     const agentId = typeof agent.agentId === "string" ? agent.agentId : "";
+    card.dataset.agentId = agentId;
+    verify.dataset.action = "verify-agent";
     verify.disabled = verification !== null || agentId.length === 0;
     verify.addEventListener("click", () => {
       if (verification !== null || generation !== agentRenderGeneration) return;
@@ -226,6 +334,7 @@ function renderAgents(values: unknown[]): void {
       const cancel = document.createElement("button");
       cancel.type = "button";
       cancel.className = "secondary";
+      cancel.dataset.action = "cancel-agent-verification";
       cancel.textContent = "Cancel verification";
       actions.replaceChildren(cancel);
       card.append(progress);
@@ -239,8 +348,7 @@ function renderAgents(values: unknown[]): void {
           const record = typeof response === "object" && response !== null ? response as Record<string, unknown> : {};
           verification = null;
           renderAgents(Array.isArray(record.agents) ? record.agents : lastAgents);
-          resultOutput.textContent = "Agent verification was cancelled.";
-          resultOutput.dataset.state = "info";
+          setResult("Agent verification was cancelled.");
         }).catch((error) => {
           if (verification !== settlement) return;
           settlement.phase = "cancel_failed";
@@ -265,8 +373,7 @@ function renderAgents(values: unknown[]): void {
         const record = typeof response === "object" && response !== null ? response as Record<string, unknown> : {};
         verification = null;
         renderAgents(Array.isArray(record.agents) ? record.agents : lastAgents);
-        resultOutput.textContent = "Agent verification finished. Compatibility evidence was refreshed.";
-        resultOutput.dataset.state = "success";
+        setResult("Agent verification finished. Compatibility evidence was refreshed.", "success");
       }).catch((error) => {
         if (verification !== settlement) return;
         if (settlement.phase === "cancelling") {
@@ -285,8 +392,13 @@ function renderAgents(values: unknown[]): void {
         updateControls();
       });
     });
+    const details = document.createElement("details");
+    details.className = "verification-details";
+    const detailsSummary = document.createElement("summary");
+    detailsSummary.textContent = "Verification details";
+    details.append(detailsSummary, list, tested, reason);
     actions.append(verify);
-    card.append(heading, model, state, list, tested, reason, actions);
+    card.append(heading, model, state, details, actions);
     cards.push(card);
   }
   if (cards.length === 0) {
@@ -303,12 +415,13 @@ function renderDiagnostics(value: unknown): void {
   const heading = document.createElement("p");
   heading.textContent = `ThunderClaw protocol ${String(status.protocolVersion ?? "?")} · Gateway ${String(status.gatewayVersion ?? "unknown")}`;
   resultOutput.replaceChildren(heading);
+  resultOutput.dataset.state = "success";
+  resultOutput.dataset.kind = "success";
   renderAgents(agents);
 }
 
 function showError(error: unknown): void {
-  resultOutput.textContent = localMessage(error);
-  resultOutput.dataset.state = "error";
+  setResult(localMessage(error), "error");
 }
 
 function indeterminateVerificationError(error: unknown): boolean {
@@ -326,16 +439,26 @@ function terminalizeAfterCancelFailure(settlement: VerificationSettlement, outco
   return true;
 }
 
-normalizeButton.addEventListener("click", () => {
-  if (busy) return;
+function normalizeEndpoint(announce: boolean): boolean {
+  if (busy) return false;
   try {
     const endpoint = canonicalizeApiBase(endpointInput.value);
     endpointInput.value = endpoint.apiBase;
-    resultOutput.textContent = `Thunderbird will be asked to grant ${endpoint.permissionPattern}. The grant covers every port and path on that hostname.`;
-    resultOutput.dataset.state = "info";
+    if (announce) setResult(`Thunderbird will be asked to grant ${endpoint.permissionPattern}. The grant covers every port and path on that hostname.`);
+    return true;
   } catch (error) {
-    showError(error);
+    if (announce) showError(error);
+    else setResult(localMessage(error), "error");
+    return false;
   }
+}
+
+normalizeButton.addEventListener("click", () => {
+  normalizeEndpoint(true);
+});
+
+endpointInput.addEventListener("blur", () => {
+  if (endpointInput.value.trim().length > 0 && !endpointInput.readOnly) normalizeEndpoint(false);
 });
 
 pairButton.addEventListener("click", () => {
@@ -343,6 +466,7 @@ pairButton.addEventListener("click", () => {
   let endpoint;
   try {
     endpoint = canonicalizeApiBase(endpointInput.value);
+    endpointInput.value = endpoint.apiBase;
   } catch (error) {
     showError(error);
     return;
@@ -370,8 +494,9 @@ pairButton.addEventListener("click", () => {
       throw error;
     }
     renderState(value);
-    resultOutput.textContent = "Pairing request created. Ask the OpenClaw host operator to open the ThunderClaw manager using the installation's OpenClaw CLI and approve the displayed code. Then return here and select Claim approved pairing.";
-    resultOutput.dataset.state = "success";
+    setResult("Pairing request created. Approve the displayed code in OpenClaw, then finish pairing here.", "success");
+    const firstPairingElement = pairingOutput.children[0];
+    if (firstPairingElement) scheduleFocus(firstPairingElement as HTMLElement);
   }).catch(async (error) => {
     showError(error);
     try { renderState(await request("state")); } catch { /* Preserve the claim error. */ }
@@ -381,10 +506,11 @@ pairButton.addEventListener("click", () => {
 claimButton.addEventListener("click", () => {
   if (busy) return;
   setBusy(true);
+  setResult("Finishing pairing…");
   void request("claimPairing").then((value) => {
     renderState(value);
-    resultOutput.textContent = "Pairing claimed. The per-device credential is held only by the ThunderClaw background context.";
-    resultOutput.dataset.state = "success";
+    setResult("Pairing complete. Test the connection to load your available agents.", "success");
+    scheduleFocus(stateOutput);
   }).catch(async (error) => {
     showError(error);
     try { renderState(await request("state")); } catch { /* Preserve the claim error. */ }
@@ -394,19 +520,21 @@ claimButton.addEventListener("click", () => {
 cancelPairingButton.addEventListener("click", () => {
   if (busy) return;
   setBusy(true);
+  setResult("Cancelling pairing…");
   void request("cancelPairing").then((value) => {
     renderState(value);
-    resultOutput.textContent = "The pending pairing request was cancelled locally.";
+    setResult("The pending pairing request was cancelled locally.");
+    scheduleFocus(endpointInput);
   }).catch(showError).finally(() => setBusy(false));
 });
 
 rotateButton.addEventListener("click", () => {
   if (busy) return;
   setBusy(true);
+  setResult("Replacing the connection credential…");
   void request("rotateCredential").then((value) => {
     renderState(value);
-    resultOutput.textContent = "The device credential was rotated. The replaced credential is no longer retained.";
-    resultOutput.dataset.state = "success";
+    setResult("Credential rotated. The previous credential is no longer retained.", "success");
   }).catch(async (error) => {
     showError(error);
     try { renderState(await request("state")); } catch { /* Preserve the rotation error. */ }
@@ -416,7 +544,7 @@ rotateButton.addEventListener("click", () => {
 diagnoseButton.addEventListener("click", () => {
   if (busy) return;
   setBusy(true);
-  resultOutput.textContent = "Testing the configured connection…";
+  setResult("Testing the configured connection…");
   void request("diagnose").then(async (value) => {
     renderDiagnostics(value);
     renderState(await request("state"));
@@ -435,9 +563,11 @@ diagnoseButton.addEventListener("click", () => {
 disconnectButton.addEventListener("click", () => {
   if (busy) return;
   setBusy(true);
+  setResult("Disconnecting this Thunderbird from OpenClaw…");
   void request("disconnect").then((value) => {
     renderState(value);
-    resultOutput.textContent = "Disconnected. Remote device revocation was confirmed before local custody and hostname permission were removed.";
+    setResult("Disconnected. OpenClaw confirmed revocation before Thunderbird removed its local credential and host permission.", "success");
+    scheduleFocus(endpointInput);
   }).catch(async (error) => {
     showError(error);
     try { renderState(await request("state")); } catch { /* Preserve the disconnect error. */ }
@@ -446,14 +576,19 @@ disconnectButton.addEventListener("click", () => {
 
 forgetButton.addEventListener("click", () => {
   if (busy) return;
+  const confirmed = globalThis.confirm("Forget this connection on Thunderbird?\n\nUse this only if OpenClaw cannot be reached. Remote access may remain active and may need to be revoked in OpenClaw administration.");
+  if (!confirmed) return;
   setBusy(true);
+  setResult("Removing the local connection…");
   void request("forget").then((value) => {
     endpointInput.value = "";
     renderState(value);
     const state = typeof value === "object" && value !== null ? value as Record<string, unknown> : {};
-    resultOutput.textContent = state.forgetRemoteRevocation === "confirmed"
+    setResult(state.forgetRemoteRevocation === "confirmed"
       ? "Connection settings, device credential, and hostname permission were forgotten after confirmed remote revocation."
-      : "Local connection settings and device credential were forgotten, but remote revocation could not be confirmed. Revoke this device in OpenClaw administration.";
+      : "Local connection settings and device credential were forgotten, but remote revocation could not be confirmed. Revoke this device in OpenClaw administration.",
+      state.forgetRemoteRevocation === "confirmed" ? "success" : "error");
+    if (state.forgetRemoteRevocation === "confirmed") scheduleFocus(endpointInput);
   }).catch(showError).finally(() => setBusy(false));
 });
 

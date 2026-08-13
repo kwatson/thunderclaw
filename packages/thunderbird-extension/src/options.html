@@ -8,45 +8,79 @@
 </head>
 <body>
   <main>
-    <h1>ThunderClaw connection</h1>
-    <p class="intro">Connect Thunderbird directly to the ThunderClaw plugin on your OpenClaw host.</p>
+    <header class="page-header">
+      <p class="eyebrow">ThunderClaw</p>
+      <h1>Connect to OpenClaw</h1>
+      <p class="intro">Use your OpenClaw agents to help with email in Thunderbird.</p>
+    </header>
 
-    <section aria-labelledby="connection-heading">
-      <h2 id="connection-heading">OpenClaw endpoint</h2>
-      <label for="endpoint">API endpoint</label>
-      <div class="input-row">
-        <input id="endpoint" type="url" inputmode="url" autocomplete="off" spellcheck="false" placeholder="https://openclaw.example/thunderclaw/v1">
-        <button id="normalize" type="button" class="secondary">Normalize</button>
+    <section id="connection-panel" class="panel" aria-labelledby="connection-heading">
+      <div class="status-header">
+        <div>
+          <h2 id="connection-heading">Connection</h2>
+          <p id="state" class="connection-state" role="status" aria-live="polite" aria-atomic="true" tabindex="-1">Checking connection…</p>
+        </div>
+        <span id="state-indicator" class="state-indicator" aria-hidden="true"></span>
       </div>
-      <p class="help">HTTPS is required except for explicit <code>127.0.0.1</code> or <code>[::1]</code> loopback endpoints.</p>
 
-      <p class="disclosure">Pair asks Thunderbird to grant only the configured scheme and hostname. Thunderbird’s grant necessarily covers every port and path on that hostname. The installed add-on declares the ability to request other HTTPS hosts later, but ThunderClaw confines its requests to this endpoint and fixed pairing and product routes.</p>
-
-      <div class="actions">
-        <button id="pair" type="button">Pair this Thunderbird</button>
-        <button id="claim" type="button" class="secondary" disabled>Claim approved pairing</button>
-        <button id="cancel-pairing" type="button" class="secondary" disabled>Cancel pairing</button>
-        <button id="diagnose" type="button" class="secondary" disabled>Test connection</button>
-        <button id="rotate" type="button" class="secondary" disabled>Rotate credential</button>
+      <div class="endpoint-field">
+        <label for="endpoint">OpenClaw endpoint</label>
+        <input id="endpoint" type="url" inputmode="url" autocomplete="off" spellcheck="false" placeholder="https://openclaw.example/thunderclaw/v1" aria-describedby="endpoint-help">
+        <p id="endpoint-help" class="help">Enter the ThunderClaw endpoint shown by your OpenClaw installation. HTTPS is required except for explicit <code>127.0.0.1</code> or <code>[::1]</code> loopback endpoints.</p>
+        <!-- Retained as a hidden compatibility target; endpoints normalize automatically. -->
+        <button id="normalize" type="button" hidden aria-hidden="true" tabindex="-1">Normalize</button>
       </div>
-      <div id="pairing" aria-live="polite"></div>
+
+      <div id="pairing" class="pairing-card"></div>
+
+      <div class="primary-actions">
+        <button id="pair" type="button" data-action="pair">Start pairing</button>
+        <button id="claim" type="button" data-action="claim" disabled>Finish pairing</button>
+        <button id="cancel-pairing" type="button" class="secondary" data-action="cancel-pairing" disabled>Cancel pairing</button>
+        <button id="diagnose" type="button" data-action="diagnose" disabled>Test connection</button>
+      </div>
+
+      <div id="result" class="notice" role="status" aria-live="polite" aria-atomic="true" tabindex="-1"></div>
     </section>
 
-    <section aria-labelledby="status-heading">
-      <h2 id="status-heading">Connection status</h2>
-      <p id="state" role="status">Loading…</p>
-      <div id="result" aria-live="polite"></div>
-      <div class="actions danger-actions">
-        <button id="disconnect" type="button" class="secondary" disabled>Disconnect</button>
-        <button id="forget" type="button" class="danger" disabled>Forget connection</button>
+    <section id="agents-panel" class="panel" aria-labelledby="agents-heading">
+      <div class="section-heading">
+        <div>
+          <h2 id="agents-heading">Your agents</h2>
+          <p class="section-intro">Agents available to ThunderClaw appear after the connection is tested.</p>
+        </div>
       </div>
+      <div id="agents"><p class="empty-state">Test the connection to load your agents.</p></div>
+      <p class="verification-disclosure">Verifying an agent makes up to two synthetic model calls through its configured provider and may incur provider charges. Verification does not send or use email content.</p>
     </section>
 
-    <section aria-labelledby="agents-heading">
-      <h2 id="agents-heading">Configured agents</h2>
-      <p class="disclosure">Verifying an agent makes up to two synthetic model calls through its configured provider and may incur provider charges. Verification does not send or use email content.</p>
-      <div id="agents" aria-live="polite"><p>Test the connection to load configured agents.</p></div>
-    </section>
+    <details id="advanced-panel" class="panel advanced-panel">
+      <summary>
+        <span>Advanced settings</span>
+        <span class="summary-help">Permissions, credentials, and recovery</span>
+      </summary>
+      <div class="advanced-content">
+        <section aria-labelledby="permission-heading">
+          <h2 id="permission-heading">Host permission</h2>
+          <p class="disclosure">Pairing asks Thunderbird to grant access only to the configured scheme and hostname. Thunderbird’s grant covers every port and path on that hostname, while ThunderClaw confines its requests to this endpoint and its fixed routes.</p>
+        </section>
+
+        <section aria-labelledby="credential-heading">
+          <h2 id="credential-heading">Connection credential</h2>
+          <p class="help">If you suspect this device’s credential has been exposed, replace it without pairing again.</p>
+          <button id="rotate" type="button" class="secondary" data-action="rotate" disabled>Rotate credential</button>
+        </section>
+
+        <section class="danger-zone" aria-labelledby="disconnect-heading">
+          <h2 id="disconnect-heading">Disconnect or reset</h2>
+          <p class="help"><strong>Disconnect</strong> confirms remote revocation before removing local access. Use <strong>Forget connection</strong> only for recovery when OpenClaw cannot be reached.</p>
+          <div class="actions danger-actions">
+            <button id="disconnect" type="button" class="secondary" data-action="disconnect" disabled>Disconnect</button>
+            <button id="forget" type="button" class="danger" data-action="forget" disabled>Forget connection…</button>
+          </div>
+        </section>
+      </div>
+    </details>
   </main>
   <script src="options.js"></script>
 </body>

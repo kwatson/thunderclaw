@@ -136,10 +136,23 @@ while (windows.hasMoreElements()) {
       if (action === "html") return document.querySelector(value)?.innerHTML ?? null;
       if (action === "value") return document.querySelector(value)?.value ?? null;
       if (action === "hidden") return document.querySelector(value)?.hidden ?? null;
+      if (action === "dataset") {
+        const element = document.querySelector(value.selector);
+        return element?.dataset?.[value.name] ?? null;
+      }
       if (action === "click") {
         const element = document.querySelector(value);
         if (!element) return false;
         element.click();
+        return true;
+      }
+      if (action === "confirm-click") {
+        const element = document.querySelector(value);
+        if (!element) return false;
+        const original = document.defaultView.confirm;
+        document.defaultView.confirm = () => true;
+        try { element.click(); }
+        finally { document.defaultView.confirm = original; }
         return true;
       }
       if (action === "close") {
@@ -214,14 +227,16 @@ def configure_connection(
     client: Marionette,
     port: int,
     *,
-    initial_states: tuple[str, ...] = ("Not configured",),
+    initial_phases: tuple[str, ...] = ("not_configured",),
     open_new_options: bool = True,
 ) -> dict[str, Any]:
     url = open_options(client) if open_new_options else "already-open options document"
     wait_until("ThunderClaw options document", lambda: chrome(client, FIND_EXTENSION_DOCUMENT, ["options.html"]))
     wait_until(
-        "initial ThunderClaw options state",
-        lambda: extension_document(client, "options.html", "text", "#state") in initial_states,
+        "initial ThunderClaw options phase",
+        lambda: extension_document(client, "options.html", "dataset", {
+            "selector": "#connection-panel", "name": "phase",
+        }) in initial_phases,
     )
     configured = extension_document(client, "options.html", "pair", {
         "endpoint": f"http://127.0.0.1:{port}/thunderclaw/v1",
@@ -230,18 +245,20 @@ def configure_connection(
         raise RuntimeError(f"Could not configure extension options at {url}")
     prompt = accept_permission_prompt(client)
     wait_until("pairing request", lambda: extension_document(
-        client, "options.html", "text", "#state"
-    ) == "Pairing request awaiting OpenClaw operator approval")
+        client, "options.html", "dataset", {"selector": "#connection-panel", "name": "phase"}
+    ) == "awaiting_approval")
     if extension_document(client, "options.html", "click", "#claim") is not True:
         raise RuntimeError("Claim approved pairing button was not available")
     wait_until("authorized extension state", lambda: extension_document(
-        client, "options.html", "text", "#state"
-    ) == "Authorized — not yet tested")
+        client, "options.html", "dataset", {"selector": "#connection-panel", "name": "phase"}
+    ) == "authorized_untested")
     if extension_document(client, "options.html", "click", "#diagnose") is not True:
         raise RuntimeError("Test connection button was not available")
     wait_until(
         "ready extension state",
-        lambda: extension_document(client, "options.html", "text", "#state") == "Connected — status and agents tested",
+        lambda: extension_document(client, "options.html", "dataset", {
+            "selector": "#connection-panel", "name": "phase",
+        }) == "ready",
     )
     return {"optionsUrl": url, "permissionPrompt": prompt}
 
