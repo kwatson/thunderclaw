@@ -37,12 +37,25 @@ container_args=(
 )
 
 cd "${repository_root}"
-candidate=$(mise exec -- node scripts/package-openclaw-plugin.mjs | tail -n 1)
-case "${candidate}" in
-  "${repository_root}"/build/*.tgz) ;;
-  *) printf '%s\n' "Plugin packager reported an unsafe archive path" >&2; exit 1 ;;
-esac
-test -f "${candidate}"
+if [[ -v THUNDERCLAW_OPENCLAW_PLUGIN_TGZ ]]; then
+  if [[ -z "${THUNDERCLAW_OPENCLAW_PLUGIN_TGZ}" ]]; then
+    printf '%s\n' "THUNDERCLAW_OPENCLAW_PLUGIN_TGZ must name an existing candidate archive" >&2
+    exit 2
+  fi
+  candidate=${THUNDERCLAW_OPENCLAW_PLUGIN_TGZ}
+else
+  candidate=$(mise exec -- node scripts/package-openclaw-plugin.mjs | tail -n 1)
+fi
+mise exec -- node scripts/validate-candidate-artifact.mjs plugin-tgz "${candidate}"
+staged_candidate="${temporary_root}/thunderclaw-openclaw-plugin.tgz"
+cp "${candidate}" "${staged_candidate}"
+chmod 0644 "${staged_candidate}"
+mise exec -- node scripts/validate-candidate-artifact.mjs plugin-tgz "${staged_candidate}"
+cmp -s "${candidate}" "${staged_candidate}" || {
+  printf '%s\n' "Staged plugin bytes differ from the validated candidate" >&2
+  exit 1
+}
+container_args+=(--mount "type=bind,src=${staged_candidate},dst=/workspace/thunderclaw-candidate.tgz,readonly")
 
 docker run --rm "${container_args[@]}" "${gateway_image}" \
   node openclaw.mjs onboard \
@@ -66,7 +79,7 @@ docker run --rm "${container_args[@]}" "${gateway_image}" \
 
 docker run --rm "${container_args[@]}" "${gateway_image}" \
   node openclaw.mjs plugins install --force \
-    "npm-pack:/workspace/thunderclaw/build/$(basename "${candidate}")"
+    "npm-pack:/workspace/thunderclaw-candidate.tgz"
 
 docker run --rm "${container_args[@]}" "${gateway_image}" \
   node openclaw.mjs config set plugins.entries.thunderclaw.enabled true --strict-json

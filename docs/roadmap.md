@@ -26,9 +26,9 @@ Remaining production gates:
 
 ## Next: publication automation
 
-1. Configure the public repository with protected branches, secretless CI,
-   dependency and security automation, documentation checks, and build-once
-   artifact promotion.
+1. Complete public-repository protected-branch setup, dependency and security
+   automation, and documentation checks. Tag-triggered build-once GitHub
+   release promotion and its protected approval environment are implemented.
 2. Promote the tracked real-agent qualification tooling into protected
    pre-release CI, and re-enable hosted macOS real-Thunderbird automation after
    Thunderbird 154.
