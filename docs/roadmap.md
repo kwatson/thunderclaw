@@ -6,23 +6,17 @@ This file contains unfinished work only. Current behavior belongs in the
 product and architecture documents; completed test results belong in release
 provenance and CI artifacts.
 
-## Now: accept the first public release candidate
+## Now: publish the first public release
 
-Remaining production gates:
-
-1. Complete the remaining native Thunderbird release matrix: same-profile
-   upgrade/restart, optional host permission, credential rotation and
-   revocation, Disconnect/Forget, compose, and message behavior on Windows and
-   macOS.
-2. Complete the compose/message and credential-lifecycle matrix through
-   the supported remote HTTPS endpoint, including certificate failures and
-   ambiguous network outcomes.
-3. Complete direct-shell, Docker TTY/non-TTY, and supported SSH qualification
-   of the guided pairing CLI and approve/deny/revoke/`--code-stdin` journeys.
-4. Produce the exact release-candidate XPI, plugin package, and Mozilla reviewer
-   source archive, plus provenance, hashes, secret scans, and the final
-   acceptance record described in
-   [`release.md`](release.md).
+1. Push the `v0.1.0` tag and let the protected release workflow build and
+   qualify the exact XPI, plugin package, and Mozilla reviewer source archive.
+2. Review the completed qualification jobs and their hashes and provenance.
+   While the workflow is awaiting approval, optionally install its exact XPI
+   on an actively used Windows or macOS Thunderbird profile and repeat a short
+   Generate, Preview, Apply, and Undo smoke test.
+3. Approve creation of the GitHub release.
+4. Submit the exact GitHub release artifacts to Thunderbird Add-ons and
+   ClawHub for their initial manual publications.
 
 ## Next: publication automation
 
@@ -39,6 +33,15 @@ Remaining production gates:
 
 ## Later
 
+- Expand repeatable native Thunderbird lifecycle coverage on Windows and
+  macOS, including same-profile upgrade/restart, optional host permission,
+  credential rotation and revocation, Disconnect/Forget, compose, and message
+  behavior. The accepted `v0.1.0` XPI becomes the immutable upgrade baseline
+  for the next release.
+- Expand the remote HTTPS matrix to cover compose/message and credential
+  lifecycle behavior, certificate failures, and ambiguous network outcomes.
+- Expand guided pairing CLI qualification across direct shell, Docker
+  TTY/non-TTY, and supported SSH approve/deny/revoke/`--code-stdin` journeys.
 - Qualify newer OpenClaw releases without weakening the three-control embedded
   execution boundary. “Newer” remains unsupported until the matrix passes.
 - Add a default-process-isolation Thunderbird browser-chrome or WebDriver BiDi

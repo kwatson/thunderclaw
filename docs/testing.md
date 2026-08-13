@@ -10,11 +10,11 @@ ThunderClaw uses four complementary layers:
    loopback backend.
 3. Pinned OpenClaw and real configured-agent qualification using synthetic
    accounts/content and exact artifacts.
-4. Cross-platform release acceptance for Windows, macOS, and Linux
-   profile/filesystem behavior, remote HTTPS, upgrade, and publication
-   artifacts.
+4. Risk-based release acceptance combining exact-artifact automation with
+   bounded native-platform checks and practical maintainer smoke use.
 
-Passing a lower layer does not substitute for a higher layer.
+Each layer records a different kind of evidence. The release policy defines
+which checks block a release and which broader matrices remain hardening work.
 
 ## Standard checks
 
@@ -68,12 +68,10 @@ rejection. Run it on either native platform with:
 mise exec -- npm run qualify:native-filesystem
 ```
 
-A green hosted trial is evidence for that bounded gate, not proof of the full
-Thunderbird/OpenClaw release matrix. Both hosted native-filesystem/security
-lanes and the Windows Thunderbird 153 compose trial are established. Move a
-lane to a dedicated ephemeral self-hosted worker only if a documented
-hosted-runner limitation prevents a
-required native behavior from being exercised. Exact-artifact real-agent
+A green hosted trial is evidence for that bounded gate, not proof of every
+Thunderbird/OpenClaw lifecycle path. Both hosted native-filesystem/security
+lanes and the Windows Thunderbird 153 compose trial are established. Broader
+native lifecycle automation is post-release hardening. Exact-artifact real-agent
 qualification runs only in a protected environment with a configured verified
 agent; it must never run for fork pull requests or expose credentials or
 retained evidence to untrusted jobs. The Thunderbird upgrade lane also remains
@@ -93,7 +91,7 @@ evidence, while the hosted macOS compose lane remains a repeatability
 improvement to revisit after Thunderbird 154 is released with its packaging
 fix.
 
-Before a release candidate:
+For an optional local preflight before tagging:
 
 ```text
 mise exec -- npm test
@@ -101,13 +99,18 @@ mise exec -- npm run typecheck
 mise exec -- npm run build:extension
 mise exec -- npm run pack:plugin
 mise exec -- npm run pack:source
-mise exec -- npm run test:e2e:thunderbird
-mise exec -- npm run test:e2e:thunderbird:upgrade
-mise exec -- npm run qualify:pairing -- --no-install
-mise exec -- npm run qualify:pairing:recovery
 ```
 
-Run exact-artifact real-agent qualification only in the protected environment:
+The protected tag workflow is the authoritative release gate and repeats its
+checks against the artifacts it builds once. While it waits for approval, the
+maintainer may optionally install the workflow's exact XPI on an actively used
+Windows or macOS Thunderbird profile and repeat a short Generate, Preview,
+Apply, and Undo smoke test. The accepted `v0.1.0` XPI becomes the upgrade
+baseline for the next release.
+
+Run broader Thunderbird upgrade, pairing recovery, or exact-artifact real-agent
+qualification when a change or investigation calls for it. Real-agent
+qualification belongs only in the protected environment:
 
 ```text
 mise exec -- npm run qualify:real-agent

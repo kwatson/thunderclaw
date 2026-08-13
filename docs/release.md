@@ -88,9 +88,25 @@ bytes; later marketplace automation remains future work.
 
 No operating-system package or helper is part of the release graph.
 
-## Blocking acceptance matrix
+## Release acceptance
 
-### Source and artifact
+ThunderClaw uses a risk-based release standard appropriate to a small project.
+The protected tag workflow is the blocking technical gate. A release may be
+approved when all of its jobs pass and the maintainer has reviewed the
+candidate metadata, checksums, provenance, and known limitations.
+
+For `v0.1.0`, active day-to-day use on Windows and macOS supplies practical
+desktop smoke evidence in addition to the hosted native and real-Thunderbird
+lanes. While the workflow waits for approval, the maintainer may optionally
+install its exact candidate XPI on either active Thunderbird installation and
+repeat Generate, Preview, Apply, and Undo. This is a useful final confidence
+check, not a second exhaustive blocking matrix.
+
+An upgrade from a preceding public ThunderClaw release is not applicable to
+`v0.1.0`. Its accepted XPI becomes the immutable baseline for upgrade testing
+on the next release.
+
+### Blocking automated checks
 
 - Clean dependency install, tests, typecheck, and extension build pass.
 - XPI and plugin package contain only expected runtime files and no source maps,
@@ -100,40 +116,17 @@ No operating-system package or helper is part of the release graph.
   the reviewed extension build using its documented commands.
 - Artifact hashes and build provenance are recorded.
 - The exact artifacts—not a source-adjacent rebuild—pass qualification.
-
-### Thunderbird
-
 - Pinned Thunderbird 153 deterministic E2E passes; run the opt-in Thunderbird
   128 compatibility lane when a change touches the 128-specific boundary.
-- Upgrade from the preceding accepted extension passes in one retained profile.
-- Compose text, supported rich behavior, message summary/translation,
-  stale-result, permission, cancellation, Apply/Undo/Redo, Draft, and SMTP/MIME
-  matrices pass.
 - Native Windows, macOS, and Linux profile/filesystem behavior passes, including
   Windows ACL/reparse-point and macOS POSIX mode/link checks.
-- Windows and macOS optional host permission, restart, upgrade, rotation,
-  revocation, Disconnect, Forget, compose, and message behavior pass.
-- The supported remote HTTPS endpoint passes normal and certificate-failure
-  paths without weakened trust.
-
-### OpenClaw and plugin
-
 - The exact supported OpenClaw version and commit are recorded.
-- Public SDK requirements and package exports are inspected.
 - Plugin install/update/recovery, discovery, activation, CLI, full status,
   fixed routes, and paired authentication pass.
-- Synthetic compatibility and exact-artifact real-agent matrices pass.
-- Session isolation, repair, fallback, cancellation, concurrency, expiry,
-  configuration invalidation, and hook audits pass.
 - Gateway state/log and artifact scans find no synthetic email/result or raw
   credential canaries outside explicitly permitted evidence.
-
-### Pairing and recovery
-
 - Request, approval, Claim, replay rejection, expiry, rate limits, wrong-code,
   rotation, concurrent races, revocation, and restart persistence pass.
-- Guided and headless CLI paths—including `--code-stdin`—pass in direct shell,
-  Docker TTY/non-TTY, and supported SSH use.
 - Corrupt/hostile filesystem, migration, backup-before-migrate, backup/restore,
   and failure recovery pass on supported platforms.
 - Ambiguous mutation outcomes never report false success or trigger unsafe
@@ -148,6 +141,15 @@ No operating-system package or helper is part of the release graph.
 - Local profile credential custody and residual compromise risk are disclosed.
 - No internal endpoint, token, populated configuration, or sensitive evidence
   is included in public artifacts or documentation.
+
+### Post-release hardening
+
+Broader same-profile upgrade, restart, permission, credential-lifecycle,
+Disconnect/Forget, compose/message, remote HTTPS failure, and shell/Docker/SSH
+CLI matrices improve repeatability and regression detection. They are tracked
+in [`roadmap.md`](roadmap.md), but are not blockers for the first public
+release. This scope choice does not weaken product fail-closed behavior or
+permit a failed blocking workflow job to be waived.
 
 ## CI design for the public repository
 
@@ -167,10 +169,11 @@ The public repository should implement these layers:
 
 Prefer hosted Linux for secretless and container-faithful work. Use self-hosted
 workers only for behavior that cannot be faithfully covered on hosted runners.
-Windows and macOS assurance must be described honestly rather than implied by
-Linux success or manual use. A bounded native-filesystem pass is not a full
-Thunderbird lifecycle pass. Unsupported platforms should not become accidental
-permanent release blockers; platform support is an explicit product decision.
+Windows and macOS assurance must be described honestly: hosted checks provide
+bounded repeatable evidence, while active use provides practical smoke
+evidence. Neither is described as an exhaustive desktop lifecycle matrix.
+Unsupported platforms should not become accidental permanent release blockers;
+platform support is an explicit product decision.
 
 ## Publication
 

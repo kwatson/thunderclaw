@@ -27,7 +27,9 @@ the current platform smoke claim. Thunderbird 153 cannot create its initial
 Marionette session on GitHub's `macos-15` runner even after applying the related
 GPU-helper workaround. Revisit that lane with Thunderbird 154. Remote HTTPS,
 certificate, upgrade/restart, permissions, credential lifecycle, and exact
-release-candidate evidence remain separate release requirements.
+release-candidate lifecycle matrices remain useful post-release hardening rather
+than blockers for the first public release. The protected release workflow's
+exact-artifact checks remain blocking.
 
 ## Why OpenClaw 2026.7.2-beta.7 is the floor
 
