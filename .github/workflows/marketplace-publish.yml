@@ -151,6 +151,8 @@ jobs:
       - name: Configure ClawHub authentication
         env:
           CLAWHUB_TOKEN: ${{ secrets.CLAWHUB_TOKEN }}
+          RELEASE_COMMIT: ${{ needs.prepare.outputs.commit }}
+          RELEASE_TAG: ${{ inputs.tag }}
         shell: bash
         run: |
           set -euo pipefail
@@ -162,6 +164,10 @@ jobs:
             echo "CLAWHUB_CONFIG_PATH=$config" >> "$GITHUB_ENV"
           elif [[ "$GITHUB_EVENT_NAME" != "workflow_dispatch" ]]; then
             echo "CLAWHUB_TOKEN is required for tag-triggered publication; OIDC trusted publishing is supported only for workflow_dispatch" >&2
+            exit 1
+          elif [[ "$GITHUB_SHA" != "$RELEASE_COMMIT" || "$GITHUB_REF" != "refs/tags/$RELEASE_TAG" ]]; then
+            echo "CLAWHUB_TOKEN is required to promote a historical release: trusted publishing binds source provenance to the workflow SHA and ref" >&2
+            echo "For secretless OIDC, dispatch the workflow from $RELEASE_TAG after this workflow exists at that tag" >&2
             exit 1
           fi
 

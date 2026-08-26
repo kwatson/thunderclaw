@@ -212,9 +212,13 @@ Create protected GitHub environments named `clawhub` and
 to release tags and the default branch. Configure:
 
 - `CLAWHUB_TOKEN` in the `clawhub` environment for automatic tag-triggered
-  publishing. A manual `workflow_dispatch` may instead use ClawHub OIDC after
+  publishing and for promotion of a historical release whose tag predates the
+  marketplace workflow. A manual `workflow_dispatch` from a release tag that
+  already contains this workflow may instead use ClawHub OIDC after
   `@thunderclaw/openclaw-plugin` trusts repository `kwatson/thunderclaw`,
-  workflow `marketplace-publish.yml`, and environment `clawhub`.
+  workflow `marketplace-publish.yml`, and environment `clawhub`. OIDC binds
+  source provenance to the dispatch ref and SHA, so a dispatch from `main`
+  must not relabel an older release artifact as coming from the current commit.
 - `ATN_JWT_ISSUER` and `ATN_JWT_SECRET` in the `thunderbird-addons`
   environment, using credentials created by the ATN publisher account.
 
