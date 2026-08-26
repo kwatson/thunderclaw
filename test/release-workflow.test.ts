@@ -75,6 +75,12 @@ test("marketplace workflow promotes GitHub release bytes without rebuilding", as
   assert.match(workflow, /id-token: write/u);
   assert.match(workflow, /ref: 87ca030c30f3cfb78ab15c8e66b5ff1469c8f9c8 # v0\.23\.3/u);
   assert.match(workflow, /package publish "\$PLUGIN_ARCHIVE"/u);
+  assert.match(
+    workflow,
+    /if \[\[ -n "\$CLAWHUB_TOKEN" \]\]; then[\s\S]*?publish_auth_args=\([\s\S]*?--owner thunderclaw[\s\S]*?--manual-override-reason/u,
+  );
+  assert.doesNotMatch(workflow, /--family code-plugin \\\n\s+--owner thunderclaw/u);
+  assert.match(workflow, /"\$\{publish_auth_args\[@\]\}"/u);
   assert.match(workflow, /node scripts\/submit-thunderbird-addon\.mjs/u);
   assert.match(workflow, /ATN does not expose a supported API for reviewer-source/u);
   assert.doesNotMatch(workflow, /npm run pack:release|npm publish|addons\.mozilla\.org/u);

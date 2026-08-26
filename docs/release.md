@@ -266,8 +266,11 @@ ClawHub requires a publisher owner matching the npm package scope. Before
 publication, confirm that the publishing account controls the `thunderclaw`
 owner for `@thunderclaw/openclaw-plugin`. The protected job validates the
 candidate with a commit-pinned ClawHub CLI and publishes the exact GitHub
-release `.tgz` with explicit source attribution. A manual local dry run remains
-useful when changing publication metadata:
+release `.tgz` with explicit source attribution. OIDC trusted publication
+inherits the existing package owner from its trusted-publisher configuration
+and must not pass `--owner`; token-authenticated manual publication selects the
+`thunderclaw` owner explicitly. A manual local dry run remains useful when
+changing publication metadata:
 
 ```bash
 release_tag=vX.Y.Z

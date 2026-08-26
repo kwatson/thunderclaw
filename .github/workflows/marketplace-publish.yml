@@ -179,19 +179,21 @@ jobs:
           trap 'find "$validation_root" -depth -delete' EXIT
           tar -xzf "$PLUGIN_ARCHIVE" -C "$validation_root"
           bun "$cli" package validate "$validation_root/package"
-          auth_args=()
+          publish_auth_args=()
           if [[ -n "$CLAWHUB_TOKEN" ]]; then
-            auth_args=(--manual-override-reason "GitHub Actions publication of qualified ${RELEASE_TAG}")
+            publish_auth_args=(
+              --owner thunderclaw
+              --manual-override-reason "GitHub Actions publication of qualified ${RELEASE_TAG}"
+            )
           fi
           bun "$cli" package publish "$PLUGIN_ARCHIVE" \
             --family code-plugin \
-            --owner thunderclaw \
             --source-repo "https://github.com/$GITHUB_REPOSITORY" \
             --source-ref "$RELEASE_TAG" \
             --source-commit "$RELEASE_COMMIT" \
             --wait \
             --wait-timeout 2400 \
-            "${auth_args[@]}" \
+            "${publish_auth_args[@]}" \
             --json | tee "$RUNNER_TEMP/clawhub-publish.json"
           jq -e '.publicationStatus == "published"' "$RUNNER_TEMP/clawhub-publish.json"
 
