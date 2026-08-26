@@ -17,8 +17,8 @@ credential. See the ThunderClaw repository's installation, security, and
 compatibility documentation before enabling the plugin.
 
 The package includes `assets/thunderclaw-plugin-icon.png` as a copy of its
-catalog artwork. ClawHub loads the identical canonical brand master through
-the HTTPS URL declared in `openclaw.plugin.json`.
+256-pixel catalog artwork. OpenClaw loads the identical public brand derivative
+through the HTTPS URL declared in `openclaw.plugin.json`.
 
 Licensed under Apache-2.0. The ThunderClaw name and marks are governed by the
 repository's trademark policy.

@@ -149,6 +149,9 @@ offering rather than a mechanical reflection.
   Shipping derivatives are under
   `packages/thunderbird-extension/src/icons/` at 16, 20, 24, 32, 48, 64, 96,
   and 128 pixels.
+- [`assets/raster/icons/thunderclaw-openclaw-plugin-icon-256.png`](assets/raster/icons/thunderclaw-openclaw-plugin-icon-256.png):
+  256×256 transparent OpenClaw plugin-catalog derivative of the approved
+  toolbar icon master, sized to remain within OpenClaw's fetched-icon limit.
 
 The transparent family was isolated from the approved character using a
 flat-chroma background and local alpha removal. It is a derivative rather than

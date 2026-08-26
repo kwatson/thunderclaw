@@ -19,8 +19,9 @@ makes releases reproducible and keeps asset provenance reviewable.
   derivatives of the approved toolbar icon master. The Pages build assembles
   the multi-size `favicon.ico` from those approved PNG derivatives.
 - The OpenClaw plugin's `assets/thunderclaw-plugin-icon.png` is an exact copy of
-  the approved toolbar icon master. Its manifest exposes the canonical master
-  through the repository's stable public HTTPS URL for ClawHub catalog cards.
+  `assets/raster/icons/thunderclaw-openclaw-plugin-icon-256.png`, a mechanical
+  derivative of the approved toolbar icon master. Its manifest exposes that
+  size-appropriate derivative through the repository's stable public HTTPS URL.
 
 The character document records which files are masters and which are
 mechanical derivatives. The PNG and WebP files contain no embedded author,

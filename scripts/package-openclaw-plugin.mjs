@@ -6,13 +6,17 @@ import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const outputRoot = path.join(root, "build");
-const catalogIconUrl = "https://raw.githubusercontent.com/kwatson/thunderclaw/main/docs/brand/assets/raster/icons/thunderclaw-toolbar-icon-master.png";
-const catalogIconSha256 = "5d992ba14106cf892f59e16ed153e15e0e4dde0ac00d9d31563c30bfd14b3496";
+const catalogIconUrl = "https://raw.githubusercontent.com/kwatson/thunderclaw/main/docs/brand/assets/raster/icons/thunderclaw-openclaw-plugin-icon-256.png";
+const catalogIconSha256 = "8406cb0af05dda2a49ae926c5de6b084b8579ae45fd27c106087cd80ce9507a5";
+const catalogIconMaxBytes = 256 * 1024;
 const canonicalIcon = await readFile(path.join(
-  root, "docs/brand/assets/raster/icons/thunderclaw-toolbar-icon-master.png",
+  root, "docs/brand/assets/raster/icons/thunderclaw-openclaw-plugin-icon-256.png",
 ));
 if (createHash("sha256").update(canonicalIcon).digest("hex") !== catalogIconSha256) {
-  throw new Error("Canonical catalog icon does not match its approved digest");
+  throw new Error("OpenClaw catalog icon does not match its approved digest");
+}
+if (canonicalIcon.byteLength > catalogIconMaxBytes) {
+  throw new Error("OpenClaw catalog icon exceeds the fetched-icon size limit");
 }
 await mkdir(outputRoot, { recursive: true });
 
