@@ -55,10 +55,36 @@ test("tag release builds once, qualifies exact bytes, and gates publication", as
     workflow,
     /release:\n[\s\S]*?steps:\n\s+- name: Check out tagged source\n\s+uses: actions\/checkout@[a-f0-9]{40}[\s\S]*?persist-credentials: false[\s\S]*?gh release create/u,
   );
-  assert.doesNotMatch(workflow, /npm publish|addons\.mozilla\.org|clawhub/u);
+  assert.match(workflow, /uses: \.\/\.github\/workflows\/marketplace-publish\.yml/u);
+  assert.doesNotMatch(workflow, /npm publish|addons\.mozilla\.org/u);
 
   for (const reference of workflow.matchAll(/uses: [^@\n]+@([^\s#]+)/gu)) {
     assert.match(reference[1], /^[a-f0-9]{40}$/u, `action is not pinned to a full commit: ${reference[0]}`);
+  }
+});
+
+test("marketplace workflow promotes GitHub release bytes without rebuilding", async () => {
+  const workflow = await readFile(new URL("../.github/workflows/marketplace-publish.yml", import.meta.url), "utf8");
+
+  assert.match(workflow, /workflow_call:/u);
+  assert.match(workflow, /workflow_dispatch:/u);
+  assert.match(workflow, /gh release download "\$RELEASE_TAG"/u);
+  assert.match(workflow, /node scripts\/verify-marketplace-release\.mjs/u);
+  assert.match(workflow, /environment:\n\s+name: clawhub/u);
+  assert.match(workflow, /environment:\n\s+name: thunderbird-addons/u);
+  assert.match(workflow, /id-token: write/u);
+  assert.match(workflow, /ref: 87ca030c30f3cfb78ab15c8e66b5ff1469c8f9c8 # v0\.23\.3/u);
+  assert.match(workflow, /package publish "\$PLUGIN_ARCHIVE"/u);
+  assert.match(workflow, /node scripts\/submit-thunderbird-addon\.mjs/u);
+  assert.match(workflow, /ATN does not expose a supported API for reviewer-source/u);
+  assert.doesNotMatch(workflow, /npm run pack:release|npm publish|addons\.mozilla\.org/u);
+
+  for (const reference of workflow.matchAll(/uses: [^@\n]+@([^\s#]+)/gu)) {
+    assert.match(reference[1], /^[a-f0-9]{40}$/u, `action is not pinned to a full commit: ${reference[0]}`);
+  }
+  for (const block of workflowRunBlocks(workflow)) {
+    const result = spawnSync("bash", ["-n"], { input: block.script, encoding: "utf8" });
+    assert.equal(result.status, 0, `invalid shell syntax in run block at workflow line ${block.line}:\n${result.stderr}`);
   }
 });
 

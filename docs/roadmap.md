@@ -12,8 +12,10 @@ provenance and CI artifacts.
    automation, and documentation checks around the implemented tag-triggered,
    build-once GitHub release workflow.
 2. Re-enable hosted macOS real-Thunderbird automation after Thunderbird 154.
-3. Move Thunderbird Add-ons and ClawHub updates to protected automated
-   publishing and post-publication smoke tests.
+3. Add ATN reviewer-source automation if Thunderbird exposes a supported API,
+   then add signed-XPI post-publication smoke tests. Protected ClawHub
+   publication and ATN XPI submission already promote exact GitHub release
+   bytes; ATN source attachment remains a Developer Hub handoff.
 
 ## Later
 

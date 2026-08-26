@@ -2,8 +2,9 @@
 
 ## Published release
 
-ThunderClaw `v0.1.0` is publicly available from the
-[GitHub release](https://github.com/kwatson/thunderclaw/releases/tag/v0.1.0),
+ThunderClaw `v0.1.1` is available from the
+[GitHub release](https://github.com/kwatson/thunderclaw/releases/tag/v0.1.1).
+The preceding `v0.1.0` release remains available from
 [ClawHub](https://clawhub.ai/thunderclaw/plugins/openclaw-plugin), and
 [Thunderbird Add-ons](https://addons.thunderbird.net/en-US/thunderbird/addon/thunderclaw/).
 The GitHub release contains the qualified plugin archive, XPI, Mozilla reviewer
@@ -91,11 +92,17 @@ a GitHub release whose notes are the matching changelog section and attaches:
 - `SHA256SUMS`; and
 - `release-provenance.json`.
 
-GitHub also records attestations for the three distributable archives. A
-GitHub release does not by itself publish to ClawHub or Thunderbird Add-ons.
-The initial `v0.1.0` marketplace publications were completed manually using
-the exact qualified release bytes; marketplace-update automation remains
-future work.
+GitHub also records attestations for the three distributable archives. The
+workflow then calls the protected marketplace workflow. Its ClawHub job
+publishes the exact qualified plugin archive and waits for definitive catalog
+visibility. Its Thunderbird Add-ons job submits the exact qualified XPI and
+waits for ATN validation. Neither job rebuilds a release artifact.
+
+ATN's supported API does not provide reviewer-source or reviewer-note upload.
+After its protected job succeeds, a maintainer must attach the matching source
+archive and reviewer instructions in the ATN Developer Hub before expecting
+review or public availability. The workflow reports this required handoff
+instead of incorrectly claiming that the add-on is published.
 
 No operating-system package or helper is part of the release graph.
 
@@ -194,13 +201,37 @@ platform support is an explicit product decision.
 
 ## Publication
 
-Until protected marketplace automation is implemented, Thunderbird Add-ons
-and ClawHub updates are deliberate human publication steps. The OpenClaw plugin
-is packed as an npm-style archive and that exact `.tgz` is submitted to
-ClawHub. The exact qualified `.xpi` and its matching reviewer source archive
-are submitted to Thunderbird Add-ons.
+The protected marketplace workflow can be invoked by a qualified tag workflow
+or manually for an existing GitHub release. Manual dispatch supports retrying
+one channel without rebuilding or resubmitting the other. It downloads the
+GitHub release assets, verifies their recorded hashes and provenance, checks
+the packaged versions, and stages those same bytes for both channel jobs.
+
+Create protected GitHub environments named `clawhub` and
+`thunderbird-addons`, require a maintainer approval on each, and restrict them
+to release tags and the default branch. Configure:
+
+- `CLAWHUB_TOKEN` in the `clawhub` environment for automatic tag-triggered
+  publishing. A manual `workflow_dispatch` may instead use ClawHub OIDC after
+  `@thunderclaw/openclaw-plugin` trusts repository `kwatson/thunderclaw`,
+  workflow `marketplace-publish.yml`, and environment `clawhub`.
+- `ATN_JWT_ISSUER` and `ATN_JWT_SECRET` in the `thunderbird-addons`
+  environment, using credentials created by the ATN publisher account.
+
+The OpenClaw plugin is packed as an npm-style archive and that exact `.tgz` is
+submitted to ClawHub. The exact qualified `.xpi` is submitted to Thunderbird
+Add-ons; its matching reviewer source archive remains the explicit ATN handoff
+described below.
 
 ### Thunderbird Add-ons submission
+
+CI uses ATN's authenticated v4 signing/submission endpoint to upload the
+listed XPI and poll validation. It cannot attach source code or private
+reviewer notes because ATN exposes those fields only through its
+session-authenticated Developer Hub. After CI succeeds, open the submitted
+version and attach the exact `thunderclaw-thunderbird-source-X.Y.Z.zip` from
+the same GitHub release, then add the reviewer instructions. Do not upload a
+locally rebuilt archive.
 
 The listing and each submitted version must:
 
@@ -233,9 +264,10 @@ approval, download the ATN-signed XPI and smoke-test that distributed file.
 
 ClawHub requires a publisher owner matching the npm package scope. Before
 publication, confirm that the publishing account controls the `thunderclaw`
-owner for `@thunderclaw/openclaw-plugin`. Validate the candidate with the
-current ClawHub CLI and dry-run the exact GitHub release `.tgz` with explicit
-source attribution before publishing it:
+owner for `@thunderclaw/openclaw-plugin`. The protected job validates the
+candidate with a commit-pinned ClawHub CLI and publishes the exact GitHub
+release `.tgz` with explicit source attribution. A manual local dry run remains
+useful when changing publication metadata:
 
 ```bash
 release_tag=vX.Y.Z
@@ -269,9 +301,9 @@ Channel requirements are maintained by
 Re-check them for each release; repository policy may be stricter but must not
 contradict the current channel requirements.
 
-Subsequent updates should use protected environments, least-privilege
-credentials or OIDC trusted publishing where supported, immutable artifact
-promotion, approval gates, and post-publication verification.
+Publication uses protected environments, least-privilege credentials or OIDC
+trusted publishing where supported, immutable artifact promotion, approval
+gates, and post-publication verification.
 
 Publishing jobs must never rebuild release bytes. A held or failed marketplace
 publication cannot be bypassed by publishing different artifacts under the

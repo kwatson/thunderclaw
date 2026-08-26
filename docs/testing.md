@@ -105,8 +105,15 @@ The protected tag workflow is the authoritative release gate and repeats its
 checks against the artifacts it builds once. While it waits for approval, the
 maintainer may optionally install the workflow's exact XPI on an actively used
 Windows or macOS Thunderbird profile and repeat a short Generate, Preview,
-Apply, and Undo smoke test. The accepted `v0.1.0` XPI becomes the upgrade
+Apply, and Undo smoke test. The accepted `v0.1.1` XPI becomes the upgrade
 baseline for the next release.
+
+After the GitHub release is created, the protected marketplace workflow
+redownloads and verifies its checksums and provenance before publication. The
+ClawHub job waits for definitive catalog visibility. The Thunderbird Add-ons
+job waits for validation of the exact XPI; ATN review and public availability
+remain pending until a maintainer attaches the matching reviewer source
+archive in the Developer Hub because ATN has no supported API for that field.
 
 Run broader Thunderbird upgrade, pairing recovery, or exact-artifact real-agent
 qualification when a change or investigation calls for it. Real-agent
