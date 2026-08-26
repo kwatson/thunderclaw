@@ -25,7 +25,7 @@ test("candidate artifact validator accepts current ThunderClaw archives and repo
     assert.equal(result.status, 0, result.stderr);
     const report = JSON.parse(result.stdout) as Record<string, unknown>;
     assert.equal(report.kind, kind);
-    assert.equal(report.version, "0.1.0");
+    assert.equal(report.version, "0.1.1");
     assert.match(String(report.sha256), /^[a-f0-9]{64}$/u);
   }
 });
@@ -50,7 +50,7 @@ test("candidate artifact validator rejects wrong suffixes, versions, and identit
     const pluginSource = path.join(temporary, "plugin-source", "package");
     execFileSync("mkdir", ["-p", pluginSource]);
     await writeFile(path.join(pluginSource, "package.json"), JSON.stringify({
-      name: "@someone/other-plugin", version: "0.1.0",
+      name: "@someone/other-plugin", version: "0.1.1",
     }));
     await writeFile(path.join(pluginSource, "openclaw.plugin.json"), JSON.stringify({
       id: "thunderclaw", name: "ThunderClaw",

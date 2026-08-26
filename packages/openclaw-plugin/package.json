@@ -1,6 +1,6 @@
 {
   "name": "@thunderclaw/openclaw-plugin",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "description": "Secure Thunderbird email transformations with paired-device access",
   "license": "Apache-2.0",
@@ -16,14 +16,14 @@
     "prepack": "node ../../scripts/sync-package-legal.mjs && npm run build"
   },
   "peerDependencies": {
-    "openclaw": "2026.7.2-beta.7"
+    "openclaw": ">=2026.7.2-beta.7 <2026.8.2-0"
   },
   "openclaw": {
     "extensions": [
       "./dist/index.js"
     ],
     "compat": {
-      "pluginApi": "2026.7.2-beta.7",
+      "pluginApi": ">=2026.7.2-beta.7 <2026.8.2-0",
       "minGatewayVersion": "2026.7.2-beta.7"
     },
     "build": {

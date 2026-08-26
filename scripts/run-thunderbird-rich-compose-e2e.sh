@@ -3,7 +3,7 @@ set -eu
 
 repository_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 artifact_root=${THUNDERCLAW_R0_E2E_ARTIFACTS:-"${repository_root}/build/e2e/thunderbird-rich-compose-r0"}
-versions=${THUNDERCLAW_R0_E2E_VERSIONS:-"153.0.1esr 128.14.0esr"}
+versions=${THUNDERCLAW_R0_E2E_VERSIONS:-"153.0.3 128.14.0esr"}
 staging_root=$(mktemp -d /tmp/thunderclaw-r0-e2e.XXXXXX)
 trap 'rm -rf -- "${staging_root}"' EXIT HUP INT TERM
 
@@ -18,8 +18,8 @@ mkdir -p "${artifact_root}"
 overall_status=0
 for version in ${versions}; do
   case "${version}" in
-    153.0.1esr)
-      checksum=af36a161d132f78f69de572caf2df795d7518e4e70f83a378e37d2c834db901b227b663494602886ac58ab39afa289b63d091ca3a30a22cd1fcd552a139fc7cc
+    153.0.3)
+      checksum=f55659181b90776669f83959da3cb9ce7e9b150feb9ba4e7228e6ced5ad8fba81284b639f7b5b9ff71d552c87a6d8d1a0eb74fb6bca9af1b12a102a6bdb95d14
       archive_extension=tar.xz
       ;;
     128.14.0esr)

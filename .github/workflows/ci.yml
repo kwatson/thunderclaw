@@ -122,7 +122,7 @@ jobs:
       fail-fast: false
       matrix:
         thunderbird:
-          - 153.0.1esr
+          - 153.0.3
 
     steps:
       - name: Check out repository
@@ -162,8 +162,8 @@ jobs:
         include:
           - platform: Windows
             runner: windows-2025
-            thunderbird: 153.0.1esr
-            sha512: 6eb6e341554f7ebd7a1da0936cd0f9feae12bd3db544c29a536f7d70f502c7fdfa28473d56516e2337a54ce6feaf02b16b24026846f2946f9c9d41195b302b3c
+            thunderbird: 153.0.3
+            sha512: 1c845ead482fa04ce3fb2f769e569d8e22164f636642fa2c398341a318cc05796752c46c038c10d0f421d9a42c544cc54c6505b918a25ddf585267a2e4571464
             run_thunderbird_e2e: true
           - platform: macOS
             runner: macos-15

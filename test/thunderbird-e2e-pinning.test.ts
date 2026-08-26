@@ -5,9 +5,9 @@ import test from "node:test";
 test("real Thunderbird E2E pins and isolates the supported version matrix", async () => {
   const script = await readFile(new URL("../scripts/run-thunderbird-e2e.sh", import.meta.url), "utf8");
   assert.match(script, /THUNDERCLAW_E2E_VERSIONS\+x/u);
-  assert.match(script, /versions="128\.14\.0esr 153\.0\.1esr"/u);
+  assert.match(script, /versions="128\.14\.0esr 153\.0\.3"/u);
   assert.match(script, /20f54bf73232e80e8716c219e05658c2dd519f15a262e98429fc4c875d2477ed052fb15cd8c31c9b731b447589b1fe99c49e9eb8e7fa71dac9e80c4c64e09f0d/u);
-  assert.match(script, /af36a161d132f78f69de572caf2df795d7518e4e70f83a378e37d2c834db901b227b663494602886ac58ab39afa289b63d091ca3a30a22cd1fcd552a139fc7cc/u);
+  assert.match(script, /f55659181b90776669f83959da3cb9ce7e9b150feb9ba4e7228e6ced5ad8fba81284b639f7b5b9ff71d552c87a6d8d1a0eb74fb6bca9af1b12a102a6bdb95d14/u);
   assert.match(script, /archive_extension=tar\.bz2/u);
   assert.match(script, /archive_extension=tar\.xz/u);
   assert.match(script, /--network=none/u);

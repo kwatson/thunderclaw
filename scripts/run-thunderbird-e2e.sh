@@ -6,7 +6,7 @@ artifact_root=${THUNDERCLAW_E2E_ARTIFACTS:-"${repository_root}/build/e2e/thunder
 if [ "${THUNDERCLAW_E2E_VERSIONS+x}" = x ]; then
   versions=${THUNDERCLAW_E2E_VERSIONS}
 else
-  versions="128.14.0esr 153.0.1esr"
+  versions="128.14.0esr 153.0.3"
 fi
 staging_root=$(mktemp -d /tmp/thunderclaw-e2e.XXXXXX)
 trap 'rm -rf -- "${staging_root}"' EXIT HUP INT TERM
@@ -17,7 +17,7 @@ if [ -z "$(printf '%s' "${versions}" | tr -d '[:space:]')" ]; then
 fi
 for version in ${versions}; do
   case "${version}" in
-    128.14.0esr|153.0.1esr) ;;
+    128.14.0esr|153.0.3) ;;
     *)
       echo "Unsupported pinned Thunderbird E2E version: ${version}" >&2
       exit 2
@@ -61,8 +61,8 @@ for version in ${versions}; do
       checksum=20f54bf73232e80e8716c219e05658c2dd519f15a262e98429fc4c875d2477ed052fb15cd8c31c9b731b447589b1fe99c49e9eb8e7fa71dac9e80c4c64e09f0d
       archive_extension=tar.bz2
       ;;
-    153.0.1esr)
-      checksum=af36a161d132f78f69de572caf2df795d7518e4e70f83a378e37d2c834db901b227b663494602886ac58ab39afa289b63d091ca3a30a22cd1fcd552a139fc7cc
+    153.0.3)
+      checksum=f55659181b90776669f83959da3cb9ce7e9b150feb9ba4e7228e6ced5ad8fba81284b639f7b5b9ff71d552c87a6d8d1a0eb74fb6bca9af1b12a102a6bdb95d14
       archive_extension=tar.xz
       ;;
   esac

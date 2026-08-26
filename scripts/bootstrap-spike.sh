@@ -33,7 +33,7 @@ mise exec -- npm pack --workspace @thunderclaw/openclaw-plugin --pack-destinatio
 '
 
 "${compose[@]}" run --rm --no-deps gateway node openclaw.mjs plugins install \
-  @openclaw/deepseek-provider@2026.7.2-beta.7 --force --pin
+  @openclaw/deepseek-provider@2026.8.1-beta.3 --force --pin
 
 "${compose[@]}" run --rm --no-deps gateway node openclaw.mjs plugins install \
   npm-pack:/workspace/thunderclaw/.spike/thunderclaw-packages/thunderclaw-openclaw-plugin-0.1.0.tgz --force

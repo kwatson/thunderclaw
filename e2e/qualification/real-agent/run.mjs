@@ -291,7 +291,7 @@ async function main() {
     : coreCaseSuffixes;
   assert(selectedSuffixes.length > 0, "no valid qualification trials selected");
   const runId = `qualification-${new Date().toISOString().replace(/[-:.TZ]/gu, "")}-${randomUUID().slice(0, 8)}`;
-  const artifacts = join(root, "build/e2e/product-real-agent/153.0.1esr", runId);
+  const artifacts = join(root, "build/e2e/product-real-agent/153.0.3", runId);
   await mkdir(artifacts, { recursive: false, mode: 0o700 });
   const temporary = await mkdtemp(join(tmpdir(), "thunderclaw-real-agent-"));
   const originalConfig = await readFile(configPath, "utf8");
@@ -343,7 +343,7 @@ async function main() {
       "--mount", `type=bind,src=${artifacts},dst=/evidence`, "node:24.19.0-alpine", "node", "/app/proxy.mjs"], { capture: true });
     command("docker", ["compose", "-f", "compose.spike.yaml", "restart", "gateway"]);
     const status = await waitForGateway(token);
-    assert(status.gatewayVersion === "2026.7.2-beta.7" && status.capabilities?.flatListItemReplacement === true
+    assert(status.gatewayVersion === "2026.8.1-beta.3" && status.capabilities?.flatListItemReplacement === true
       && status.capabilities?.toolsDisabled === true, "Gateway status capability mismatch");
     const probeRequest = { protocolVersion: 1, requestId: randomUUID(), probeRunId: randomUUID(), agentId: "deepseek-flash" };
     await gatewayCall(token, "/agents/probe", probeRequest);
@@ -359,7 +359,7 @@ async function main() {
         THUNDERCLAW_RELAY_EVIDENCE: join(artifacts, "relay.jsonl"), THUNDERCLAW_RELAY_AUTO_APPROVE: "1" },
     });
     await new Promise((done) => setTimeout(done, 500));
-    const imageId = command("docker", ["image", "inspect", "thunderclaw-thunderbird-e2e:153.0.1esr", "--format", "{{.Id}}"], { capture: true });
+    const imageId = command("docker", ["image", "inspect", "thunderclaw-thunderbird-e2e:153.0.3", "--format", "{{.Id}}"], { capture: true });
     const providerProxyImageId = command("docker", ["image", "inspect", "node:24.19.0-alpine", "--format", "{{.Id}}"], { capture: true });
     const providerProxyContainerImageId = command("docker", ["inspect", proxyName, "--format", "{{.Image}}"], { capture: true });
     assert(providerProxyContainerImageId === providerProxyImageId, "provider proxy is not using the inspected immutable image");
@@ -367,10 +367,10 @@ async function main() {
     const parsedProviderProxyRepoDigests = JSON.parse(providerProxyRepoDigests);
     assert(Array.isArray(parsedProviderProxyRepoDigests) && parsedProviderProxyRepoDigests.length > 0,
       "provider proxy image has no immutable repository digest");
-    const gatewayImageId = command("docker", ["image", "inspect", "ghcr.io/openclaw/openclaw:2026.7.2-beta.7", "--format", "{{.Id}}"], { capture: true });
+    const gatewayImageId = command("docker", ["image", "inspect", "ghcr.io/openclaw/openclaw:2026.8.1-beta.3", "--format", "{{.Id}}"], { capture: true });
     const gatewayContainerImageId = command("docker", ["inspect", "thunderclaw-spike-gateway-1", "--format", "{{.Image}}"], { capture: true });
     assert(gatewayContainerImageId === gatewayImageId, "Gateway container is not using the pinned immutable image");
-    const gatewayRepoDigests = command("docker", ["image", "inspect", "ghcr.io/openclaw/openclaw:2026.7.2-beta.7", "--format", "{{json .RepoDigests}}"], { capture: true });
+    const gatewayRepoDigests = command("docker", ["image", "inspect", "ghcr.io/openclaw/openclaw:2026.8.1-beta.3", "--format", "{{json .RepoDigests}}"], { capture: true });
     const pluginArchiveSha256 = hash(await readFile(join(root, "build/thunderclaw-openclaw-plugin-0.1.0.tgz")));
     const pluginList = JSON.parse(command("docker", ["compose", "-f", "compose.spike.yaml", "exec", "-T", "gateway",
       "node", "openclaw.mjs", "plugins", "list", "--json"], { capture: true }));
@@ -402,7 +402,7 @@ async function main() {
       "--mount", `type=bind,src=${join(qualificationRoot, "qualification.py")},dst=/work/product-real-agent-qualification.py,readonly`,
       "--mount", `type=bind,src=${join(qualificationRoot, "product_whole_list.py")},dst=/work/product_whole_list_live.py,readonly`,
       "--mount", `type=bind,src=${join(richComposeRoot, "live-thunderbird.py")},dst=/work/live_thunderbird.py,readonly`,
-      "--mount", `type=bind,src=${artifacts},dst=/work/artifacts`, "thunderclaw-thunderbird-e2e:153.0.1esr",
+      "--mount", `type=bind,src=${artifacts},dst=/work/artifacts`, "thunderclaw-thunderbird-e2e:153.0.3",
       "-a", "-s", "-screen 0 1440x1000x24 -nolisten tcp", "python3", "/work/product-real-agent-qualification.py",
       "--xpi", "/work/product.xpi"];
     const trialResults = [];

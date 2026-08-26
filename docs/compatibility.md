@@ -4,13 +4,15 @@
 
 | Component | Supported baseline | Policy |
 | --- | --- | --- |
-| OpenClaw | `2026.7.2-beta.7` | Exact pinned and qualified runtime |
+| OpenClaw | `>=2026.7.2-beta.7 <2026.8.2-0` | Bounded compatible API range; current qualification uses `2026.8.1-beta.3` |
 | Thunderbird | 128 and newer | Plain selected-text, summary, and translation baseline |
 | Thunderbird rich compose | Qualified 153 and newer shapes | Runtime-gated; unsupported shapes fail closed |
 | Node.js development runtime | 24 through `mise` | Repository build and test runtime |
 
-“Newer” does not imply supported. A later Thunderbird or OpenClaw release must
-pass the relevant qualification lanes before the matrix changes.
+A newer Thunderbird major release or OpenClaw release line does not imply
+support. OpenClaw prereleases, release candidates, stable releases, and
+corrections within the declared 2026.8.1 range remain admitted, with exact
+versions covered by ongoing compatibility surveillance.
 
 ## Desktop platform status
 
@@ -50,10 +52,13 @@ an optional feature. Without a supported caller-owned manager and trajectory
 control, ThunderClaw cannot claim compose-scoped in-memory refinement, repair,
 and fallback history or its no-normal-transcript/trajectory guarantee.
 
-Package development, peer dependency, plugin API, minimum Gateway, build SDK,
-and Docker image metadata are pinned to the qualified version. Changing the
-pin requires contract inspection and qualification; changing only a semver
-range is insufficient.
+Package development, minimum Gateway, and build SDK metadata remain pinned to
+the original `2026.7.2-beta.7` API floor so the plugin runtime code is unchanged.
+The Docker integration image is pinned to the currently qualified
+`2026.8.1-beta.3` runtime. The peer dependency and plugin API use a bounded
+range that preserves the original floor, admits the 2026.8.1 prereleases,
+stable release, and correction releases, and excludes the 2026.8.2 line.
+Expanding that range requires contract inspection and qualification.
 
 ## OpenClaw upgrade qualification
 

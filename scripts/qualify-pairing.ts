@@ -11,7 +11,7 @@ const compose = ["compose", "-f", "compose.spike.yaml"];
 const qualificationContainer = process.env.THUNDERCLAW_QUALIFICATION_CONTAINER;
 const qualificationStateRoot = process.env.THUNDERCLAW_QUALIFICATION_STATE_ROOT;
 const qualificationGatewayImage = process.env.THUNDERCLAW_QUALIFICATION_GATEWAY_IMAGE
-  ?? "ghcr.io/openclaw/openclaw:2026.7.2-beta.7";
+  ?? "ghcr.io/openclaw/openclaw:2026.8.1-beta.3";
 if (Boolean(qualificationContainer) !== Boolean(qualificationStateRoot)) {
   throw new Error("container qualification requires both its container and state root");
 }
@@ -87,7 +87,7 @@ function inspectGateway(): void {
     throw new Error("the pinned Gateway must already be running");
   }
   const image = String(gateway.Image ?? "");
-  if (image !== "ghcr.io/openclaw/openclaw:2026.7.2-beta.7") {
+  if (image !== "ghcr.io/openclaw/openclaw:2026.8.1-beta.3") {
     throw new Error(`unexpected Gateway image: ${image || "unknown"}`);
   }
   // Read before mutation as an operational safety check. Never print raw logs.

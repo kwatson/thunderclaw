@@ -7,6 +7,11 @@ test("ClawHub catalog metadata presents the ThunderClaw brand", async () => {
   const pluginManifest = JSON.parse(await readFile(new URL("../packages/openclaw-plugin/openclaw.plugin.json", import.meta.url), "utf8"));
 
   assert.equal(pluginPackage.name, "@thunderclaw/openclaw-plugin");
+  assert.equal(pluginPackage.peerDependencies.openclaw, ">=2026.7.2-beta.7 <2026.8.2-0");
+  assert.equal(pluginPackage.openclaw.compat.pluginApi, ">=2026.7.2-beta.7 <2026.8.2-0");
+  assert.equal(pluginPackage.openclaw.compat.minGatewayVersion, "2026.7.2-beta.7");
+  assert.equal(pluginPackage.openclaw.build.openclawVersion, "2026.7.2-beta.7");
+  assert.equal(pluginPackage.openclaw.build.pluginSdkVersion, "2026.7.2-beta.7");
   assert.equal(pluginManifest.name, "ThunderClaw");
   assert.equal(pluginPackage.description, pluginManifest.description);
   assert.match(pluginManifest.icon, /^https:\/\//u);
@@ -17,7 +22,7 @@ test("Thunderbird extension declares compose and message-view boundaries", async
   const repositoryPackage = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
   const pluginPackage = JSON.parse(await readFile(new URL("../packages/openclaw-plugin/package.json", import.meta.url), "utf8"));
   const extensionPackage = JSON.parse(await readFile(new URL("../packages/thunderbird-extension/package.json", import.meta.url), "utf8"));
-  assert.equal(manifest.version, "0.1.0");
+  assert.equal(manifest.version, "0.1.1");
   assert.deepEqual([repositoryPackage.version, pluginPackage.version, extensionPackage.version],
     [manifest.version, manifest.version, manifest.version]);
   assert.equal(manifest.browser_specific_settings.gecko.id, "thunderclaw@addons.thunderbird.net");

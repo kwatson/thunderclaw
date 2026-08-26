@@ -224,7 +224,7 @@ jobs:
 
       - name: Verify and qualify exact extension bytes
         env:
-          THUNDERCLAW_E2E_VERSIONS: 153.0.1esr
+          THUNDERCLAW_E2E_VERSIONS: 153.0.3
           THUNDERCLAW_E2E_XPI: ${{ github.workspace }}/release/thunderclaw-thunderbird-${{ needs.build.outputs.version }}.xpi
         shell: bash
         run: |
@@ -236,7 +236,7 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: thunderclaw-release-thunderbird-failure-${{ needs.build.outputs.version }}
-          path: build/e2e/thunderbird/153.0.1esr/
+          path: build/e2e/thunderbird/153.0.3/
           if-no-files-found: warn
           retention-days: 7
 
@@ -251,8 +251,8 @@ jobs:
         include:
           - platform: Windows
             runner: windows-2025
-            thunderbird: 153.0.1esr
-            sha512: 6eb6e341554f7ebd7a1da0936cd0f9feae12bd3db544c29a536f7d70f502c7fdfa28473d56516e2337a54ce6feaf02b16b24026846f2946f9c9d41195b302b3c
+            thunderbird: 153.0.3
+            sha512: 1c845ead482fa04ce3fb2f769e569d8e22164f636642fa2c398341a318cc05796752c46c038c10d0f421d9a42c544cc54c6505b918a25ddf585267a2e4571464
             run_thunderbird_e2e: true
           - platform: macOS ARM
             runner: macos-15

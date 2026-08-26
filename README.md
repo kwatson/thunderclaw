@@ -26,14 +26,15 @@
 </p>
 
 > [!IMPORTANT]
-> ThunderClaw `v0.1.0` is available now. Install the extension from
+> ThunderClaw `v0.1.1` is available now. Install the extension from
 > [Thunderbird Add-ons](https://addons.thunderbird.net/en-US/thunderbird/addon/thunderclaw/)
 > and its matching OpenClaw plugin from
 > [ClawHub](https://clawhub.ai/thunderclaw/plugins/openclaw-plugin).
 
 > [!NOTE]
-> **OpenClaw requirement:** ThunderClaw requires OpenClaw `2026.7.2-beta.7` or
-> newer. See the [compatibility policy](docs/compatibility.md) for details.
+> **OpenClaw requirement:** ThunderClaw supports OpenClaw from
+> `2026.7.2-beta.7` through the `2026.8.1` release line. See the
+> [compatibility policy](docs/compatibility.md) for details.
 
 ## AI assistance without handing over your inbox
 
@@ -147,10 +148,11 @@ remain in OpenClaw.
 
 ## Installation and pairing
 
-ThunderClaw requires OpenClaw `2026.7.2-beta.7` or newer. See the
-[compatibility policy](docs/compatibility.md) before installing.
+ThunderClaw supports OpenClaw from `2026.7.2-beta.7` through the `2026.8.1`
+release line. See the [compatibility policy](docs/compatibility.md) before
+installing.
 
-Install both matching `v0.1.0` components:
+Install both matching `v0.1.1` components:
 
 1. Install **ThunderClaw** from its
    [Thunderbird Add-ons listing](https://addons.thunderbird.net/en-US/thunderbird/addon/thunderclaw/).

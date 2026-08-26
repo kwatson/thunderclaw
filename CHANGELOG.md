@@ -2,6 +2,16 @@
 
 All notable changes to ThunderClaw are documented in this file.
 
+## [0.1.1] - 2026-08-26
+
+### Changed
+
+- Expanded the OpenClaw plugin API compatibility declaration from the exact
+  `2026.7.2-beta.7` runtime to `>=2026.7.2-beta.7 <2026.8.2-0`, admitting the
+  qualified `2026.8.1` release line without changing plugin runtime code.
+- Updated compatibility qualification to OpenClaw `2026.8.1-beta.3` and
+  Thunderbird `153.0.3`.
+
 ## [0.1.0] - 2026-08-12
 
 ### Added
