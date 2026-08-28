@@ -40,7 +40,7 @@ function jsonAt(url: string, body: unknown, status = 200, headers: HeadersInit =
 }
 
 function statusBody(): Record<string, unknown> {
-  return { protocolVersion: 1, plugin: "thunderclaw", gatewayVersion: "2026.8.1-beta.3", capabilities: { transform: true } };
+  return { protocolVersion: 1, plugin: "thunderclaw", gatewayVersion: "2026.9.1-beta.1", capabilities: { transform: true } };
 }
 
 function errorCode(kind: DirectClientError["kind"], code: string): (error: unknown) => boolean {

@@ -6,7 +6,7 @@ test("hosted OpenClaw qualification is pinned, secretless, and ephemeral", async
   const script = await readFile(new URL("../scripts/run-openclaw-ci.sh", import.meta.url), "utf8");
   const workflow = await readFile(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8");
 
-  assert.match(script, /ghcr\.io\/openclaw\/openclaw:2026\.8\.1-beta\.3@sha256:a2d51eae8d2b0f219517580d278dc380a92c9647afa2f6d172bc9047a734ec63/u);
+  assert.match(script, /ghcr\.io\/openclaw\/openclaw:2026\.9\.1-beta\.1@sha256:8f61f45e0fdb1fca8ef7822e7faed0d73ee48c6500e52f9b11377189b51a15ba/u);
   assert.match(script, /--auth-choice skip/u);
   assert.match(script, /--suppress-gateway-token-output/u);
   assert.match(script, /dst=\/workspace\/thunderclaw,readonly/u);

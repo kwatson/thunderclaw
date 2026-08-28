@@ -359,7 +359,7 @@ async function main() {
       "--mount", `type=bind,src=${artifacts},dst=/evidence`, "node:24.19.0-alpine", "node", "/app/proxy.mjs"], { capture: true });
     command("docker", ["compose", "-f", "compose.spike.yaml", "restart", "gateway"]);
     const status = await waitForGateway(token);
-    assert(status.gatewayVersion === "2026.8.1-beta.3" && status.capabilities?.flatListItemReplacement === true
+    assert(status.gatewayVersion === "2026.9.1-beta.1" && status.capabilities?.flatListItemReplacement === true
       && status.capabilities?.toolsDisabled === true, "Gateway status capability mismatch");
     const probeRequest = { protocolVersion: 1, requestId: randomUUID(), probeRunId: randomUUID(), agentId: "deepseek-flash" };
     await gatewayCall(token, "/agents/probe", probeRequest);
@@ -383,10 +383,10 @@ async function main() {
     const parsedProviderProxyRepoDigests = JSON.parse(providerProxyRepoDigests);
     assert(Array.isArray(parsedProviderProxyRepoDigests) && parsedProviderProxyRepoDigests.length > 0,
       "provider proxy image has no immutable repository digest");
-    const gatewayImageId = command("docker", ["image", "inspect", "ghcr.io/openclaw/openclaw:2026.8.1-beta.3", "--format", "{{.Id}}"], { capture: true });
+    const gatewayImageId = command("docker", ["image", "inspect", "ghcr.io/openclaw/openclaw:2026.9.1-beta.1", "--format", "{{.Id}}"], { capture: true });
     const gatewayContainerImageId = command("docker", ["inspect", "thunderclaw-spike-gateway-1", "--format", "{{.Image}}"], { capture: true });
     assert(gatewayContainerImageId === gatewayImageId, "Gateway container is not using the pinned immutable image");
-    const gatewayRepoDigests = command("docker", ["image", "inspect", "ghcr.io/openclaw/openclaw:2026.8.1-beta.3", "--format", "{{json .RepoDigests}}"], { capture: true });
+    const gatewayRepoDigests = command("docker", ["image", "inspect", "ghcr.io/openclaw/openclaw:2026.9.1-beta.1", "--format", "{{json .RepoDigests}}"], { capture: true });
     const pluginArchiveSha256 = hash(await readFile(pluginPath));
     const pluginList = JSON.parse(command("docker", ["compose", "-f", "compose.spike.yaml", "exec", "-T", "gateway",
       "node", "openclaw.mjs", "plugins", "list", "--json"], { capture: true }));

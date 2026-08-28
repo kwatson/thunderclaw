@@ -39,7 +39,7 @@ fi
 '
 
 "${compose[@]}" run --rm --no-deps gateway node openclaw.mjs plugins install \
-  @openclaw/deepseek-provider@2026.8.1-beta.3 --force --pin
+  @openclaw/deepseek-provider@2026.9.1-beta.1 --force --pin
 
 "${compose[@]}" run --rm --no-deps gateway node openclaw.mjs plugins install \
   "npm-pack:/workspace/thunderclaw/${package_path}" --force

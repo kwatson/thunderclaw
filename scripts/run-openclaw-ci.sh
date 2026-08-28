@@ -2,7 +2,7 @@
 set -euo pipefail
 
 repository_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-gateway_image="ghcr.io/openclaw/openclaw:2026.8.1-beta.3@sha256:a2d51eae8d2b0f219517580d278dc380a92c9647afa2f6d172bc9047a734ec63"
+gateway_image="ghcr.io/openclaw/openclaw:2026.9.1-beta.1@sha256:8f61f45e0fdb1fca8ef7822e7faed0d73ee48c6500e52f9b11377189b51a15ba"
 temporary_root=$(mktemp -d /tmp/thunderclaw-openclaw-ci.XXXXXX)
 state_root="${temporary_root}/state"
 evidence_root="${repository_root}/build/openclaw-ci-${$}"

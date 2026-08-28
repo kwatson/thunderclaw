@@ -1,5 +1,12 @@
 # OpenClaw plugin changelog
 
+## [0.1.2] - 2026-08-28
+
+### Changed
+
+- Expanded the qualified OpenClaw plugin API compatibility range to
+  `>=2026.7.2-beta.7 <2026.9.2-0`.
+
 ## [0.1.1] - 2026-08-26
 
 ### Changed
