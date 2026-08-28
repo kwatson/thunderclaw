@@ -9,7 +9,8 @@ ThunderClaw has two independently released components:
 | OpenClaw plugin | `openclaw-plugin-vX.Y.Z` | plugin TGZ, checksums, provenance | ClawHub |
 | Thunderbird extension | `thunderbird-extension-vX.Y.Z` | XPI, reviewer source ZIP, checksums, provenance | Thunderbird Add-ons (ATN) |
 
-Each component owns its manifest version and component changelog. A release
+Each component owns its manifest version and component-scoped entry in the
+root `CHANGELOG.md`. A release
 changes only that component's version; the two versions need not match. The
 root package is development orchestration metadata and is not a release
 version authority. The historical combined `v0.1.0` and `v0.1.1` releases
@@ -26,10 +27,11 @@ qualification evidence.
 Land the release-system migration as two logical commits:
 
 1. **Release refactor at existing `0.1.1`.** Introduce independent metadata,
-   tags, changelogs, workflows, strict legacy dispatch, and pinned counterpart
-   qualification without changing either published component version.
+   tags, changelog entries, workflows, strict legacy dispatch, and pinned
+   counterpart qualification without changing either published component
+   version.
 2. **Plugin compatibility release `0.1.2`.** Change only the plugin manifest,
-   lockfile mirror, and `packages/openclaw-plugin/CHANGELOG.md` for the qualified
+   lockfile mirror, and OpenClaw plugin entry in `CHANGELOG.md` for the qualified
    OpenClaw compatibility expansion, then tag `openclaw-plugin-v0.1.2`.
 
 Do not combine these commits: reviewers and publication provenance must be able
@@ -102,18 +104,18 @@ under the same version.
 ## Tags, changelogs, and legacy dispatch
 
 Prepare a tag only from a reviewed commit contained in `main`. The component
-manifest version must equal the canonical tag version, and its component
-changelog must contain exactly one non-empty matching section. Release notes
-come only from that section:
+manifest version must equal the canonical tag version, and the root changelog
+must contain exactly one non-empty matching component-and-version section.
+Release notes come only from that section, using headings such as:
 
 ```text
-packages/openclaw-plugin/CHANGELOG.md
-packages/thunderbird-extension/CHANGELOG.md
+## OpenClaw plugin [0.1.2] - 2026-08-28
+## Thunderbird extension [0.1.2] - 2026-08-28
 ```
 
-The root `CHANGELOG.md` is frozen history for combined `v0.1.0` and `v0.1.1`;
-do not add new component release notes to it. Tags are annotated (or signed
-when configured), never moved or reused, and use exactly
+This single file is the human-readable history for both components while the
+component label disambiguates versions that happen to match. Tags are annotated
+(or signed when configured), never moved or reused, and use exactly
 `openclaw-plugin-vX.Y.Z` or `thunderbird-extension-vX.Y.Z`.
 
 The strict dispatcher accepts only those component tags plus historical

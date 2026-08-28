@@ -1,18 +1,42 @@
 # Changelog
 
-All notable changes to ThunderClaw are documented in this file.
+All notable changes to ThunderClaw are documented in this file. The OpenClaw
+plugin and Thunderbird extension release independently, so every entry names
+the component and version it describes.
 
-## [0.1.1] - 2026-08-26
+## OpenClaw plugin [0.1.2] - 2026-08-28
+
+### Changed
+
+- Expanded the qualified OpenClaw plugin API compatibility range to
+  `>=2026.7.2-beta.7 <2026.9.2-0`.
+
+## OpenClaw plugin [0.1.1] - 2026-08-26
 
 ### Changed
 
 - Expanded the OpenClaw plugin API compatibility declaration from the exact
   `2026.7.2-beta.7` runtime to `>=2026.7.2-beta.7 <2026.8.2-0`, admitting the
-  qualified `2026.8.1` release line without changing plugin runtime code.
-- Updated compatibility qualification to OpenClaw `2026.8.1-beta.3` and
-  Thunderbird `153.0.3`.
+  qualified OpenClaw `2026.8.1` release line without changing plugin runtime
+  code.
 
-## [0.1.0] - 2026-08-12
+## Thunderbird extension [0.1.1] - 2026-08-26
+
+### Changed
+
+- Qualified the extension with Thunderbird `153.0.3`.
+
+## OpenClaw plugin [0.1.0] - 2026-08-12
+
+### Added
+
+- A separately installed OpenClaw plugin with fixed HTTP(S) routes, strict JSON
+  contracts, isolated in-memory model sessions, disabled model-callable tools,
+  bounded repair and fallback behavior, and explicit cancellation.
+- User-approved pairing with a scoped ThunderClaw credential, including
+  operator CLI administration, rotation, revocation, and recovery paths.
+
+## Thunderbird extension [0.1.0] - 2026-08-12
 
 ### Added
 
@@ -24,11 +48,6 @@ All notable changes to ThunderClaw are documented in this file.
   leave the original message source untouched.
 - Narrow rich-compose support for qualified Thunderbird versions, limited to
   paragraphs, flat lists, and bold, italic, and underlined spans.
-- A separately installed OpenClaw plugin with fixed HTTP(S) routes, strict JSON
-  contracts, isolated in-memory model sessions, disabled model-callable tools,
-  bounded repair and fallback behavior, and explicit cancellation.
-- User-approved pairing with a scoped ThunderClaw credential, including
-  operator CLI administration, rotation, revocation, and recovery paths.
 - A state-driven Thunderbird connection pane with plain-language status,
   prominent pairing codes, contextual actions, progressive agent details, and
   clearer recovery controls.

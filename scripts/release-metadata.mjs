@@ -6,7 +6,11 @@ import { validateReleaseBaselines } from "./validate-release-baselines.mjs";
 export const releaseComponents = ["openclaw-plugin", "thunderbird-extension"];
 const releaseTagPattern = /^(openclaw-plugin|thunderbird-extension)-v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/u;
 const versionPattern = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/u;
-const sectionPattern = /^## \[((?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*))\](?: - (\d{4}-\d{2}-\d{2}))?$/u;
+const componentLabels = {
+  "openclaw-plugin": "OpenClaw plugin",
+  "thunderbird-extension": "Thunderbird extension",
+};
+const sectionPattern = /^## (OpenClaw plugin|Thunderbird extension) \[((?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*))\](?: - (\d{4}-\d{2}-\d{2}))?$/u;
 
 export function parseReleaseTag(tag) {
   const match = typeof tag === "string" ? releaseTagPattern.exec(tag) : null;
@@ -22,28 +26,32 @@ export function versionFromTag(tag) {
   return parseReleaseTag(tag).version;
 }
 
-export function extractChangelogSection(changelog, version) {
+export function extractChangelogSection(changelog, component, version) {
   if (typeof changelog !== "string") throw new TypeError("Changelog must be text");
+  if (!releaseComponents.includes(component)) throw new Error(`Unknown release component: ${String(component)}`);
   if (typeof version !== "string" || !versionPattern.test(version)) {
     throw new Error(`Version must have canonical form X.Y.Z: ${String(version)}`);
   }
 
+  const componentLabel = componentLabels[component];
   const lines = changelog.replace(/^\uFEFF/u, "").replaceAll("\r\n", "\n").split("\n");
   const matches = [];
   for (let index = 0; index < lines.length; index += 1) {
     const match = sectionPattern.exec(lines[index]);
-    const bracketedVersion = /^## \[([^\]]+)\]/u.exec(lines[index])?.[1];
-    if (bracketedVersion !== version) continue;
-    if (!match) throw new Error(`Changelog has a malformed ## [${version}] release heading`);
-    if (match[2]) {
-      const parsedDate = new Date(`${match[2]}T00:00:00Z`);
-      if (Number.isNaN(parsedDate.valueOf()) || parsedDate.toISOString().slice(0, 10) !== match[2]) {
-        throw new Error(`Changelog has an invalid date for ## [${version}]`);
+    const candidate = /^## ([^\[]+) \[([^\]]+)\]/u.exec(lines[index]);
+    if (candidate?.[1].trim() !== componentLabel || candidate?.[2] !== version) continue;
+    if (!match) throw new Error(`Changelog has a malformed ${componentLabel} [${version}] release heading`);
+    if (match[3]) {
+      const parsedDate = new Date(`${match[3]}T00:00:00Z`);
+      if (Number.isNaN(parsedDate.valueOf()) || parsedDate.toISOString().slice(0, 10) !== match[3]) {
+        throw new Error(`Changelog has an invalid date for ${componentLabel} [${version}]`);
       }
     }
     matches.push(index);
   }
-  if (matches.length !== 1) throw new Error(`Changelog must contain exactly one ## [${version}] release section`);
+  if (matches.length !== 1) {
+    throw new Error(`Changelog must contain exactly one ${componentLabel} [${version}] release section`);
+  }
 
   const start = matches[0] + 1;
   let end = lines.length;
@@ -54,7 +62,7 @@ export function extractChangelogSection(changelog, version) {
     }
   }
   const notes = lines.slice(start, end).join("\n").trim();
-  if (!notes) throw new Error(`Changelog release section ${version} is empty`);
+  if (!notes) throw new Error(`Changelog release section ${componentLabel} ${version} is empty`);
   return `${notes}\n`;
 }
 
@@ -102,8 +110,8 @@ export async function prepareRelease({ root, tag, notesOutput }) {
   }
   validateManifestVersions(version, manifests);
 
-  const changelog = await readFile(path.join(root, componentPath, "CHANGELOG.md"), "utf8");
-  const notes = extractChangelogSection(changelog, version);
+  const changelog = await readFile(path.join(root, "CHANGELOG.md"), "utf8");
+  const notes = extractChangelogSection(changelog, component, version);
   if (notesOutput) await writeFile(notesOutput, notes, { encoding: "utf8", flag: "wx" });
   return { component, tag, version, notes, manifests };
 }

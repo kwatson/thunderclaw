@@ -18,7 +18,7 @@ export function parseReleaseTag(tag: unknown): {
   tag: string;
 };
 export function versionFromTag(tag: unknown): string;
-export function extractChangelogSection(changelog: unknown, version: unknown): string;
+export function extractChangelogSection(changelog: unknown, component: unknown, version: unknown): string;
 export function validateManifestVersions(version: string, manifests: ReleaseManifests): void;
 export function prepareRelease(options: {
   root: string;

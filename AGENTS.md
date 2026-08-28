@@ -79,6 +79,7 @@ message content, and environment details.
 The OpenClaw plugin and Thunderbird extension release independently. A plugin
 release produces one npm-style archive; an extension release produces one XPI
 and one allowlisted Mozilla reviewer source archive. Each component owns its
-version, changelog, tag, and GitHub release. Build candidate artifacts once,
-record their digests, qualify those exact bytes with the cryptographically
-pinned last-published counterpart, and promote them without rebuilding.
+version, component-scoped entry in the root changelog, tag, and GitHub release.
+Build candidate artifacts once, record their digests, qualify those exact bytes
+with the cryptographically pinned last-published counterpart, and promote them
+without rebuilding.

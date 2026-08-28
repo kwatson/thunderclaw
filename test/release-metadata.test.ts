@@ -22,13 +22,15 @@ test("release tags strictly identify one component and stable semantic version",
 });
 
 test("changelog extraction returns only one exact non-empty section", () => {
-  const changelog = "# Changelog\r\n\r\n## [1.2.3] - 2026-08-12\r\n\r\n### Added\r\n\r\n- First\r\n\r\n## [1.2.2]\r\n\r\n- Older\r\n";
-  assert.equal(extractChangelogSection(changelog, "1.2.3"), "### Added\n\n- First\n");
-  assert.throws(() => extractChangelogSection("# Changelog\n", "1.0.0"), /exactly one/u);
-  assert.throws(() => extractChangelogSection("## [1.0.0]\nOne\n## [1.0.0]\nTwo\n", "1.0.0"), /exactly one/u);
-  assert.throws(() => extractChangelogSection("## [1.0.0] release\nText\n", "1.0.0"), /malformed/u);
-  assert.throws(() => extractChangelogSection("## [1.0.0] - 2026-02-30\nText\n", "1.0.0"), /invalid date/u);
-  assert.throws(() => extractChangelogSection("## [1.0.0]\n\n## [0.9.0]\nOld\n", "1.0.0"), /empty/u);
+  const changelog = "# Changelog\r\n\r\n## OpenClaw plugin [1.2.3] - 2026-08-12\r\n\r\n### Added\r\n\r\n- Plugin\r\n\r\n## Thunderbird extension [1.2.3]\r\n\r\n- Extension\r\n";
+  assert.equal(extractChangelogSection(changelog, "openclaw-plugin", "1.2.3"), "### Added\n\n- Plugin\n");
+  assert.equal(extractChangelogSection(changelog, "thunderbird-extension", "1.2.3"), "- Extension\n");
+  assert.throws(() => extractChangelogSection("# Changelog\n", "openclaw-plugin", "1.0.0"), /exactly one/u);
+  assert.throws(() => extractChangelogSection(changelog, "unknown", "1.2.3"), /Unknown release component/u);
+  assert.throws(() => extractChangelogSection("## OpenClaw plugin [1.0.0]\nOne\n## OpenClaw plugin [1.0.0]\nTwo\n", "openclaw-plugin", "1.0.0"), /exactly one/u);
+  assert.throws(() => extractChangelogSection("## OpenClaw plugin [1.0.0] release\nText\n", "openclaw-plugin", "1.0.0"), /malformed/u);
+  assert.throws(() => extractChangelogSection("## OpenClaw plugin [1.0.0] - 2026-02-30\nText\n", "openclaw-plugin", "1.0.0"), /invalid date/u);
+  assert.throws(() => extractChangelogSection("## OpenClaw plugin [1.0.0]\n\n## OpenClaw plugin [0.9.0]\nOld\n", "openclaw-plugin", "1.0.0"), /empty/u);
 });
 
 test("manifest validation reports every mismatch", () => {
@@ -46,7 +48,7 @@ test("prepareRelease validates only the tagged component and writes canonical no
     await writeFile(path.join(root, "packages/openclaw-plugin/package.json"), '{"version":"1.2.3"}\n');
     await writeFile(path.join(root, "packages/thunderbird-extension/package.json"), '{"version":"9.8.7"}\n');
     await writeFile(path.join(root, "packages/thunderbird-extension/src/manifest.json"), '{"version":"9.8.7"}\n');
-    await writeFile(path.join(root, "packages/openclaw-plugin/CHANGELOG.md"), "# Plugin\n\n## [1.2.3]\n\nPlugin notes.\n");
+    await writeFile(path.join(root, "CHANGELOG.md"), "# Changelog\n\n## OpenClaw plugin [1.2.3]\n\nPlugin notes.\n\n## Thunderbird extension [1.2.3]\n\nExtension notes.\n");
     const realBaselines = await readFile(new URL("../release-baselines.json", import.meta.url), "utf8");
     await writeFile(path.join(root, "release-baselines.json"), realBaselines);
     await writeFile(path.join(root, "package-lock.json"), JSON.stringify({ packages: {
