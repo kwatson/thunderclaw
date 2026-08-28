@@ -10,6 +10,9 @@ makes releases reproducible and keeps asset provenance reviewable.
   palette, approved poses, and usage rules.
 - `assets/raster/` contains the approved source-size raster artwork and
   documented presentation derivatives.
+- `assets/raster/thunderclaw-github-social-preview.jpg` is the GitHub social
+  preview derivative: a centered 2:1 crop of `site/og.png`, resized to
+  1280 by 640 pixels and encoded as a quality-92 JPEG.
 - `assets/raster/icons/` contains the source-size toolbar icon artwork.
 - Shipping size-specific icons live with the Thunderbird extension package and
   are generated from the approved toolbar icon master.
@@ -37,6 +40,7 @@ digests identify the exact approved inputs copied into the public repository:
 | `thunderclaw-character-master.png` | `f5500476077b2a096e4a16e9cd7d1287404da3c559b7bad3b1febde8ba243da8` |
 | `thunderclaw-character-transparent.png` | `1f2594be3cc4c572aaed3fec8516f67f675bed725a9819bd9e64be6b8b4d6e80` |
 | `icons/thunderclaw-toolbar-icon-master.png` | `5d992ba14106cf892f59e16ed153e15e0e4dde0ac00d9d31563c30bfd14b3496` |
+| `thunderclaw-github-social-preview.jpg` | `4d058504dc0a9d49e09982cc4d274500feb4c2fd3fb3bc04a2c095ced1c224ab` |
 
 The square, transparent-size, WebP, and shipping icon families are mechanical
 format, canvas, transparency, or resize derivatives of those approved inputs,
