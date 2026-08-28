@@ -285,6 +285,24 @@ async function reconcileOrigins(artifacts, metadata, secrets, trials) {
 }
 
 async function main() {
+  const releaseComponent = process.env.THUNDERCLAW_QUALIFICATION_COMPONENT;
+  const candidatePlugin = process.env.THUNDERCLAW_OPENCLAW_PLUGIN_TGZ;
+  const candidateXpi = process.env.THUNDERCLAW_E2E_XPI;
+  assert(["openclaw-plugin", "thunderbird-extension"].includes(releaseComponent),
+    "THUNDERCLAW_QUALIFICATION_COMPONENT must be openclaw-plugin or thunderbird-extension");
+  assert(candidatePlugin, "THUNDERCLAW_OPENCLAW_PLUGIN_TGZ must name the exact candidate plugin archive");
+  assert(candidateXpi, "THUNDERCLAW_E2E_XPI must name the exact counterpart XPI");
+  const pluginPath = resolve(candidatePlugin);
+  const currentXpi = resolve(candidateXpi);
+  if (releaseComponent === "openclaw-plugin") {
+    command("mise", ["exec", "--", "node", "scripts/validate-candidate-artifact.mjs", "plugin-tgz", pluginPath], { capture: true });
+    command("mise", ["exec", "--", "node", "scripts/verify-counterpart-baseline.mjs",
+      "--for-component", "openclaw-plugin", "--artifact", currentXpi], { capture: true });
+  } else {
+    command("mise", ["exec", "--", "node", "scripts/verify-counterpart-baseline.mjs",
+      "--for-component", "thunderbird-extension", "--artifact", pluginPath], { capture: true });
+    command("mise", ["exec", "--", "node", "scripts/validate-candidate-artifact.mjs", "xpi", currentXpi], { capture: true });
+  }
   gatewayOrigin = resolveGatewayOrigin();
   const selectedSuffixes = process.env.THUNDERCLAW_QUALIFICATION_TRIALS
     ? process.env.THUNDERCLAW_QUALIFICATION_TRIALS.split(",").filter((suffix) => allowedSuffixes.includes(suffix))
@@ -320,9 +338,7 @@ async function main() {
   });
   try {
     assert(config.models.providers.deepseek.baseUrl !== `http://${proxyName}:18888`, "stale qualification provider override requires recovery");
-    command("mise", ["exec", "--", "npm", "run", "build:extension"]);
-    const currentXpi = join(root, "build/thunderclaw-extension.xpi");
-    xpiPath = join(artifacts, "thunderclaw-extension-0.1.0.xpi");
+    xpiPath = join(artifacts, "candidate.xpi");
     await copyFile(currentXpi, xpiPath);
     expectedXpiSha256 = hash(await readFile(xpiPath));
     assert(JSON.stringify(xpiEntries(xpiPath)) === JSON.stringify(xpiEntries(currentXpi)), "qualified XPI copy is not exact");
@@ -371,7 +387,7 @@ async function main() {
     const gatewayContainerImageId = command("docker", ["inspect", "thunderclaw-spike-gateway-1", "--format", "{{.Image}}"], { capture: true });
     assert(gatewayContainerImageId === gatewayImageId, "Gateway container is not using the pinned immutable image");
     const gatewayRepoDigests = command("docker", ["image", "inspect", "ghcr.io/openclaw/openclaw:2026.8.1-beta.3", "--format", "{{json .RepoDigests}}"], { capture: true });
-    const pluginArchiveSha256 = hash(await readFile(join(root, "build/thunderclaw-openclaw-plugin-0.1.0.tgz")));
+    const pluginArchiveSha256 = hash(await readFile(pluginPath));
     const pluginList = JSON.parse(command("docker", ["compose", "-f", "compose.spike.yaml", "exec", "-T", "gateway",
       "node", "openclaw.mjs", "plugins", "list", "--json"], { capture: true }));
     const installedPlugin = pluginList.plugins?.find((plugin) => plugin.id === "thunderclaw" && plugin.status === "loaded");
@@ -382,7 +398,7 @@ async function main() {
     const installedPluginSha256 = hash(await readFile(join(installedPluginRoot, "dist/src/route.js")));
     const unpackedPlugin = join(temporary, "plugin");
     await mkdir(unpackedPlugin);
-    command("tar", ["-xzf", "build/thunderclaw-openclaw-plugin-0.1.0.tgz", "-C", unpackedPlugin]);
+    command("tar", ["-xzf", pluginPath, "-C", unpackedPlugin]);
     command("diff", ["-qr", join(unpackedPlugin, "package/dist"), join(installedPluginRoot, "dist")], { capture: true });
     const metadata = { runId, startedAt: new Date().toISOString(), qualificationNonce, status,
       agent: { agentId: agent.agentId, provider: agent.provider, model: agent.model,

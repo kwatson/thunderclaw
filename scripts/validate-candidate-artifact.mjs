@@ -17,7 +17,10 @@ if (!requestedPath.endsWith(expectedSuffix)) {
 const artifact = await realpath(requestedPath);
 if (!(await stat(artifact)).isFile()) throw new Error(`Candidate ${kind} must be a regular file`);
 
-const repositoryPackage = JSON.parse(await readFile(path.join(root, "package.json"), "utf8"));
+const component = kind === "xpi" ? "thunderbird-extension" : "openclaw-plugin";
+const componentPackage = JSON.parse(await readFile(
+  path.join(root, "packages", component, "package.json"), "utf8",
+));
 const archiveEntries = kind === "xpi"
   ? execFileSync("unzip", ["-Z1", artifact], { encoding: "utf8" }).trim().split(/\r?\n/u)
   : execFileSync("tar", ["-tzf", artifact], { encoding: "utf8" }).trim().split(/\r?\n/u);
@@ -31,8 +34,8 @@ const metadata = JSON.parse(execFileSync(
   kind === "xpi" ? ["-p", artifact, metadataEntry] : ["-xOzf", artifact, metadataEntry],
   { encoding: "utf8" },
 ));
-if (metadata.version !== repositoryPackage.version) {
-  throw new Error(`Candidate ${kind} version does not match the ThunderClaw repository version`);
+if (metadata.version !== componentPackage.version) {
+  throw new Error(`Candidate ${kind} version does not match the ${component} version`);
 }
 if (kind === "xpi") {
   if (metadata.browser_specific_settings?.gecko?.id !== "thunderclaw@addons.thunderbird.net"
@@ -56,4 +59,4 @@ if (kind === "xpi") {
 }
 
 const sha256 = createHash("sha256").update(await readFile(artifact)).digest("hex");
-process.stdout.write(`${JSON.stringify({ kind, path: artifact, sha256, version: metadata.version })}\n`);
+process.stdout.write(`${JSON.stringify({ component, kind, path: artifact, sha256, version: metadata.version })}\n`);

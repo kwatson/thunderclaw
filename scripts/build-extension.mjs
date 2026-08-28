@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { build } from "esbuild";
 import { promises as fs } from "node:fs";
+import { unlinkSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -12,6 +13,8 @@ const defaultOutput = path.join(root, "build", "thunderclaw-extension.xpi");
 let outputRoot = defaultOutputRoot;
 let output = defaultOutput;
 let isolated = false;
+let buildLock;
+let buildLockPath;
 if (argumentsList.length !== 0) {
   if (argumentsList.length !== 2 || argumentsList[0] !== "--isolated-parent") {
     throw new Error("Usage: build-extension.mjs [--isolated-parent <existing-temporary-directory>]");
@@ -25,6 +28,42 @@ if (argumentsList.length !== 0) {
   output = path.join(isolatedRoot, "thunderclaw-extension.xpi");
   isolated = true;
 }
+if (!isolated) {
+  await fs.mkdir(path.dirname(defaultOutput), { recursive: true });
+  buildLockPath = path.join(path.dirname(defaultOutput), ".thunderclaw-extension-build.lock");
+  const deadline = Date.now() + 30_000;
+  while (!buildLock) {
+    try {
+      buildLock = await fs.open(buildLockPath, "wx", 0o600);
+      await buildLock.writeFile(`${process.pid}\n`, "utf8");
+    } catch (error) {
+      if (error.code === "EEXIST") {
+        const owner = Number.parseInt((await fs.readFile(buildLockPath, "utf8").catch(() => "")).trim(), 10);
+        if (Number.isSafeInteger(owner) && owner > 1) {
+          try { process.kill(owner, 0); } catch (ownerError) {
+            if (ownerError.code === "ESRCH") {
+              await fs.unlink(buildLockPath).catch((unlinkError) => {
+                if (unlinkError.code !== "ENOENT") throw unlinkError;
+              });
+              continue;
+            }
+          }
+        }
+      }
+      if (error.code !== "EEXIST" || Date.now() >= deadline) {
+        throw new Error("Another default ThunderClaw extension build holds the build lock", { cause: error });
+      }
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+  }
+}
+const cleanupBuildLock = () => {
+  if (!buildLockPath) return;
+  try { unlinkSync(buildLockPath); } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+  }
+};
+process.once("exit", cleanupBuildLock);
 const runtimeFiles = [
   "manifest.json",
   "compose.js",
@@ -48,11 +87,9 @@ const runtimeFiles = [
 const legalFiles = ["LICENSE", "NOTICE"];
 
 const manifest = JSON.parse(await fs.readFile(path.join(source, "manifest.json"), "utf8"));
-const repositoryPackage = JSON.parse(await fs.readFile(path.join(root, "package.json"), "utf8"));
-const pluginPackage = JSON.parse(await fs.readFile(path.join(root, "packages", "openclaw-plugin", "package.json"), "utf8"));
 const extensionPackage = JSON.parse(await fs.readFile(path.join(root, "packages", "thunderbird-extension", "package.json"), "utf8"));
-if (new Set([manifest.version, repositoryPackage.version, pluginPackage.version, extensionPackage.version]).size !== 1) {
-  throw new Error("ThunderClaw repository, plugin, extension, and manifest versions must match");
+if (manifest.version !== extensionPackage.version) {
+  throw new Error("ThunderClaw extension package and manifest versions must match");
 }
 if (manifest.browser_specific_settings?.gecko?.id !== "thunderclaw@addons.thunderbird.net") {
   throw new Error("ThunderClaw extension must have the stable reviewed ID");
@@ -125,5 +162,24 @@ const expectedFiles = [...runtimeFiles, ...legalFiles, "background.js", "options
 if (JSON.stringify(packagedFiles) !== JSON.stringify(expectedFiles)) {
   throw new Error(`Extension package contains unexpected runtime files: ${packagedFiles.join(", ")}`);
 }
-execFileSync("zip", ["-X", "-q", "-r", output, "."], { cwd: outputRoot, stdio: "inherit" });
+// ZIP records timestamps and modes. Normalize both and pass an already sorted
+// file list so builds from different clean directories have identical bytes.
+// Use the second UTC day so the local DOS timestamp cannot fall before ZIP's
+// 1980 epoch in negative-offset time zones.
+const zipEpoch = new Date("1980-01-02T00:00:00.000Z");
+for (const relative of packagedFiles) {
+  const packaged = path.join(outputRoot, relative);
+  await fs.chmod(packaged, 0o644);
+  await fs.utimes(packaged, zipEpoch, zipEpoch);
+}
+execFileSync("zip", ["-X", "-q", output, ...packagedFiles], {
+  cwd: outputRoot,
+  env: { ...process.env, TZ: "UTC" },
+  stdio: "inherit",
+});
+if (buildLock) {
+  await buildLock.close();
+  cleanupBuildLock();
+  process.removeListener("exit", cleanupBuildLock);
+}
 process.stdout.write(`${output}\n`);

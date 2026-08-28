@@ -1,0 +1,203 @@
+name: Publish Thunderbird extension to ATN
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        required: true
+        type: string
+      verify_metadata_only:
+        required: false
+        type: boolean
+        default: false
+      reviewer_source_attached:
+        required: false
+        type: boolean
+        default: false
+      reviewer_testing_notes_entered:
+        required: false
+        type: boolean
+        default: false
+    secrets:
+      ATN_JWT_ISSUER:
+        required: true
+      ATN_JWT_SECRET:
+        required: true
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing qualified thunderbird-extension-vX.Y.Z GitHub release
+        required: true
+        type: string
+      verify_metadata_only:
+        description: Verify public XPI and release notes after the Developer Hub handoff
+        required: false
+        type: boolean
+        default: false
+      reviewer_source_attached:
+        description: Confirm the exact reviewer source ZIP was attached manually
+        required: false
+        type: boolean
+        default: false
+      reviewer_testing_notes_entered:
+        description: Confirm private reviewer testing notes were entered manually
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: thunderbird-addons-${{ inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  publish-thunderbird-addons:
+    name: Submit and verify exact extension release
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    environment:
+      name: thunderbird-addons
+    steps:
+      - name: Check out the tagged publication automation
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.tag }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install managed runtimes
+        uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4
+
+      - name: Install locked dependencies
+        run: mise exec -- npm ci
+
+      - name: Download and verify the qualified extension release
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_TAG" =~ ^thunderbird-extension-v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || {
+            echo "Release tag must have canonical form thunderbird-extension-vX.Y.Z" >&2
+            exit 1
+          }
+          commit=$(git rev-parse "$RELEASE_TAG^{commit}")
+          git fetch --no-tags origin '+refs/heads/main:refs/remotes/origin/main'
+          git merge-base --is-ancestor "$commit" refs/remotes/origin/main || {
+            echo "Release tag commit must be contained in origin/main" >&2
+            exit 1
+          }
+          version=${RELEASE_TAG#thunderbird-extension-v}
+          mkdir -p release/assets
+          mkdir release/canonical
+          gh release download "$RELEASE_TAG" --dir release/assets
+          mise exec -- node scripts/release-metadata.mjs --tag "$RELEASE_TAG" --notes-output release/canonical/release-notes.md
+          gh release view "$RELEASE_TAG" --json body --jq .body > release/github-release-notes.md
+          mise exec -- node --input-type=module <<'NODE'
+          import { readFile } from "node:fs/promises";
+          import { verifyMarketplaceNotes } from "./scripts/verify-marketplace-notes.mjs";
+          verifyMarketplaceNotes(await readFile("release/canonical/release-notes.md", "utf8"), await readFile("release/assets/release-notes.md", "utf8"), "GitHub asset");
+          verifyMarketplaceNotes(await readFile("release/canonical/release-notes.md", "utf8"), await readFile("release/github-release-notes.md", "utf8"), "GitHub");
+          NODE
+          mise exec -- node scripts/verify-marketplace-release.mjs \
+            --directory release/assets \
+            --component thunderbird-extension \
+            --tag "$RELEASE_TAG" \
+            --repository "$GITHUB_REPOSITORY" \
+            --commit "$commit"
+          for artifact in "release/assets/thunderclaw-thunderbird-${version}.xpi" "release/assets/thunderclaw-thunderbird-source-${version}.zip"; do
+            gh attestation verify "$artifact" \
+              --repo "$GITHUB_REPOSITORY" \
+              --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/release.yml" \
+              --source-ref "refs/tags/$RELEASE_TAG" \
+              --source-digest "$commit"
+          done
+          test "$(unzip -p "release/assets/thunderclaw-thunderbird-${version}.xpi" manifest.json | jq -r .version)" = "$version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Submit exact XPI to ATN signing
+        if: ${{ !inputs.verify_metadata_only }}
+        env:
+          ATN_JWT_ISSUER: ${{ secrets.ATN_JWT_ISSUER }}
+          ATN_JWT_SECRET: ${{ secrets.ATN_JWT_SECRET }}
+          THUNDERCLAW_VERSION: ${{ steps.release.outputs.version }}
+          THUNDERCLAW_XPI: ${{ github.workspace }}/release/assets/thunderclaw-thunderbird-${{ steps.release.outputs.version }}.xpi
+        run: mise exec -- node scripts/submit-thunderbird-addon.mjs | tee "$RUNNER_TEMP/atn-submission.json"
+
+      - name: Record mandatory Developer Hub handoff
+        if: ${{ !inputs.verify_metadata_only && success() }}
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+          RELEASE_VERSION: ${{ steps.release.outputs.version }}
+        shell: bash
+        run: |
+          {
+            echo "### Mandatory ATN Developer Hub handoff — publication incomplete"
+            echo
+            echo "The signing API accepted the XPI, but it cannot set ATN release notes, attach reviewer source, or enter private reviewer testing notes for ${RELEASE_TAG}. This workflow is not a completed marketplace publication."
+            echo "In Developer Hub: (1) set release notes from the canonical GitHub release; (2) attach thunderclaw-thunderbird-source-${RELEASE_VERSION}.zip; and (3) enter the reviewer testing notes for exact-byte reproduction and the bounded Generate/Preview/Apply/Undo smoke procedure."
+            echo "Verify all three fields before treating this release as submitted for review."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Require manual handoff confirmations for metadata verification
+        if: ${{ inputs.verify_metadata_only && (!inputs.reviewer_source_attached || !inputs.reviewer_testing_notes_entered) }}
+        run: |
+          echo "Confirm both the exact reviewer source archive and private reviewer testing notes in Developer Hub before verification" >&2
+          exit 1
+
+      - name: Verify and download public ATN-signed XPI and canonical release notes
+        if: ${{ inputs.verify_metadata_only && inputs.reviewer_source_attached && inputs.reviewer_testing_notes_entered }}
+        run: |
+          mise exec -- node scripts/verify-atn-release.mjs \
+            --version '${{ steps.release.outputs.version }}' \
+            --notes-file release/assets/release-notes.md \
+            --xpi 'release/assets/thunderclaw-thunderbird-${{ steps.release.outputs.version }}.xpi' \
+            --download-output '${{ runner.temp }}/thunderclaw-atn-signed-${{ steps.release.outputs.version }}.xpi' \
+            | tee "$RUNNER_TEMP/atn-submission.json"
+
+      - name: Verify public XPI is identical or adds only signature metadata
+        if: ${{ inputs.verify_metadata_only && inputs.reviewer_source_attached && inputs.reviewer_testing_notes_entered }}
+        env:
+          RELEASE_VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          mise exec -- node scripts/verify-atn-xpi-payload.mjs \
+            --qualified "release/assets/thunderclaw-thunderbird-${RELEASE_VERSION}.xpi" \
+            --public "$RUNNER_TEMP/thunderclaw-atn-signed-${RELEASE_VERSION}.xpi" \
+            | tee "$RUNNER_TEMP/atn-payload-verification.json"
+
+      - name: Smoke-test the exact public ATN-signed XPI
+        if: ${{ inputs.verify_metadata_only && inputs.reviewer_source_attached && inputs.reviewer_testing_notes_entered }}
+        env:
+          THUNDERCLAW_E2E_ARTIFACTS: ${{ runner.temp }}/atn-smoke
+          THUNDERCLAW_E2E_VERSIONS: 153.0.3
+          THUNDERCLAW_E2E_XPI: ${{ runner.temp }}/thunderclaw-atn-signed-${{ steps.release.outputs.version }}.xpi
+        run: mise exec -- npm run test:e2e:thunderbird
+
+      - name: Record verified ATN metadata
+        if: ${{ inputs.verify_metadata_only && inputs.reviewer_source_attached && inputs.reviewer_testing_notes_entered && success() }}
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+          RELEASE_VERSION: ${{ steps.release.outputs.version }}
+        shell: bash
+        run: |
+          {
+            echo "### Verified ATN submission metadata"
+            echo
+            echo "ATN exposes the signed XPI and canonical release notes for ${RELEASE_TAG}; its unsigned payload matches the qualified XPI, the signed XPI passed Generate/Preview/Apply/Undo smoke, and the maintainer confirmed both reviewer source and private testing notes in Developer Hub."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Retain ATN result
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: thunderclaw-atn-submission-${{ steps.release.outputs.version }}
+          path: |
+            ${{ runner.temp }}/atn-submission.json
+            ${{ runner.temp }}/atn-payload-verification.json
+            ${{ runner.temp }}/atn-smoke/
+          if-no-files-found: warn
+          retention-days: 30

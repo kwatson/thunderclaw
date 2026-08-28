@@ -5,11 +5,17 @@ compose=(docker compose -f compose.spike.yaml)
 
 mkdir -p .spike/thunderclaw-openclaw .spike/thunderclaw-openclaw/workspace
 mkdir -p .spike/thunderclaw-packages .spike/thunderclaw-packages/archive
-package_path=.spike/thunderclaw-packages/thunderclaw-openclaw-plugin-0.1.0.tgz
-if test -f "$package_path"; then
-  mv "$package_path" ".spike/thunderclaw-packages/archive/thunderclaw-openclaw-plugin-0.1.0-$(date +%s).tgz"
+if test -n "${THUNDERCLAW_OPENCLAW_PLUGIN_TGZ:-}"; then
+  candidate=$(realpath "$THUNDERCLAW_OPENCLAW_PLUGIN_TGZ")
+  mise exec -- node scripts/validate-candidate-artifact.mjs plugin-tgz "$candidate" >/dev/null
+  package_path=.spike/thunderclaw-packages/qualification-candidate.tgz
+  cp "$candidate" "$package_path"
+  cmp -s "$candidate" "$package_path" || { echo "Staged plugin differs from the explicit candidate" >&2; exit 1; }
+else
+  plugin_version=$(mise exec -- node -p 'require("./packages/openclaw-plugin/package.json").version')
+  package_path=".spike/thunderclaw-packages/thunderclaw-openclaw-plugin-${plugin_version}.tgz"
+  mise exec -- npm pack --workspace @thunderclaw/openclaw-plugin --pack-destination .spike/thunderclaw-packages --silent >/dev/null
 fi
-mise exec -- npm pack --workspace @thunderclaw/openclaw-plugin --pack-destination .spike/thunderclaw-packages --silent >/dev/null
 
 "${compose[@]}" run --rm --no-deps --entrypoint sh gateway -lc '
   node openclaw.mjs onboard \
@@ -36,7 +42,7 @@ mise exec -- npm pack --workspace @thunderclaw/openclaw-plugin --pack-destinatio
   @openclaw/deepseek-provider@2026.8.1-beta.3 --force --pin
 
 "${compose[@]}" run --rm --no-deps gateway node openclaw.mjs plugins install \
-  npm-pack:/workspace/thunderclaw/.spike/thunderclaw-packages/thunderclaw-openclaw-plugin-0.1.0.tgz --force
+  "npm-pack:/workspace/thunderclaw/${package_path}" --force
 
 "${compose[@]}" run --rm --no-deps --entrypoint node gateway -e '
   const { spawnSync } = require("node:child_process");

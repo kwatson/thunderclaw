@@ -65,6 +65,7 @@ export async function submitToThunderbirdAddons({ xpi, version, issuer, secret, 
     if (!pollResponse.ok) throw new Error(`ATN validation polling failed with HTTP ${pollResponse.status}`);
   }
   if (!status.valid) throw new Error(`ATN rejected the XPI; validation results: ${JSON.stringify(status.validation_results ?? null)}`);
+
   return {
     addonId,
     version,
@@ -72,6 +73,7 @@ export async function submitToThunderbirdAddons({ xpi, version, issuer, secret, 
     valid: Boolean(status.valid),
     reviewed: Boolean(status.reviewed),
     active: Boolean(status.active),
+    manualHandoffRequired: true,
     validationUrl: status.validation_url ?? null,
   };
 }

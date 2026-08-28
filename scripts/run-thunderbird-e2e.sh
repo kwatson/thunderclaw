@@ -26,15 +26,11 @@ for version in ${versions}; do
 done
 
 cd "${repository_root}"
-if [ "${THUNDERCLAW_E2E_XPI+x}" = x ]; then
-  if [ -z "${THUNDERCLAW_E2E_XPI}" ]; then
-    echo "THUNDERCLAW_E2E_XPI must name an existing candidate XPI" >&2
-    exit 2
-  fi
-  candidate_xpi=${THUNDERCLAW_E2E_XPI}
-else
-  candidate_xpi=$(mise exec -- npm run --silent build:extension | tail -n 1)
+if [ "${THUNDERCLAW_E2E_XPI+x}" != x ] || [ -z "${THUNDERCLAW_E2E_XPI}" ]; then
+  echo "THUNDERCLAW_E2E_XPI must name an existing candidate XPI" >&2
+  exit 2
 fi
+candidate_xpi=${THUNDERCLAW_E2E_XPI}
 mise exec -- node scripts/validate-candidate-artifact.mjs xpi "${candidate_xpi}"
 mkdir -p "${artifact_root}"
 # Remove only the known files/directories published by the pre-matrix runner.

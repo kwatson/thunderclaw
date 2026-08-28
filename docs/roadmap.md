@@ -6,24 +6,26 @@ This file contains unfinished work only. Current behavior belongs in the
 product and architecture documents; completed test results belong in release
 provenance and CI artifacts.
 
-## Now: publication automation
+## Now: independent publication migration
 
-1. Complete public-repository protected-branch setup, dependency and security
-   automation, and documentation checks around the implemented tag-triggered,
-   build-once GitHub release workflow.
-2. Re-enable hosted macOS real-Thunderbird automation after Thunderbird 154.
-3. Add ATN reviewer-source automation if Thunderbird exposes a supported API,
-   then add signed-XPI post-publication smoke tests. Protected ClawHub
-   publication and ATN XPI submission already promote exact GitHub release
-   bytes; ATN source attachment remains a Developer Hub handoff.
+1. Before tagging, complete and record the external GitHub tag/environment
+   protections and migrate ClawHub OIDC trust to the exact workflow,
+   `clawhub` environment, and `openclaw-plugin-v*` ref binding.
+2. Land the independent-release refactor while both components remain `0.1.1`,
+   then land the OpenClaw compatibility change as the separate plugin `0.1.2`
+   commit and release.
+3. Re-enable hosted macOS real-Thunderbird automation after Thunderbird 154.
+4. Add ATN reviewer-source automation if Thunderbird exposes a supported API.
+   Until then, source and notes remain a recorded Developer Hub handoff; add
+   exact post-publication ATN API verification and signed-XPI smoke evidence.
 
 ## Later
 
 - Expand repeatable native Thunderbird lifecycle coverage on Windows and
   macOS, including same-profile upgrade/restart, optional host permission,
   credential rotation and revocation, Disconnect/Forget, compose, and message
-  behavior. The accepted `v0.1.0` XPI becomes the immutable upgrade baseline
-  for the next release.
+  behavior. Qualification uses the cryptographically pinned last-published XPI
+  rather than an ignored local build.
 - Expand the remote HTTPS matrix to cover compose/message and credential
   lifecycle behavior, certificate failures, and ambiguous network outcomes.
 - Expand guided pairing CLI qualification across direct shell, Docker

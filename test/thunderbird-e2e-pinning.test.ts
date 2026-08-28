@@ -17,11 +17,25 @@ test("real Thunderbird E2E pins and isolates the supported version matrix", asyn
   assert.match(script, /THUNDERCLAW_E2E_XPI\+x/u);
   assert.match(script, /validate-candidate-artifact\.mjs xpi/u);
   assert.match(script, /cmp -s "\$\{candidate_xpi\}"/u);
-  assert.doesNotMatch(script, /^mise exec -- npm run build:extension$/mu);
+  assert.doesNotMatch(script, /npm run(?: --silent)? build:extension/u);
+
+  const workflow = await readFile(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8");
+  assert.match(workflow, /name: thunderclaw-ci-candidate/u);
+  assert.match(workflow, /sha256sum --check thunderclaw-extension\.xpi\.sha256/u);
+  assert.match(workflow, /THUNDERCLAW_E2E_XPI: \$\{\{ github\.workspace \}\}\/candidate\/thunderclaw-extension\.xpi/u);
 
   const driver = await readFile(new URL("../e2e/thunderbird/run_compose.py", import.meta.url), "utf8");
   assert.match(driver, /const consent = document\.querySelector\("#consent-accepted"\)/u);
   assert.match(driver, /consent\.checked = true/u);
   assert.match(driver, /consent\.dispatchEvent\(new Event\("change", \{ bubbles: true \}\)\)/u);
   assert.match(driver, /if \(pair\.disabled\) return false/u);
+});
+
+test("Thunderbird upgrade qualification requires exact baseline and candidate XPIs", async () => {
+  const script = await readFile(new URL("../scripts/run-thunderbird-upgrade-e2e.sh", import.meta.url), "utf8");
+  assert.match(script, /THUNDERCLAW_UPGRADE_BASELINE_XPI/u);
+  assert.match(script, /THUNDERCLAW_E2E_XPI/u);
+  assert.match(script, /verify-counterpart-baseline\.mjs/u);
+  assert.match(script, /validate-candidate-artifact\.mjs xpi/u);
+  assert.doesNotMatch(script, /npm run(?: --silent)? build:extension/u);
 });

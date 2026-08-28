@@ -22,5 +22,6 @@ export function submitToThunderbirdAddons(options: {
   valid: boolean;
   reviewed: boolean;
   active: boolean;
+  manualHandoffRequired: true;
   validationUrl: string | null;
 }>;

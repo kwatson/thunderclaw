@@ -1,0 +1,140 @@
+name: Audit or retry a legacy combined release channel
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Historical combined tag (v0.1.0 or v0.1.1)
+        required: true
+        type: choice
+        options: [v0.1.0, v0.1.1]
+      channel:
+        description: Legacy channel to audit or retry where supported
+        required: true
+        type: choice
+        options: [openclaw-plugin, thunderbird-extension, both]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: legacy-marketplace-${{ inputs.tag }}-${{ inputs.channel }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Verify immutable legacy release
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      version: ${{ steps.release.outputs.version }}
+      commit: ${{ steps.release.outputs.commit }}
+    steps:
+      - name: Check out current trusted publication automation
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Install managed runtimes
+        uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4
+      - name: Dispatch, download, and verify pinned bytes
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          RELEASE_CHANNEL: ${{ inputs.channel }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mise exec -- node scripts/release-channel-dispatch.mjs --tag "$RELEASE_TAG" --channel "$RELEASE_CHANNEL"
+          git fetch --force --tags origin
+          git fetch --no-tags origin '+refs/heads/main:refs/remotes/origin/main'
+          commit=$(git rev-parse "$RELEASE_TAG^{commit}")
+          git merge-base --is-ancestor "$commit" refs/remotes/origin/main
+          mkdir release
+          gh release download "$RELEASE_TAG" --dir release
+          mise exec -- node scripts/verify-legacy-marketplace-release.mjs \
+            --directory release --tag "$RELEASE_TAG" --repository "$GITHUB_REPOSITORY" --commit "$commit"
+          version=${RELEASE_TAG#v}
+          for artifact in "release/thunderclaw-openclaw-plugin-${version}.tgz" "release/thunderclaw-thunderbird-${version}.xpi" "release/thunderclaw-thunderbird-source-${version}.zip"; do
+            gh attestation verify "$artifact" \
+              --repo "$GITHUB_REPOSITORY" \
+              --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/release.yml" \
+              --source-ref "refs/tags/$RELEASE_TAG" \
+              --source-digest "$commit"
+          done
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "commit=$commit" >> "$GITHUB_OUTPUT"
+      - name: Stage immutable legacy inputs
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: thunderclaw-legacy-${{ steps.release.outputs.version }}
+          path: release/
+          if-no-files-found: error
+
+  clawhub:
+    name: Audit immutable legacy plugin publication
+    if: ${{ inputs.channel == 'openclaw-plugin' || inputs.channel == 'both' }}
+    needs: prepare
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment:
+      name: clawhub-legacy
+    steps:
+      - name: Check out current trusted publication automation
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with: { persist-credentials: false }
+      - name: Install managed runtimes
+        uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4
+      - name: Download verified legacy inputs
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: thunderclaw-legacy-${{ needs.prepare.outputs.version }}
+          path: release
+      - name: Verify the existing immutable legacy ClawHub release
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+          RELEASE_COMMIT: ${{ needs.prepare.outputs.commit }}
+          RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mise exec -- node scripts/verify-legacy-clawhub-release.mjs \
+            --package @thunderclaw/openclaw-plugin \
+            --version "$RELEASE_VERSION" \
+            --artifact "release/thunderclaw-openclaw-plugin-${RELEASE_VERSION}.tgz" \
+            --repository "$GITHUB_REPOSITORY" \
+            --tag "$RELEASE_TAG" \
+            --commit "$RELEASE_COMMIT" \
+            | tee "$RUNNER_TEMP/clawhub-legacy-audit.json"
+      - name: Record immutable historical changelog limitation
+        run: echo 'ClawHub does not support changing the changelog of an already-published immutable version; this job verifies the historical artifact and source metadata without claiming a repair.' >> "$GITHUB_STEP_SUMMARY"
+
+  thunderbird:
+    name: Retry legacy Thunderbird submission
+    if: ${{ inputs.channel == 'thunderbird-extension' || inputs.channel == 'both' }}
+    needs: prepare
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    environment:
+      name: thunderbird-addons-legacy
+    steps:
+      - name: Check out current trusted publication automation
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with: { persist-credentials: false }
+      - name: Install managed runtimes
+        uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4
+      - name: Download verified legacy inputs
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: thunderclaw-legacy-${{ needs.prepare.outputs.version }}
+          path: release
+      - name: Submit exact legacy XPI
+        env:
+          ATN_JWT_ISSUER: ${{ secrets.ATN_JWT_ISSUER }}
+          ATN_JWT_SECRET: ${{ secrets.ATN_JWT_SECRET }}
+          THUNDERCLAW_VERSION: ${{ needs.prepare.outputs.version }}
+          THUNDERCLAW_XPI: ${{ github.workspace }}/release/thunderclaw-thunderbird-${{ needs.prepare.outputs.version }}.xpi
+        run: mise exec -- node scripts/submit-thunderbird-addon.mjs
+      - name: Record mandatory Developer Hub handoff
+        run: echo 'Legacy ATN retry remains incomplete until release notes, reviewer source, and private reviewer testing notes are confirmed in Developer Hub.' >> "$GITHUB_STEP_SUMMARY"

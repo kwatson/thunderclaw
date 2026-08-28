@@ -13,9 +13,9 @@ There is no helper application, Native Messaging host, Microsoft Store/MSIX
 package, or privileged operating-system registration.
 
 For development installation from source, see
-[`development.md`](development.md). Published versions of both components must
-match; mixing versions is unsupported unless a release note explicitly says
-otherwise.
+[`development.md`](development.md). The two components version independently.
+Install a pair listed as compatible in the component release notes and
+[`compatibility.md`](compatibility.md); numeric versions do not need to match.
 
 ## Connection requirements
 

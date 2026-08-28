@@ -76,8 +76,9 @@ message content, and environment details.
 
 ## Distribution
 
-A release produces an npm-style OpenClaw plugin archive, a Thunderbird XPI, and
-an allowlisted Mozilla reviewer source archive. The plugin and extension share
-one release version. Build installable artifacts once, record their digests,
-qualify those exact bytes, and promote them without rebuilding.
-
+The OpenClaw plugin and Thunderbird extension release independently. A plugin
+release produces one npm-style archive; an extension release produces one XPI
+and one allowlisted Mozilla reviewer source archive. Each component owns its
+version, changelog, tag, and GitHub release. Build candidate artifacts once,
+record their digests, qualify those exact bytes with the cryptographically
+pinned last-published counterpart, and promote them without rebuilding.

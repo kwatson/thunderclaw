@@ -3,7 +3,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { cpSync, existsSync, lstatSync, mkdtempSync, mkdirSync, readFileSync, realpathSync, renameSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { basename, join, resolve, sep } from "node:path";
+import { basename, join, relative, resolve, sep } from "node:path";
 import { spawnSync } from "node:child_process";
 
 const root = resolve(import.meta.dirname, "..");
@@ -115,17 +115,21 @@ async function waitForGatewayHealth(): Promise<void> {
   throw new Error("the restored Gateway did not become healthy");
 }
 
-function packCandidate(): string {
-  mkdirSync(join(root, "build"), { recursive: true });
-  const output = command("mise", ["exec", "--", "node", "scripts/package-openclaw-plugin.mjs"], { cwd: root });
-  const reportedArchive = output.trim().split("\n").at(-1);
-  if (!reportedArchive) throw new Error("plugin packager did not report an archive");
-  const archive = resolve(reportedArchive);
-  if (join(root, "build", basename(archive)) !== archive || !archive.endsWith(".tgz")) {
-    throw new Error("plugin packager did not report a safe archive path");
+function candidateArchive(): { container: string } {
+  const configured = process.env.THUNDERCLAW_OPENCLAW_PLUGIN_TGZ;
+  if (!configured) throw new Error("THUNDERCLAW_OPENCLAW_PLUGIN_TGZ must name an existing candidate archive");
+  const archive = resolve(configured);
+  if (process.env.THUNDERCLAW_QUALIFICATION_COMPONENT === "thunderbird-extension") {
+    command("mise", ["exec", "--", "node", "scripts/verify-counterpart-baseline.mjs",
+      "--for-component", "thunderbird-extension", "--artifact", archive]);
+  } else {
+    command("mise", ["exec", "--", "node", "scripts/validate-candidate-artifact.mjs", "plugin-tgz", archive]);
   }
-  if (!existsSync(archive)) throw new Error("candidate plugin archive was not created");
-  return archive;
+  const repositoryRelative = relative(root, archive);
+  if (repositoryRelative.startsWith(`..${sep}`) || repositoryRelative === ".." || resolve(root, repositoryRelative) !== archive) {
+    throw new Error("THUNDERCLAW_OPENCLAW_PLUGIN_TGZ must be inside the repository so the pinned Gateway can mount it read-only");
+  }
+  return { container: `/workspace/thunderclaw/${repositoryRelative.split(sep).join("/")}` };
 }
 
 function waitForPairingStatus(origin: string): Promise<void> {
@@ -447,7 +451,7 @@ async function main(): Promise<void> {
   inspectGateway();
   const origin = endpoint();
   if (dryRun) {
-    packCandidate();
+    candidateArchive();
     const backup = backupInstalledPlugin();
     cleanupBackup(backup);
     process.stdout.write("Pairing qualification dry run passed: pinned Gateway, logs, health, endpoint, and candidate archive verified.\n");
@@ -460,7 +464,7 @@ async function main(): Promise<void> {
   };
 
   if (!noInstall) {
-    const candidateArchive = packCandidate();
+    const candidate = candidateArchive();
     await installTransaction<PluginBackup, void>({
       backup: backupInstalledPlugin,
       install: async () => {
@@ -468,7 +472,7 @@ async function main(): Promise<void> {
       // supported uninstall lifecycle removes that obsolete config/install
       // entry without deleting the separate plugin-owned registry state.
       docker("exec", "-T", "gateway", "node", "openclaw.mjs", "plugins", "uninstall", "thunderclaw", "--force");
-      docker("exec", "-T", "gateway", "node", "openclaw.mjs", "plugins", "install", "--force", `npm-pack:/workspace/thunderclaw/build/${basename(candidateArchive)}`);
+      docker("exec", "-T", "gateway", "node", "openclaw.mjs", "plugins", "install", "--force", `npm-pack:${candidate.container}`);
       docker("exec", "-T", "gateway", "node", "openclaw.mjs", "config", "set", "plugins.entries.thunderclaw.enabled", "true", "--strict-json");
       docker("restart", "gateway");
       },

@@ -2,26 +2,29 @@
 set -eu
 
 repository_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-baseline="${repository_root}/build/frozen-release-0.0.11-body-text-list-39bcaca3/thunderclaw-extension-0.0.11-39bcaca3.xpi"
-expected_baseline=39bcaca3cea664d139b3431b7a3530b0efc52003296cad4569c790f95191dd71
 artifacts="${repository_root}/build/e2e/thunderbird-upgrade/153.0.3"
 staging=$(mktemp -d /tmp/thunderclaw-upgrade-e2e.XXXXXX)
 trap 'find "${staging}" -depth -delete' EXIT HUP INT TERM
 
-if [ ! -f "${baseline}" ]; then
-  echo "The frozen 0.0.11 baseline XPI is missing" >&2
+if [ "${THUNDERCLAW_UPGRADE_BASELINE_XPI+x}" != x ] || [ -z "${THUNDERCLAW_UPGRADE_BASELINE_XPI}" ]; then
+  echo "THUNDERCLAW_UPGRADE_BASELINE_XPI must name the pinned published baseline XPI" >&2
   exit 2
 fi
-actual_baseline=$(sha256sum "${baseline}" | awk '{print $1}')
-if [ "${actual_baseline}" != "${expected_baseline}" ]; then
-  echo "The frozen 0.0.11 baseline XPI hash is invalid" >&2
+if [ "${THUNDERCLAW_E2E_XPI+x}" != x ] || [ -z "${THUNDERCLAW_E2E_XPI}" ]; then
+  echo "THUNDERCLAW_E2E_XPI must name the exact candidate XPI" >&2
   exit 2
 fi
+baseline=${THUNDERCLAW_UPGRADE_BASELINE_XPI}
+candidate=${THUNDERCLAW_E2E_XPI}
 
 cd "${repository_root}"
-mise exec -- npm run build:extension
+mise exec -- node scripts/verify-counterpart-baseline.mjs \
+  --for-component openclaw-plugin --artifact "${baseline}"
+mise exec -- node scripts/validate-candidate-artifact.mjs xpi "${candidate}"
 cp "${baseline}" "${staging}/baseline.xpi"
-cp "${repository_root}/build/thunderclaw-extension.xpi" "${staging}/candidate.xpi"
+cp "${candidate}" "${staging}/candidate.xpi"
+cmp -s "${baseline}" "${staging}/baseline.xpi"
+cmp -s "${candidate}" "${staging}/candidate.xpi"
 chmod 0755 "${staging}"
 chmod 0644 "${staging}/baseline.xpi" "${staging}/candidate.xpi"
 mkdir -p "${artifacts}"

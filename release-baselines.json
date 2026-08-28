@@ -1,0 +1,60 @@
+{
+  "format": "thunderclaw-legacy-release-baselines-v1",
+  "repository": "https://github.com/kwatson/thunderclaw",
+  "releases": [
+    {
+      "component": "openclaw-plugin",
+      "version": "0.1.0",
+      "legacyTag": "v0.1.0",
+      "commit": "36f05b63c0ebdab7593bee2d4e6a7218449fef66",
+      "assets": [
+        { "name": "thunderclaw-openclaw-plugin-0.1.0.tgz", "size": 653624, "sha256": "54cf56602fb3cfcb1553a6b37e78851e9b310245987b60c376731da0892d9b75" },
+        { "name": "SHA256SUMS", "size": 311, "sha256": "452bae94b945affc9b9d7ec8757f6e97ca893b8dbe9e41c65bfe506b409439c3" },
+        { "name": "release-provenance.json", "size": 947, "sha256": "bd9863443107bead8ed0a7106f25f46f5028a902f24d8cd8aff4388f629ae04f" }
+      ],
+      "provenance": { "format": "thunderclaw-release-provenance-v1", "workflowRun": "https://github.com/kwatson/thunderclaw/actions/runs/31666064842", "attempt": 1 },
+      "attestation": { "verified": true, "issuer": "https://token.actions.githubusercontent.com", "workflow": "kwatson/thunderclaw/.github/workflows/release.yml@refs/tags/v0.1.0", "invocation": "https://github.com/kwatson/thunderclaw/actions/runs/31666064842/attempts/1" }
+    },
+    {
+      "component": "thunderbird-extension",
+      "version": "0.1.0",
+      "legacyTag": "v0.1.0",
+      "commit": "36f05b63c0ebdab7593bee2d4e6a7218449fef66",
+      "assets": [
+        { "name": "thunderclaw-thunderbird-0.1.0.xpi", "size": 119571, "sha256": "0c07abec552115240d53029e7d4cdca477cf1217ca5690b24c45b4740124d205" },
+        { "name": "thunderclaw-thunderbird-source-0.1.0.zip", "size": 184306, "sha256": "80c6caeb4ac56a56a6336e46cb81356ceb571a0300c5e0b7ad98ae0ca573e486" },
+        { "name": "SHA256SUMS", "size": 311, "sha256": "452bae94b945affc9b9d7ec8757f6e97ca893b8dbe9e41c65bfe506b409439c3" },
+        { "name": "release-provenance.json", "size": 947, "sha256": "bd9863443107bead8ed0a7106f25f46f5028a902f24d8cd8aff4388f629ae04f" }
+      ],
+      "provenance": { "format": "thunderclaw-release-provenance-v1", "workflowRun": "https://github.com/kwatson/thunderclaw/actions/runs/31666064842", "attempt": 1 },
+      "attestation": { "verified": true, "issuer": "https://token.actions.githubusercontent.com", "workflow": "kwatson/thunderclaw/.github/workflows/release.yml@refs/tags/v0.1.0", "invocation": "https://github.com/kwatson/thunderclaw/actions/runs/31666064842/attempts/1" }
+    },
+    {
+      "component": "openclaw-plugin",
+      "version": "0.1.1",
+      "legacyTag": "v0.1.1",
+      "commit": "a9acf3f71788434dd3c05d51cdc8116f37c9077b",
+      "assets": [
+        { "name": "thunderclaw-openclaw-plugin-0.1.1.tgz", "size": 653636, "sha256": "cc788a25c06a159f9fa0e150267461f7595fddcbd56e9b74b3c40414a16b81db" },
+        { "name": "SHA256SUMS", "size": 311, "sha256": "55d816dd34d274c0b64cc8c1699d3fd73eac63f7a5d7c9a07c4a4a044b2b4753" },
+        { "name": "release-provenance.json", "size": 947, "sha256": "00ea637bb91d102e8ca4302f142ef264e740bf4fcf6e70a5e381cdb7408d40ee" }
+      ],
+      "provenance": { "format": "thunderclaw-release-provenance-v1", "workflowRun": "https://github.com/kwatson/thunderclaw/actions/runs/33002945160", "attempt": 1 },
+      "attestation": { "verified": true, "issuer": "https://token.actions.githubusercontent.com", "workflow": "kwatson/thunderclaw/.github/workflows/release.yml@refs/tags/v0.1.1", "invocation": "https://github.com/kwatson/thunderclaw/actions/runs/33002945160/attempts/1" }
+    },
+    {
+      "component": "thunderbird-extension",
+      "version": "0.1.1",
+      "legacyTag": "v0.1.1",
+      "commit": "a9acf3f71788434dd3c05d51cdc8116f37c9077b",
+      "assets": [
+        { "name": "thunderclaw-thunderbird-0.1.1.xpi", "size": 119572, "sha256": "9d87360c0492a4b98cf67143001c7569508c48ed151100aed058be85df1d0754" },
+        { "name": "thunderclaw-thunderbird-source-0.1.1.zip", "size": 184440, "sha256": "3552e095e0db59dd6aa76b4f22cc9f71736f33d5a6017eebe1fe04a4f8f64eef" },
+        { "name": "SHA256SUMS", "size": 311, "sha256": "55d816dd34d274c0b64cc8c1699d3fd73eac63f7a5d7c9a07c4a4a044b2b4753" },
+        { "name": "release-provenance.json", "size": 947, "sha256": "00ea637bb91d102e8ca4302f142ef264e740bf4fcf6e70a5e381cdb7408d40ee" }
+      ],
+      "provenance": { "format": "thunderclaw-release-provenance-v1", "workflowRun": "https://github.com/kwatson/thunderclaw/actions/runs/33002945160", "attempt": 1 },
+      "attestation": { "verified": true, "issuer": "https://token.actions.githubusercontent.com", "workflow": "kwatson/thunderclaw/.github/workflows/release.yml@refs/tags/v0.1.1", "invocation": "https://github.com/kwatson/thunderclaw/actions/runs/33002945160/attempts/1" }
+    }
+  ]
+}

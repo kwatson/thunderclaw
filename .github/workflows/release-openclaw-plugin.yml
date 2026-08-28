@@ -1,0 +1,231 @@
+name: Release OpenClaw plugin
+
+on:
+  push:
+    tags:
+      - "openclaw-plugin-v*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CI: "true"
+
+jobs:
+  build:
+    name: Validate and build plugin once
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    outputs:
+      version: ${{ steps.metadata.outputs.version }}
+    steps:
+      - name: Check out tagged source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify tag commit belongs to main
+        shell: bash
+        run: |
+          git fetch --no-tags origin '+refs/heads/main:refs/remotes/origin/main'
+          git merge-base --is-ancestor "$GITHUB_SHA" refs/remotes/origin/main || {
+            echo "Release tag commit must be contained in origin/main" >&2
+            exit 1
+          }
+
+      - name: Install managed runtimes
+        uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4
+
+      - name: Validate plugin tag, manifest, lockfile, and changelog
+        id: metadata
+        shell: bash
+        run: |
+          mkdir -p build
+          metadata=$(mise exec -- node scripts/release-metadata.mjs \
+            --tag "$GITHUB_REF_NAME" \
+            --notes-output build/release-notes.md)
+          test "$(jq -r .component <<<"$metadata")" = openclaw-plugin
+          echo "version=$(jq -r .version <<<"$metadata")" >> "$GITHUB_OUTPUT"
+
+      - name: Install locked dependencies
+        run: mise exec -- npm ci
+
+      - name: Run deterministic tests
+        run: mise exec -- npm test
+
+      - name: Typecheck
+        run: mise exec -- npm run typecheck
+
+      - name: Build plugin archive once
+        run: mise exec -- npm run pack:plugin
+
+      - name: Assemble plugin checksum and provenance
+        env:
+          RELEASE_VERSION: ${{ steps.metadata.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          release_root=build/release
+          mkdir "$release_root"
+          mv "build/thunderclaw-openclaw-plugin-${RELEASE_VERSION}.tgz" "$release_root/"
+          mv build/release-notes.md "$release_root/release-notes.md"
+          (cd "$release_root" && sha256sum "thunderclaw-openclaw-plugin-${RELEASE_VERSION}.tgz" > SHA256SUMS)
+          RELEASE_ROOT="$release_root" mise exec -- node --input-type=module <<'NODE'
+          import { readFile, stat, writeFile } from "node:fs/promises";
+          import path from "node:path";
+          const root = process.env.RELEASE_ROOT;
+          const [sha256, name] = (await readFile(path.join(root, "SHA256SUMS"), "utf8")).trim().split("  ");
+          const provenance = {
+            format: "thunderclaw-release-provenance-v2",
+            component: "openclaw-plugin",
+            source: {
+              repository: process.env.GITHUB_SERVER_URL + "/" + process.env.GITHUB_REPOSITORY,
+              commit: process.env.GITHUB_SHA,
+              tag: process.env.GITHUB_REF_NAME,
+            },
+            build: {
+              workflow: process.env.GITHUB_WORKFLOW_REF,
+              run: process.env.GITHUB_SERVER_URL + "/" + process.env.GITHUB_REPOSITORY + "/actions/runs/" + process.env.GITHUB_RUN_ID,
+              attempt: Number(process.env.GITHUB_RUN_ATTEMPT),
+            },
+            artifacts: [{ name, sha256, size: (await stat(path.join(root, name))).size }],
+          };
+          await writeFile(path.join(root, "release-provenance.json"), `${JSON.stringify(provenance, null, 2)}\n`);
+          NODE
+
+      - name: Scan unpacked plugin for secrets
+        env:
+          RELEASE_VERSION: ${{ steps.metadata.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          scanner_root=$(mktemp -d /tmp/thunderclaw-gitleaks.XXXXXX)
+          scan_root=$(mktemp -d /tmp/thunderclaw-release-scan.XXXXXX)
+          trap 'find "$scanner_root" "$scan_root" -depth -delete' EXIT
+          curl --fail --location --proto '=https' --tlsv1.2 \
+            --output "$scanner_root/gitleaks.tar.gz" \
+            https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz
+          echo '551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb  gitleaks.tar.gz' | (cd "$scanner_root" && sha256sum --check -)
+          tar -xzf "$scanner_root/gitleaks.tar.gz" -C "$scanner_root" gitleaks
+          mkdir "$scan_root/plugin"
+          tar -xzf "build/release/thunderclaw-openclaw-plugin-${RELEASE_VERSION}.tgz" -C "$scan_root/plugin"
+          "$scanner_root/gitleaks" dir "$scan_root" --no-banner --redact
+
+      - name: Upload immutable plugin candidate
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: thunderclaw-openclaw-plugin-${{ steps.metadata.outputs.version }}
+          path: build/release/
+          if-no-files-found: error
+          retention-days: 14
+
+  qualify:
+    name: Qualify exact plugin archive
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Check out tagged source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Install managed runtimes
+        uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4
+      - name: Install locked dependencies
+        run: mise exec -- npm ci
+      - name: Download plugin candidate
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: thunderclaw-openclaw-plugin-${{ needs.build.outputs.version }}
+          path: release
+      - name: Download and verify pinned Thunderbird counterpart
+        id: counterpart
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          counterpart_tag=$(jq -r '."thunderbird-extension".tag' e2e/qualification/counterpart-baselines.json)
+          counterpart_name=$(jq -r '."thunderbird-extension".name' e2e/qualification/counterpart-baselines.json)
+          mkdir counterpart
+          gh release download "$counterpart_tag" --pattern "$counterpart_name" --dir counterpart
+          mise exec -- node scripts/verify-counterpart-baseline.mjs \
+            --for-component openclaw-plugin \
+            --artifact "counterpart/$counterpart_name"
+          echo "path=$GITHUB_WORKSPACE/counterpart/$counterpart_name" >> "$GITHUB_OUTPUT"
+      - name: Verify and qualify exact plugin bytes
+        env:
+          THUNDERCLAW_QUALIFICATION_COMPONENT: openclaw-plugin
+          THUNDERCLAW_OPENCLAW_PLUGIN_TGZ: ${{ github.workspace }}/release/thunderclaw-openclaw-plugin-${{ needs.build.outputs.version }}.tgz
+          THUNDERCLAW_E2E_XPI: ${{ steps.counterpart.outputs.path }}
+        shell: bash
+        run: |
+          (cd release && sha256sum --check SHA256SUMS)
+          mise exec -- npm run test:integration:openclaw
+
+  paired-qualification:
+    name: Qualify exact plugin with pinned extension
+    needs: build
+    uses: ./.github/workflows/qualify-release-pair.yml
+    with:
+      component: openclaw-plugin
+      version: ${{ needs.build.outputs.version }}
+      candidate_artifact: thunderclaw-openclaw-plugin-${{ needs.build.outputs.version }}
+    secrets: inherit
+
+  release:
+    name: Approve and create plugin GitHub release
+    needs: [build, qualify, paired-qualification]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment:
+      name: release
+    permissions:
+      attestations: write
+      contents: write
+      id-token: write
+    steps:
+      - name: Check out tagged source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Download qualified plugin candidate
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: thunderclaw-openclaw-plugin-${{ needs.build.outputs.version }}
+          path: release
+      - name: Verify qualified bytes
+        run: (cd release && sha256sum --check SHA256SUMS)
+      - name: Attest plugin provenance
+        uses: actions/attest-build-provenance@96278af6caaf10aea03fd8d33a09a777ca52d62f # v3.2.0
+        with:
+          subject-path: release/thunderclaw-openclaw-plugin-${{ needs.build.outputs.version }}.tgz
+      - name: Create plugin GitHub release with canonical notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            "release/thunderclaw-openclaw-plugin-${{ needs.build.outputs.version }}.tgz" \
+            release/release-notes.md \
+            release/SHA256SUMS \
+            release/release-provenance.json \
+            --verify-tag \
+            --title "ThunderClaw OpenClaw plugin ${{ needs.build.outputs.version }}" \
+            --notes-file release/release-notes.md
+
+  clawhub:
+    name: Promote qualified plugin to ClawHub
+    needs: release
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/publish-clawhub.yml
+    with:
+      tag: ${{ github.ref_name }}
+    secrets: inherit

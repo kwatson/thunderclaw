@@ -1,0 +1,181 @@
+name: Publish OpenClaw plugin to ClawHub
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        required: true
+        type: string
+    secrets:
+      CLAWHUB_TOKEN:
+        required: true
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing qualified openclaw-plugin-vX.Y.Z GitHub release
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: clawhub-${{ inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  publish-clawhub:
+    name: Publish and verify exact plugin release
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    environment:
+      name: clawhub
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Check out the tagged publication automation
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.tag }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install managed runtimes
+        uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4
+
+      - name: Download and verify the qualified plugin release
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_TAG" =~ ^openclaw-plugin-v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || {
+            echo "Release tag must have canonical form openclaw-plugin-vX.Y.Z" >&2
+            exit 1
+          }
+          commit=$(git rev-parse "$RELEASE_TAG^{commit}")
+          git fetch --no-tags origin '+refs/heads/main:refs/remotes/origin/main'
+          git merge-base --is-ancestor "$commit" refs/remotes/origin/main || {
+            echo "Release tag commit must be contained in origin/main" >&2
+            exit 1
+          }
+          version=${RELEASE_TAG#openclaw-plugin-v}
+          mkdir -p release/assets
+          mkdir release/canonical
+          gh release download "$RELEASE_TAG" --dir release/assets
+          mise exec -- node scripts/release-metadata.mjs \
+            --tag "$RELEASE_TAG" \
+            --notes-output release/canonical/release-notes.md
+          gh release view "$RELEASE_TAG" --json body --jq .body > release/github-release-notes.md
+          mise exec -- node --input-type=module <<'NODE'
+          import { readFile } from "node:fs/promises";
+          import { verifyMarketplaceNotes } from "./scripts/verify-marketplace-notes.mjs";
+          verifyMarketplaceNotes(
+            await readFile("release/canonical/release-notes.md", "utf8"),
+            await readFile("release/assets/release-notes.md", "utf8"),
+            "GitHub asset",
+          );
+          verifyMarketplaceNotes(
+            await readFile("release/canonical/release-notes.md", "utf8"),
+            await readFile("release/github-release-notes.md", "utf8"),
+            "GitHub",
+          );
+          NODE
+          mise exec -- node scripts/verify-marketplace-release.mjs \
+            --directory release/assets \
+            --component openclaw-plugin \
+            --tag "$RELEASE_TAG" \
+            --repository "$GITHUB_REPOSITORY" \
+            --commit "$commit"
+          gh attestation verify "release/assets/thunderclaw-openclaw-plugin-${version}.tgz" \
+            --repo "$GITHUB_REPOSITORY" \
+            --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/release-openclaw-plugin.yml" \
+            --source-ref "refs/tags/$RELEASE_TAG" \
+            --source-digest "$commit"
+          test "$(tar -xOf "release/assets/thunderclaw-openclaw-plugin-${version}.tgz" package/package.json | jq -r .version)" = "$version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "commit=$commit" >> "$GITHUB_OUTPUT"
+
+      - name: Install pinned Bun runtime
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: 1.3.10
+
+      - name: Check out pinned ClawHub publisher
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: openclaw/clawhub
+          ref: 87ca030c30f3cfb78ab15c8e66b5ff1469c8f9c8 # v0.23.3
+          path: clawhub-source
+          persist-credentials: false
+
+      - name: Install pinned ClawHub dependencies
+        working-directory: clawhub-source
+        run: bun install --frozen-lockfile
+
+      - name: Configure ClawHub authentication
+        env:
+          CLAWHUB_TOKEN: ${{ secrets.CLAWHUB_TOKEN }}
+          RELEASE_COMMIT: ${{ steps.release.outputs.commit }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -n "$CLAWHUB_TOKEN" ]]; then
+            config="$RUNNER_TEMP/clawhub-config.json"
+            jq -n --arg token "$CLAWHUB_TOKEN" '{registry: "https://clawhub.ai", token: $token}' > "$config"
+            chmod 600 "$config"
+            echo "CLAWHUB_CONFIG_PATH=$config" >> "$GITHUB_ENV"
+          elif [[ "$GITHUB_EVENT_NAME" != "workflow_dispatch" || "$GITHUB_SHA" != "$RELEASE_COMMIT" || "$GITHUB_REF" != "refs/tags/$RELEASE_TAG" ]]; then
+            echo "CLAWHUB_TOKEN is required for tag-push publication; tokenless OIDC is limited to workflow_dispatch from the exact release tag" >&2
+            exit 1
+          fi
+
+      - name: Publish exact archive with canonical changelog
+        env:
+          CLAWHUB_TOKEN: ${{ secrets.CLAWHUB_TOKEN }}
+          PLUGIN_ARCHIVE: ${{ github.workspace }}/release/assets/thunderclaw-openclaw-plugin-${{ steps.release.outputs.version }}.tgz
+          RELEASE_COMMIT: ${{ steps.release.outputs.commit }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cli="$GITHUB_WORKSPACE/clawhub-source/packages/clawhub/src/cli.ts"
+          release_notes=$(<release/assets/release-notes.md)
+          publish_auth_args=()
+          if [[ -n "$CLAWHUB_TOKEN" ]]; then
+            publish_auth_args=(--owner thunderclaw --manual-override-reason "GitHub Actions publication of qualified ${RELEASE_TAG}")
+          fi
+          bun "$cli" package publish "$PLUGIN_ARCHIVE" \
+            --family code-plugin \
+            --source-repo "https://github.com/$GITHUB_REPOSITORY" \
+            --source-ref "$RELEASE_TAG" \
+            --source-commit "$RELEASE_COMMIT" \
+            --changelog "$release_notes" \
+            --wait \
+            --wait-timeout 2400 \
+            "${publish_auth_args[@]}" \
+            --json | tee "$RUNNER_TEMP/clawhub-publish.json"
+          jq -e '.publicationStatus == "published"' "$RUNNER_TEMP/clawhub-publish.json"
+
+      - name: Verify public ClawHub artifact, source, scan state, and changelog
+        run: |
+          mise exec -- node scripts/verify-marketplace-notes.mjs \
+            --package @thunderclaw/openclaw-plugin \
+            --version '${{ steps.release.outputs.version }}' \
+            --notes-file release/assets/release-notes.md \
+            --artifact 'release/assets/thunderclaw-openclaw-plugin-${{ steps.release.outputs.version }}.tgz' \
+            --repository "$GITHUB_REPOSITORY" \
+            --tag '${{ inputs.tag }}' \
+            --commit '${{ steps.release.outputs.commit }}'
+
+      - name: Retain sanitized publication result
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: thunderclaw-clawhub-publication-${{ steps.release.outputs.version }}
+          path: ${{ runner.temp }}/clawhub-publish.json
+          if-no-files-found: error
+          retention-days: 30

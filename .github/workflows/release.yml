@@ -1,9 +1,9 @@
-name: Release
+name: Release Thunderbird extension
 
 on:
   push:
     tags:
-      - "v*"
+      - "thunderbird-extension-v*"
 
 permissions:
   contents: read
@@ -47,11 +47,11 @@ jobs:
         shell: bash
         run: |
           mkdir -p build
-          mise exec -- node scripts/release-metadata.mjs \
+          metadata=$(mise exec -- node scripts/release-metadata.mjs \
             --tag "$GITHUB_REF_NAME" \
-            --notes-output build/release-notes.md
-          version=${GITHUB_REF_NAME#v}
-          echo "version=$version" >> "$GITHUB_OUTPUT"
+            --notes-output build/release-notes.md)
+          test "$(jq -r .component <<<"$metadata")" = thunderbird-extension
+          echo "version=$(jq -r .version <<<"$metadata")" >> "$GITHUB_OUTPUT"
 
       - name: Install locked dependencies
         run: mise exec -- npm ci
@@ -62,8 +62,8 @@ jobs:
       - name: Typecheck
         run: mise exec -- npm run typecheck
 
-      - name: Build the three release artifacts once
-        run: mise exec -- npm run pack:release
+      - name: Build the extension artifacts once
+        run: mise exec -- npm run build:extension && mise exec -- npm run pack:source
 
       - name: Assemble checksums and provenance
         env:
@@ -73,8 +73,6 @@ jobs:
           set -euo pipefail
           release_root=build/release
           mkdir "$release_root"
-          mv "build/thunderclaw-openclaw-plugin-${RELEASE_VERSION}.tgz" \
-            "$release_root/thunderclaw-openclaw-plugin-${RELEASE_VERSION}.tgz"
           mv build/thunderclaw-extension.xpi \
             "$release_root/thunderclaw-thunderbird-${RELEASE_VERSION}.xpi"
           mv "build/thunderclaw-extension-source-${RELEASE_VERSION}.zip" \
@@ -83,7 +81,6 @@ jobs:
           (
             cd "$release_root"
             sha256sum \
-              "thunderclaw-openclaw-plugin-${RELEASE_VERSION}.tgz" \
               "thunderclaw-thunderbird-${RELEASE_VERSION}.xpi" \
               "thunderclaw-thunderbird-source-${RELEASE_VERSION}.zip" \
               > SHA256SUMS
@@ -104,7 +101,8 @@ jobs:
             artifacts.push({ ...record, size: (await stat(path.join(root, record.name))).size });
           }
           const provenance = {
-            format: "thunderclaw-release-provenance-v1",
+            format: "thunderclaw-release-provenance-v2",
+            component: "thunderbird-extension",
             source: {
               repository: process.env.GITHUB_SERVER_URL + "/" + process.env.GITHUB_REPOSITORY,
               commit: process.env.GITHUB_SHA,
@@ -136,8 +134,7 @@ jobs:
           echo '551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb  gitleaks.tar.gz' \
             | (cd "$scanner_root" && sha256sum --check -)
           tar -xzf "$scanner_root/gitleaks.tar.gz" -C "$scanner_root" gitleaks
-          mkdir "$scan_root/plugin" "$scan_root/xpi" "$scan_root/source"
-          tar -xzf "build/release/thunderclaw-openclaw-plugin-${RELEASE_VERSION}.tgz" -C "$scan_root/plugin"
+          mkdir "$scan_root/xpi" "$scan_root/source"
           unzip -q "build/release/thunderclaw-thunderbird-${RELEASE_VERSION}.xpi" -d "$scan_root/xpi"
           unzip -q "build/release/thunderclaw-thunderbird-source-${RELEASE_VERSION}.zip" -d "$scan_root/source"
           set +e
@@ -166,38 +163,6 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-  openclaw-qualification:
-    name: Qualify prebuilt OpenClaw plugin
-    needs: build
-    runs-on: ubuntu-24.04
-    timeout-minutes: 25
-
-    steps:
-      - name: Check out tagged source
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          persist-credentials: false
-
-      - name: Install managed runtimes
-        uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4
-
-      - name: Install locked dependencies
-        run: mise exec -- npm ci
-
-      - name: Download release candidate
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: thunderclaw-release-${{ needs.build.outputs.version }}
-          path: release
-
-      - name: Verify and qualify exact plugin bytes
-        env:
-          THUNDERCLAW_OPENCLAW_PLUGIN_TGZ: ${{ github.workspace }}/release/thunderclaw-openclaw-plugin-${{ needs.build.outputs.version }}.tgz
-        shell: bash
-        run: |
-          (cd release && sha256sum --check SHA256SUMS)
-          mise exec -- npm run test:integration:openclaw
-
   thunderbird-qualification:
     name: Qualify prebuilt Thunderbird extension
     needs: build
@@ -222,8 +187,26 @@ jobs:
           name: thunderclaw-release-${{ needs.build.outputs.version }}
           path: release
 
+      - name: Download and verify pinned OpenClaw plugin counterpart
+        id: counterpart
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          counterpart_tag=$(jq -r '."openclaw-plugin".tag' e2e/qualification/counterpart-baselines.json)
+          counterpart_name=$(jq -r '."openclaw-plugin".name' e2e/qualification/counterpart-baselines.json)
+          mkdir counterpart
+          gh release download "$counterpart_tag" --pattern "$counterpart_name" --dir counterpart
+          mise exec -- node scripts/verify-counterpart-baseline.mjs \
+            --for-component thunderbird-extension \
+            --artifact "counterpart/$counterpart_name"
+          echo "path=$GITHUB_WORKSPACE/counterpart/$counterpart_name" >> "$GITHUB_OUTPUT"
+
       - name: Verify and qualify exact extension bytes
         env:
+          THUNDERCLAW_QUALIFICATION_COMPONENT: thunderbird-extension
+          THUNDERCLAW_OPENCLAW_PLUGIN_TGZ: ${{ steps.counterpart.outputs.path }}
           THUNDERCLAW_E2E_VERSIONS: 153.0.3
           THUNDERCLAW_E2E_XPI: ${{ github.workspace }}/release/thunderclaw-thunderbird-${{ needs.build.outputs.version }}.xpi
         shell: bash
@@ -355,9 +338,7 @@ jobs:
           set -euo pipefail
           (cd release && sha256sum --check SHA256SUMS)
           reproduction_root=$(mktemp -d /tmp/thunderclaw-source-reproduction.XXXXXX)
-          candidate_root=$(mktemp -d /tmp/thunderclaw-candidate-xpi.XXXXXX)
-          rebuilt_root=$(mktemp -d /tmp/thunderclaw-rebuilt-xpi.XXXXXX)
-          trap 'find "$reproduction_root" "$candidate_root" "$rebuilt_root" -depth -delete' EXIT
+          trap 'find "$reproduction_root" -depth -delete' EXIT
           unzip -q "release/thunderclaw-thunderbird-source-${RELEASE_VERSION}.zip" -d "$reproduction_root"
           source_root="$reproduction_root/thunderclaw-extension-source-${RELEASE_VERSION}"
           test -f "$source_root/README.md"
@@ -368,18 +349,29 @@ jobs:
             mise exec -- npm ci
             mise exec -- npm run build:extension
           )
-          unzip -q "release/thunderclaw-thunderbird-${RELEASE_VERSION}.xpi" -d "$candidate_root"
-          unzip -q "$source_root/build/thunderclaw-extension.xpi" -d "$rebuilt_root"
-          diff --recursive --brief "$candidate_root" "$rebuilt_root"
+          cmp -s "release/thunderclaw-thunderbird-${RELEASE_VERSION}.xpi" "$source_root/build/thunderclaw-extension.xpi" || {
+            echo "Reviewer source did not reproduce the exact candidate XPI bytes" >&2
+            exit 1
+          }
+
+  paired-qualification:
+    name: Qualify exact extension with pinned plugin
+    needs: build
+    uses: ./.github/workflows/qualify-release-pair.yml
+    with:
+      component: thunderbird-extension
+      version: ${{ needs.build.outputs.version }}
+      candidate_artifact: thunderclaw-release-${{ needs.build.outputs.version }}
+    secrets: inherit
 
   release:
     name: Approve and create GitHub release
     needs:
       - build
-      - openclaw-qualification
       - thunderbird-qualification
       - native-qualification
       - source-qualification
+      - paired-qualification
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     environment:
@@ -408,7 +400,6 @@ jobs:
         uses: actions/attest-build-provenance@96278af6caaf10aea03fd8d33a09a777ca52d62f # v3.2.0
         with:
           subject-path: |
-            release/thunderclaw-openclaw-plugin-${{ needs.build.outputs.version }}.tgz
             release/thunderclaw-thunderbird-${{ needs.build.outputs.version }}.xpi
             release/thunderclaw-thunderbird-source-${{ needs.build.outputs.version }}.zip
 
@@ -418,22 +409,22 @@ jobs:
         shell: bash
         run: |
           gh release create "$GITHUB_REF_NAME" \
-            "release/thunderclaw-openclaw-plugin-${{ needs.build.outputs.version }}.tgz" \
             "release/thunderclaw-thunderbird-${{ needs.build.outputs.version }}.xpi" \
             "release/thunderclaw-thunderbird-source-${{ needs.build.outputs.version }}.zip" \
+            release/release-notes.md \
             release/SHA256SUMS \
             release/release-provenance.json \
             --verify-tag \
-            --title "ThunderClaw ${{ needs.build.outputs.version }}" \
+            --title "ThunderClaw Thunderbird extension ${{ needs.build.outputs.version }}" \
             --notes-file release/release-notes.md
 
-  marketplaces:
-    name: Promote qualified release to marketplaces
+  thunderbird-addons:
+    name: Promote qualified extension to ATN
     needs: release
     permissions:
       contents: read
       id-token: write
-    uses: ./.github/workflows/marketplace-publish.yml
+    uses: ./.github/workflows/publish-thunderbird-addons.yml
     with:
       tag: ${{ github.ref_name }}
     secrets: inherit

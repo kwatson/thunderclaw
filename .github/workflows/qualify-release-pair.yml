@@ -1,0 +1,118 @@
+name: Qualify an exact component pair
+
+on:
+  workflow_call:
+    inputs:
+      component:
+        required: true
+        type: string
+      version:
+        required: true
+        type: string
+      candidate_artifact:
+        required: true
+        type: string
+    secrets:
+      DEEPSEEK_API_KEY:
+        required: true
+      OPENCLAW_GATEWAY_TOKEN:
+        required: true
+      THUNDERCLAW_PLUGIN_TOKEN:
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  qualify-pair:
+    name: Protected real-agent pair qualification
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    environment:
+      name: release-qualification
+    steps:
+      - name: Check out tagged source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with: { persist-credentials: false }
+      - name: Install managed runtimes
+        uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4
+      - name: Install locked dependencies
+        run: mise exec -- npm ci
+      - name: Download exact candidate
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ${{ inputs.candidate_artifact }}
+          path: candidate
+      - name: Resolve and verify independently pinned counterpart
+        id: pair
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_COMPONENT: ${{ inputs.component }}
+          RELEASE_VERSION: ${{ inputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "$RELEASE_COMPONENT" in
+            openclaw-plugin)
+              candidate_plugin="$GITHUB_WORKSPACE/candidate/thunderclaw-openclaw-plugin-${RELEASE_VERSION}.tgz"
+              counterpart_component=thunderbird-extension
+              ;;
+            thunderbird-extension)
+              candidate_xpi="$GITHUB_WORKSPACE/candidate/thunderclaw-thunderbird-${RELEASE_VERSION}.xpi"
+              counterpart_component=openclaw-plugin
+              ;;
+            *) echo "Unknown release component" >&2; exit 1 ;;
+          esac
+          counterpart_tag=$(jq -r --arg component "$counterpart_component" '.[$component].tag' e2e/qualification/counterpart-baselines.json)
+          counterpart_name=$(jq -r --arg component "$counterpart_component" '.[$component].name' e2e/qualification/counterpart-baselines.json)
+          mkdir counterpart
+          gh release download "$counterpart_tag" --pattern "$counterpart_name" --dir counterpart
+          counterpart_path="$GITHUB_WORKSPACE/counterpart/$counterpart_name"
+          mise exec -- node scripts/verify-counterpart-baseline.mjs --for-component "$RELEASE_COMPONENT" --artifact "$counterpart_path"
+          if [[ "$RELEASE_COMPONENT" == openclaw-plugin ]]; then candidate_xpi="$counterpart_path"; else candidate_plugin="$counterpart_path"; fi
+          if [[ "$RELEASE_COMPONENT" == openclaw-plugin ]]; then
+            mise exec -- node scripts/validate-candidate-artifact.mjs plugin-tgz "$candidate_plugin"
+          else
+            mise exec -- node scripts/validate-candidate-artifact.mjs xpi "$candidate_xpi"
+          fi
+          echo "plugin=$candidate_plugin" >> "$GITHUB_OUTPUT"
+          echo "xpi=$candidate_xpi" >> "$GITHUB_OUTPUT"
+      - name: Create protected synthetic qualification environment
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          OPENCLAW_GATEWAY_TOKEN: ${{ secrets.OPENCLAW_GATEWAY_TOKEN }}
+          THUNDERCLAW_PLUGIN_TOKEN: ${{ secrets.THUNDERCLAW_PLUGIN_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          {
+            printf 'DEEPSEEK_API_KEY=%s\n' "$DEEPSEEK_API_KEY"
+            printf 'OPENCLAW_GATEWAY_TOKEN=%s\n' "$OPENCLAW_GATEWAY_TOKEN"
+            printf 'THUNDERCLAW_PLUGIN_TOKEN=%s\n' "$THUNDERCLAW_PLUGIN_TOKEN"
+          } > .env.openclaw.local
+      - name: Install exact plugin and build exact-XPI Thunderbird lane
+        env:
+          THUNDERCLAW_OPENCLAW_PLUGIN_TGZ: ${{ steps.pair.outputs.plugin }}
+          THUNDERCLAW_E2E_XPI: ${{ steps.pair.outputs.xpi }}
+          THUNDERCLAW_E2E_VERSIONS: 153.0.3
+        run: |
+          bash scripts/bootstrap-spike.sh
+          mise exec -- npm run test:e2e:thunderbird
+      - name: Exercise the exact pair through the protected product harness
+        env:
+          THUNDERCLAW_QUALIFICATION_COMPONENT: ${{ inputs.component }}
+          THUNDERCLAW_OPENCLAW_PLUGIN_TGZ: ${{ steps.pair.outputs.plugin }}
+          THUNDERCLAW_E2E_XPI: ${{ steps.pair.outputs.xpi }}
+        run: mise exec -- npm run qualify:real-agent
+      - name: Retain sanitized failure evidence
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: thunderclaw-pair-failure-${{ inputs.component }}-${{ inputs.version }}
+          path: build/e2e/product-real-agent/
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Stop ephemeral qualification services
+        if: always()
+        run: docker compose -f compose.spike.yaml down

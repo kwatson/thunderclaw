@@ -47,8 +47,8 @@ GitHub release does not trigger these jobs. Failed Thunderbird jobs retain
 their synthetic evidence for seven days.
 
 The manually triggered OpenClaw integration job creates a fresh temporary state
-directory, onboards without a model provider, installs the exact packed
-ThunderClaw candidate, and qualifies public pairing, operator approval,
+directory, onboards without a model provider, installs the exact plugin archive
+provided in `THUNDERCLAW_OPENCLAW_PLUGIN_TGZ`, and qualifies public pairing, operator approval,
 one-time claim, authenticated status, rotation, revocation, restart
 persistence, raw-credential absence, and OpenClaw backup/restore compatibility.
 It removes only its exact temporary container and state when complete. Run the
@@ -74,9 +74,9 @@ lanes and the Windows Thunderbird 153 compose trial are established. Broader
 native lifecycle automation is post-release hardening. Exact-artifact real-agent
 qualification runs only in a protected environment with a configured verified
 agent; it must never run for fork pull requests or expose credentials or
-retained evidence to untrusted jobs. The Thunderbird upgrade lane also remains
-outside ordinary CI until its frozen baseline XPI is stored as an immutable,
-reviewable CI input instead of ignored local build output.
+retained evidence to untrusted jobs. Component release qualification always
+provides both explicit artifact paths: the current build-once candidate and its
+cryptographically pinned last-published counterpart.
 
 The release-only Apple Silicon lane currently runs the deterministic and native
 macOS filesystem/security gates, but not the real-Thunderbird compose trial.
@@ -101,32 +101,50 @@ mise exec -- npm run pack:plugin
 mise exec -- npm run pack:source
 ```
 
-The protected tag workflow is the authoritative release gate and repeats its
-checks against the artifacts it builds once. While it waits for approval, the
+The protected component-tag workflow is the authoritative release gate and
+repeats checks against the component artifact it builds once. While it waits for approval, the
 maintainer may optionally install the workflow's exact XPI on an actively used
 Windows or macOS Thunderbird profile and repeat a short Generate, Preview,
-Apply, and Undo smoke test. The accepted `v0.1.1` XPI becomes the upgrade
-baseline for the next release.
+Apply, and Undo smoke test. The accepted `v0.1.1` XPI and plugin TGZ are the
+initial independent-release counterpart baselines.
 
-After the GitHub release is created, the protected marketplace workflow
-redownloads and verifies its checksums and provenance before publication. The
-ClawHub job waits for definitive catalog visibility. The Thunderbird Add-ons
-job waits for validation of the exact XPI; ATN review and public availability
-remain pending until a maintainer attaches the matching reviewer source
-archive in the Developer Hub because ATN has no supported API for that field.
+After a component GitHub release is created, its protected marketplace job
+redownloads and verifies checksums and provenance before publishing only that
+channel. ClawHub's public API must confirm exact version, source, scan state,
+and digest. ATN review remains pending until a maintainer attaches the matching
+source archive and testing notes in Developer Hub. After approval, verify the
+exact version and file through ATN's API and smoke-test the signed download.
 
 Run broader Thunderbird upgrade, pairing recovery, or exact-artifact real-agent
 qualification when a change or investigation calls for it. Real-agent
 qualification belongs only in the protected environment:
 
 ```text
-mise exec -- npm run qualify:real-agent
+THUNDERCLAW_OPENCLAW_PLUGIN_TGZ=/absolute/path/to/plugin.tgz \
+THUNDERCLAW_E2E_XPI=/absolute/path/to/extension.xpi \
+THUNDERCLAW_QUALIFICATION_COMPONENT=openclaw-plugin \
+  mise exec -- npm run qualify:real-agent
 ```
 
-Release qualification also builds and scans the allowlisted Mozilla reviewer
-source archive, then verifies that its documented clean-install command
-reproduces the extension. Qualification and publication must reuse the exact
-plugin and XPI bytes produced by the release build.
+Extension release qualification also builds and scans the allowlisted Mozilla
+reviewer source archive, then verifies that its documented clean-install
+command reproduces the XPI. Qualification and publication reuse exact candidate
+bytes; no harness builds or packs implicitly.
+
+## Independent candidate/counterpart matrix
+
+An OpenClaw plugin release qualifies its explicit TGZ with the pinned
+last-published XPI. A Thunderbird extension release qualifies its explicit XPI
+with the pinned last-published TGZ. Names, sizes, and SHA-256 digests for the
+initial `v0.1.1` baselines live in
+[`counterpart-baselines.json`](../e2e/qualification/counterpart-baselines.json).
+Run `verify-counterpart-baseline.mjs` on a downloaded counterpart before a
+harness sees it. Never substitute a local rebuild or an unpinned latest asset.
+
+Permanent dispatch tests prove that only `openclaw-plugin-vX.Y.Z` and
+`thunderbird-extension-vX.Y.Z` route new jobs, each to its own channel.
+Historical `v0.1.0` and `v0.1.1` select plugin, extension, or both legacy jobs
+and remain bound to the frozen v1 verifier. All other refs fail.
 
 ## Real Thunderbird matrix
 
@@ -173,6 +191,11 @@ The release matrix repeats the relevant flow on Windows and macOS because a
 Linux container cannot prove Windows ACL/reparse-point behavior or macOS
 profile permission, link, locking, certificate, and upgrade behavior.
 
+The upgrade runner requires `THUNDERCLAW_UPGRADE_BASELINE_XPI` and
+`THUNDERCLAW_E2E_XPI`. It verifies the former against the committed published
+baseline pin and validates the latter as the current candidate before staging
+byte-identical copies. It never builds either input.
+
 ## Native filesystem qualification
 
 `qualify:native-filesystem` is a bounded, content-free gate for GitHub-hosted
@@ -193,7 +216,8 @@ root; those remain separate release gates.
 ## Pairing qualification
 
 `qualify:pairing` is the repeatable pinned-Gateway lifecycle gate. Normal mode
-inspects health/logs, packs the candidate, creates recoverable prior-plugin and
+inspects health/logs, validates the candidate named by
+`THUNDERCLAW_OPENCLAW_PLUGIN_TGZ`, creates recoverable prior-plugin and
 configuration snapshots, installs through supported OpenClaw commands, restarts
 only the Gateway, and exercises:
 
@@ -209,7 +233,8 @@ only the Gateway, and exercises:
 Useful bounded modes are:
 
 ```text
-mise exec -- npm run qualify:pairing -- --dry-run
+THUNDERCLAW_OPENCLAW_PLUGIN_TGZ=/absolute/path/to/plugin.tgz \
+  mise exec -- npm run qualify:pairing -- --dry-run
 mise exec -- npm run qualify:pairing -- --no-install
 mise exec -- npm run qualify:pairing -- --self-test-rollback
 ```

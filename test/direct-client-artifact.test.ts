@@ -127,15 +127,17 @@ test("isolated extension builds leave default artifacts and sentinels untouched"
     const firstOutput = execFileSync(process.execPath, [
       path.join(root, "scripts/build-extension.mjs"),
       "--isolated-parent", temporary,
-    ], { cwd: root, encoding: "utf8" }).trim();
+    ], { cwd: root, encoding: "utf8", env: { ...process.env, TZ: "UTC" } }).trim();
     const secondOutput = execFileSync(process.execPath, [
       path.join(root, "scripts/build-extension.mjs"),
       "--isolated-parent", temporary,
-    ], { cwd: root, encoding: "utf8" }).trim();
+    ], { cwd: root, encoding: "utf8", env: { ...process.env, TZ: "America/Los_Angeles" } }).trim();
     const canonicalTemporary = await realpath(temporary);
     assert.notEqual(firstOutput, secondOutput);
     assert.equal(path.dirname(path.dirname(firstOutput)), canonicalTemporary);
     assert.equal(path.dirname(path.dirname(secondOutput)), canonicalTemporary);
+    assert.deepEqual(await readFile(firstOutput), await readFile(secondOutput),
+      "isolated XPI builds must reproduce the exact archive bytes");
     assert.equal(await readFile(parentSentinel, "utf8"), "parent survives");
     assert.equal((await readFile(sentinel, "utf8")), "do not touch");
     assert.deepEqual(await readFile(defaultXpi), beforeXpi);
@@ -149,6 +151,16 @@ test("isolated extension builds leave default artifacts and sentinels untouched"
     await rm(sentinel, { force: true });
     await rm(temporary, { recursive: true, force: true });
   }
+});
+
+test("default extension build reclaims a lock owned by a dead process", async () => {
+  const lock = path.join(root, "build/.thunderclaw-extension-build.lock");
+  await writeFile(lock, "2147483647\n", { mode: 0o600 });
+  const output = execFileSync(process.execPath, [path.join(root, "scripts/build-extension.mjs")], {
+    cwd: root, encoding: "utf8",
+  }).trim();
+  assert.equal(output, path.join(root, "build/thunderclaw-extension.xpi"));
+  await assert.rejects(readFile(lock), /ENOENT/u);
 });
 
 test("default extension build preserves unrelated build siblings", async () => {

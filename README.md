@@ -33,7 +33,7 @@
 
 > [!NOTE]
 > **OpenClaw requirement:** ThunderClaw supports OpenClaw from
-> `2026.7.2-beta.7` through the `2026.8.1` release line. See the
+> `2026.7.2-beta.7` through the `2026.9.1` release line. See the
 > [compatibility policy](docs/compatibility.md) for details.
 
 ## AI assistance without handing over your inbox
@@ -152,7 +152,8 @@ ThunderClaw supports OpenClaw from `2026.7.2-beta.7` through the `2026.8.1`
 release line. See the [compatibility policy](docs/compatibility.md) before
 installing.
 
-Install both matching `v0.1.1` components:
+Install the current compatible pair: Thunderbird extension `0.1.1` and
+OpenClaw plugin `0.1.1`:
 
 1. Install **ThunderClaw** from its
    [Thunderbird Add-ons listing](https://addons.thunderbird.net/en-US/thunderbird/addon/thunderclaw/).

@@ -23,8 +23,9 @@ test("Thunderbird extension declares compose and message-view boundaries", async
   const pluginPackage = JSON.parse(await readFile(new URL("../packages/openclaw-plugin/package.json", import.meta.url), "utf8"));
   const extensionPackage = JSON.parse(await readFile(new URL("../packages/thunderbird-extension/package.json", import.meta.url), "utf8"));
   assert.equal(manifest.version, "0.1.1");
-  assert.deepEqual([repositoryPackage.version, pluginPackage.version, extensionPackage.version],
-    [manifest.version, manifest.version, manifest.version]);
+  assert.equal(repositoryPackage.version, undefined);
+  assert.equal(pluginPackage.version, "0.1.1");
+  assert.equal(extensionPackage.version, manifest.version);
   assert.equal(manifest.browser_specific_settings.gecko.id, "thunderclaw@addons.thunderbird.net");
   assert.deepEqual(manifest.permissions.sort(), ["compose", "messagesRead", "scripting", "sensitiveDataUpload", "storage"]);
   assert.deepEqual(manifest.optional_permissions, ["https://*/*", "http://127.0.0.1/*", "http://[::1]/*"]);

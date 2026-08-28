@@ -99,7 +99,7 @@ jobs:
 
       - name: Record candidate XPI digest
         if: github.event_name == 'workflow_dispatch' && inputs.release_qualification == true && steps.changes.outputs.run_full == 'true'
-        run: sha256sum build/thunderclaw-extension.xpi > build/thunderclaw-extension.xpi.sha256
+        run: (cd build && sha256sum thunderclaw-extension.xpi > thunderclaw-extension.xpi.sha256)
 
       - name: Upload candidate XPI
         if: github.event_name == 'workflow_dispatch' && inputs.release_qualification == true && steps.changes.outputs.run_full == 'true'
@@ -136,9 +136,19 @@ jobs:
       - name: Install dependencies
         run: mise exec -- npm ci
 
+      - name: Download candidate XPI
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: thunderclaw-ci-candidate
+          path: candidate
+
+      - name: Verify candidate XPI digest
+        run: (cd candidate && sha256sum --check thunderclaw-extension.xpi.sha256)
+
       - name: Run real Thunderbird tests
         env:
           THUNDERCLAW_E2E_VERSIONS: ${{ matrix.thunderbird }}
+          THUNDERCLAW_E2E_XPI: ${{ github.workspace }}/candidate/thunderclaw-extension.xpi
         run: mise exec -- npm run test:e2e:thunderbird
 
       - name: Upload failure evidence
@@ -267,6 +277,13 @@ jobs:
 
       - name: Install dependencies
         run: mise exec -- npm ci
+
+      - name: Build explicit OpenClaw plugin candidate
+        shell: bash
+        run: |
+          mise exec -- npm run pack:plugin
+          version=$(mise exec -- node -p 'require("./packages/openclaw-plugin/package.json").version')
+          echo "THUNDERCLAW_OPENCLAW_PLUGIN_TGZ=$GITHUB_WORKSPACE/build/thunderclaw-openclaw-plugin-${version}.tgz" >> "$GITHUB_ENV"
 
       - name: Qualify against pinned OpenClaw
         run: mise exec -- npm run test:integration:openclaw

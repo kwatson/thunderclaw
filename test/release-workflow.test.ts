@@ -6,11 +6,9 @@ import test from "node:test";
 function workflowRunBlocks(workflow: string): Array<{ line: number; script: string }> {
   const lines = workflow.split("\n");
   const blocks: Array<{ line: number; script: string }> = [];
-
   for (const [index, line] of lines.entries()) {
     const match = /^(\s*)run: \|\s*$/u.exec(line);
     if (!match) continue;
-
     const keyIndent = match[1].length;
     const scriptIndent = keyIndent + 2;
     const body: string[] = [];
@@ -22,86 +20,120 @@ function workflowRunBlocks(workflow: string): Array<{ line: number; script: stri
     }
     blocks.push({ line: index + 1, script: body.join("\n") });
   }
-
   return blocks;
 }
 
-test("tag release builds once, qualifies exact bytes, and gates publication", async () => {
-  const workflow = await readFile(new URL("../.github/workflows/release.yml", import.meta.url), "utf8");
-
-  assert.match(workflow, /tags:\n\s+- "v\*"/u);
-  assert.match(workflow, /cancel-in-progress: false/u);
-  assert.match(workflow, /node scripts\/release-metadata\.mjs/u);
-  assert.match(workflow, /git fetch --no-tags origin '\+refs\/heads\/main:refs\/remotes\/origin\/main'/u);
-  assert.match(workflow, /git merge-base --is-ancestor "\$GITHUB_SHA" refs\/remotes\/origin\/main/u);
-  assert.equal((workflow.match(/npm run pack:release/gu) ?? []).length, 1);
-  assert.match(workflow, /THUNDERCLAW_OPENCLAW_PLUGIN_TGZ:/u);
-  assert.match(workflow, /THUNDERCLAW_E2E_XPI:/u);
-  assert.match(workflow, /environment:\n\s+name: release/u);
-  assert.match(workflow, /native-qualification:/u);
-  assert.match(workflow, /source-qualification:/u);
-  assert.match(workflow, /windows-2025/u);
-  assert.match(workflow, /macos-15/u);
-  assert.match(workflow, /--xpi "release\/thunderclaw-thunderbird-/u);
-  assert.match(workflow, /gitleaks_8\.30\.1_linux_x64\.tar\.gz/u);
-  assert.match(workflow, /551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb/u);
-  assert.match(workflow, /diff --recursive --brief "\$candidate_root" "\$rebuilt_root"/u);
-  assert.match(workflow, /needs:\n\s+- build\n\s+- openclaw-qualification\n\s+- thunderbird-qualification\n\s+- native-qualification\n\s+- source-qualification/u);
-  assert.match(workflow, /attestations: write/u);
-  assert.match(workflow, /contents: write/u);
-  assert.match(workflow, /id-token: write/u);
-  assert.match(workflow, /gh release create/u);
-  assert.match(
-    workflow,
-    /release:\n[\s\S]*?steps:\n\s+- name: Check out tagged source\n\s+uses: actions\/checkout@[a-f0-9]{40}[\s\S]*?persist-credentials: false[\s\S]*?gh release create/u,
-  );
-  assert.match(workflow, /uses: \.\/\.github\/workflows\/marketplace-publish\.yml/u);
-  assert.doesNotMatch(workflow, /npm publish|addons\.mozilla\.org/u);
-
+function verifyWorkflow(workflow: string, filename: string) {
   for (const reference of workflow.matchAll(/uses: [^@\n]+@([^\s#]+)/gu)) {
-    assert.match(reference[1], /^[a-f0-9]{40}$/u, `action is not pinned to a full commit: ${reference[0]}`);
+    assert.match(reference[1], /^[a-f0-9]{40}$/u, `${filename} action is not pinned: ${reference[0]}`);
   }
+  for (const block of workflowRunBlocks(workflow)) {
+    const result = spawnSync("bash", ["-n"], { input: block.script, encoding: "utf8" });
+    assert.equal(result.status, 0, `${filename}:${block.line} has invalid shell syntax:\n${result.stderr}`);
+  }
+}
+
+test("component release tags build, qualify, and publish only their own artifacts", async () => {
+  const plugin = await readFile(new URL("../.github/workflows/release-openclaw-plugin.yml", import.meta.url), "utf8");
+  const extension = await readFile(new URL("../.github/workflows/release.yml", import.meta.url), "utf8");
+
+  assert.match(plugin, /- "openclaw-plugin-v\*"/u);
+  assert.match(extension, /- "thunderbird-extension-v\*"/u);
+  for (const workflow of [plugin, extension]) {
+    assert.match(workflow, /git fetch --no-tags origin '\+refs\/heads\/main:refs\/remotes\/origin\/main'/u);
+    assert.match(workflow, /git merge-base --is-ancestor "\$GITHUB_SHA" refs\/remotes\/origin\/main/u);
+    assert.match(workflow, /--notes-file release\/release-notes\.md/u);
+    assert.match(workflow, /component:/u);
+    assert.match(workflow, /counterpart_tag=\$\(jq -r/u);
+    assert.match(workflow, /verify-counterpart-baseline\.mjs/u);
+    assert.match(workflow, /THUNDERCLAW_QUALIFICATION_COMPONENT:/u);
+    assert.match(workflow, /THUNDERCLAW_OPENCLAW_PLUGIN_TGZ:/u);
+    assert.match(workflow, /THUNDERCLAW_E2E_XPI:/u);
+    assert.doesNotMatch(workflow, /npm run pack:release/u);
+  }
+  assert.match(plugin, /npm run pack:plugin/u);
+  assert.match(plugin, /THUNDERCLAW_OPENCLAW_PLUGIN_TGZ:/u);
+  assert.match(plugin, /uses: \.\/\.github\/workflows\/publish-clawhub\.yml/u);
+  assert.match(plugin, /uses: \.\/\.github\/workflows\/qualify-release-pair\.yml/u);
+  assert.doesNotMatch(plugin, /publish-thunderbird-addons/u);
+
+  assert.match(extension, /npm run build:extension/u);
+  assert.match(extension, /npm run pack:source/u);
+  assert.match(extension, /THUNDERCLAW_E2E_XPI:/u);
+  assert.match(extension, /source-qualification:/u);
+  assert.match(extension, /uses: \.\/\.github\/workflows\/publish-thunderbird-addons\.yml/u);
+  assert.match(extension, /uses: \.\/\.github\/workflows\/qualify-release-pair\.yml/u);
+  assert.match(extension, /cmp -s "release\/thunderclaw-thunderbird-/u);
+  assert.doesNotMatch(extension, /publish-clawhub/u);
+
+  verifyWorkflow(plugin, "release-openclaw-plugin.yml");
+  verifyWorkflow(extension, "release.yml");
 });
 
-test("marketplace workflow promotes GitHub release bytes without rebuilding", async () => {
-  const workflow = await readFile(new URL("../.github/workflows/marketplace-publish.yml", import.meta.url), "utf8");
+test("protected pair qualification installs and exercises both exact component artifacts", async () => {
+  const workflow = await readFile(new URL("../.github/workflows/qualify-release-pair.yml", import.meta.url), "utf8");
+  assert.match(workflow, /environment:\n\s+name: release-qualification/u);
+  assert.match(workflow, /verify-counterpart-baseline\.mjs/u);
+  assert.match(workflow, /if \[\[ "\$RELEASE_COMPONENT" == openclaw-plugin \]\]; then[\s\S]*validate-candidate-artifact\.mjs plugin-tgz "\$candidate_plugin"[\s\S]*else[\s\S]*validate-candidate-artifact\.mjs xpi "\$candidate_xpi"/u);
+  assert.match(workflow, /THUNDERCLAW_OPENCLAW_PLUGIN_TGZ: \$\{\{ steps\.pair\.outputs\.plugin \}\}/u);
+  assert.match(workflow, /THUNDERCLAW_E2E_XPI: \$\{\{ steps\.pair\.outputs\.xpi \}\}/u);
+  assert.match(workflow, /bash scripts\/bootstrap-spike\.sh/u);
+  assert.match(workflow, /npm run qualify:real-agent/u);
+  verifyWorkflow(workflow, "qualify-release-pair.yml");
+});
 
-  assert.match(workflow, /workflow_call:/u);
-  assert.match(workflow, /workflow_dispatch:/u);
-  assert.match(workflow, /gh release download "\$RELEASE_TAG"/u);
-  assert.match(workflow, /node scripts\/verify-marketplace-release\.mjs/u);
+test("ClawHub publisher uses canonical notes and verifies the public catalog", async () => {
+  const workflow = await readFile(new URL("../.github/workflows/publish-clawhub.yml", import.meta.url), "utf8");
+  assert.match(workflow, /--component openclaw-plugin/u);
+  assert.match(workflow, /--changelog "\$release_notes"/u);
+  assert.match(workflow, /verify-marketplace-notes\.mjs[\s\S]*--artifact[\s\S]*--repository[\s\S]*--commit/u);
+  assert.match(workflow, /gh attestation verify/u);
+  assert.match(workflow, /--signer-workflow/u);
+  assert.match(workflow, /--source-ref/u);
+  assert.match(workflow, /--source-digest/u);
+  assert.match(workflow, /git merge-base --is-ancestor/u);
+  assert.match(workflow, /gh release view "\$RELEASE_TAG" --json body/u);
   assert.match(workflow, /environment:\n\s+name: clawhub/u);
-  assert.match(workflow, /environment:\n\s+name: thunderbird-addons/u);
-  assert.match(workflow, /id-token: write/u);
-  assert.match(workflow, /ref: 87ca030c30f3cfb78ab15c8e66b5ff1469c8f9c8 # v0\.23\.3/u);
-  assert.match(workflow, /package publish "\$PLUGIN_ARCHIVE"/u);
-  assert.match(
-    workflow,
-    /if \[\[ -n "\$CLAWHUB_TOKEN" \]\]; then[\s\S]*?publish_auth_args=\([\s\S]*?--owner thunderclaw[\s\S]*?--manual-override-reason/u,
-  );
-  assert.match(workflow, /CLAWHUB_TOKEN is required to promote a historical release/u);
-  assert.match(workflow, /"\$GITHUB_SHA" != "\$RELEASE_COMMIT"/u);
-  assert.match(workflow, /"\$GITHUB_REF" != "refs\/tags\/\$RELEASE_TAG"/u);
-  assert.doesNotMatch(workflow, /--family code-plugin \\\n\s+--owner thunderclaw/u);
-  assert.match(workflow, /"\$\{publish_auth_args\[@\]\}"/u);
-  assert.match(workflow, /node scripts\/submit-thunderbird-addon\.mjs/u);
-  assert.match(workflow, /ATN does not expose a supported API for reviewer-source/u);
-  assert.doesNotMatch(workflow, /npm run pack:release|npm publish|addons\.mozilla\.org/u);
-
-  for (const reference of workflow.matchAll(/uses: [^@\n]+@([^\s#]+)/gu)) {
-    assert.match(reference[1], /^[a-f0-9]{40}$/u, `action is not pinned to a full commit: ${reference[0]}`);
-  }
-  for (const block of workflowRunBlocks(workflow)) {
-    const result = spawnSync("bash", ["-n"], { input: block.script, encoding: "utf8" });
-    assert.equal(result.status, 0, `invalid shell syntax in run block at workflow line ${block.line}:\n${result.stderr}`);
-  }
+  assert.doesNotMatch(workflow, /publish_clawhub|submit_thunderbird|npm run pack/u);
+  verifyWorkflow(workflow, "publish-clawhub.yml");
 });
 
-test("release workflow multiline run blocks have valid Bash syntax", async () => {
-  const workflow = await readFile(new URL("../.github/workflows/release.yml", import.meta.url), "utf8");
+test("ATN publisher uses supported signing and a distinct manual metadata handoff", async () => {
+  const workflow = await readFile(new URL("../.github/workflows/publish-thunderbird-addons.yml", import.meta.url), "utf8");
+  assert.match(workflow, /--component thunderbird-extension/u);
+  assert.match(workflow, /verify_metadata_only/u);
+  assert.match(workflow, /verify-atn-release\.mjs/u);
+  assert.match(workflow, /reviewer_source_attached/u);
+  assert.match(workflow, /reviewer_testing_notes_entered/u);
+  assert.match(workflow, /verify-atn-xpi-payload\.mjs/u);
+  assert.match(workflow, /publication incomplete/u);
+  assert.match(workflow, /cannot set ATN release notes, attach reviewer source, or enter private reviewer testing notes/u);
+  assert.match(workflow, /THUNDERCLAW_E2E_XPI: \$\{\{ runner\.temp \}\}\/thunderclaw-atn-signed-/u);
+  assert.match(workflow, /npm run test:e2e:thunderbird/u);
+  assert.doesNotMatch(workflow, /THUNDERCLAW_RELEASE_NOTES:|THUNDERCLAW_SOURCE_ARCHIVE:/u);
+  assert.match(workflow, /gh attestation verify/u);
+  assert.match(workflow, /--signer-workflow/u);
+  assert.match(workflow, /--source-ref/u);
+  assert.match(workflow, /--source-digest/u);
+  assert.match(workflow, /git merge-base --is-ancestor/u);
+  assert.doesNotMatch(workflow, /publish_clawhub|submit_thunderbird|npm run pack/u);
+  verifyWorkflow(workflow, "publish-thunderbird-addons.yml");
+});
 
-  for (const block of workflowRunBlocks(workflow)) {
-    const result = spawnSync("bash", ["-n"], { input: block.script, encoding: "utf8" });
-    assert.equal(result.status, 0, `invalid shell syntax in run block at workflow line ${block.line}:\n${result.stderr}`);
-  }
+test("legacy audits and retries use current trusted automation, the immutable ledger, and one selected channel", async () => {
+  const workflow = await readFile(new URL("../.github/workflows/publish-legacy-release.yml", import.meta.url), "utf8");
+  assert.match(workflow, /workflow_dispatch:/u);
+  assert.match(workflow, /options: \[v0\.1\.0, v0\.1\.1\]/u);
+  assert.match(workflow, /options: \[openclaw-plugin, thunderbird-extension, both\]/u);
+  assert.match(workflow, /release-channel-dispatch\.mjs/u);
+  assert.match(workflow, /verify-legacy-marketplace-release\.mjs/u);
+  assert.match(workflow, /gh attestation verify/u);
+  assert.match(workflow, /--signer-workflow/u);
+  assert.match(workflow, /verify-legacy-clawhub-release\.mjs/u);
+  assert.doesNotMatch(workflow, /package publish/u);
+  assert.match(workflow, /git merge-base --is-ancestor/u);
+  assert.match(workflow, /inputs\.channel == 'openclaw-plugin'/u);
+  assert.match(workflow, /inputs\.channel == 'thunderbird-extension'/u);
+  assert.doesNotMatch(workflow, /publish_clawhub|submit_thunderbird/u);
+  verifyWorkflow(workflow, "publish-legacy-release.yml");
 });

@@ -37,15 +37,11 @@ container_args=(
 )
 
 cd "${repository_root}"
-if [[ -v THUNDERCLAW_OPENCLAW_PLUGIN_TGZ ]]; then
-  if [[ -z "${THUNDERCLAW_OPENCLAW_PLUGIN_TGZ}" ]]; then
-    printf '%s\n' "THUNDERCLAW_OPENCLAW_PLUGIN_TGZ must name an existing candidate archive" >&2
-    exit 2
-  fi
-  candidate=${THUNDERCLAW_OPENCLAW_PLUGIN_TGZ}
-else
-  candidate=$(mise exec -- node scripts/package-openclaw-plugin.mjs | tail -n 1)
+if [[ ! -v THUNDERCLAW_OPENCLAW_PLUGIN_TGZ || -z "${THUNDERCLAW_OPENCLAW_PLUGIN_TGZ}" ]]; then
+  printf '%s\n' "THUNDERCLAW_OPENCLAW_PLUGIN_TGZ must name an existing candidate archive" >&2
+  exit 2
 fi
+candidate=${THUNDERCLAW_OPENCLAW_PLUGIN_TGZ}
 mise exec -- node scripts/validate-candidate-artifact.mjs plugin-tgz "${candidate}"
 staged_candidate="${temporary_root}/thunderclaw-openclaw-plugin.tgz"
 cp "${candidate}" "${staged_candidate}"

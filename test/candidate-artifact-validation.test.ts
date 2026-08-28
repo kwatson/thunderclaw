@@ -13,20 +13,29 @@ function validate(kind: "xpi" | "plugin-tgz", artifact: string) {
   return spawnSync(process.execPath, [validator, kind, artifact], { cwd: root, encoding: "utf8" });
 }
 
-test("candidate artifact validator accepts current ThunderClaw archives and reports their digest", () => {
-  const xpi = execFileSync(process.execPath, [path.join(root, "scripts/build-extension.mjs")], {
-    cwd: root, encoding: "utf8",
-  }).trim();
-  const plugin = execFileSync("npm", ["run", "--silent", "pack:plugin"], {
-    cwd: root, encoding: "utf8",
-  }).trim().split("\n").at(-1)!;
-  for (const [kind, artifact] of [["xpi", xpi], ["plugin-tgz", plugin]] as const) {
-    const result = validate(kind, artifact);
-    assert.equal(result.status, 0, result.stderr);
-    const report = JSON.parse(result.stdout) as Record<string, unknown>;
-    assert.equal(report.kind, kind);
-    assert.equal(report.version, "0.1.1");
-    assert.match(String(report.sha256), /^[a-f0-9]{64}$/u);
+test("candidate artifact validator accepts current ThunderClaw archives and reports their digest", async () => {
+  const temporary = await mkdtemp(path.join(os.tmpdir(), "thunderclaw-artifact-build-"));
+  try {
+    const xpi = execFileSync(process.execPath, [path.join(root, "scripts/build-extension.mjs"), "--isolated-parent", temporary], {
+      cwd: root, encoding: "utf8",
+    }).trim();
+    const plugin = execFileSync("npm", ["run", "--silent", "pack:plugin"], {
+      cwd: root, encoding: "utf8",
+    }).trim().split("\n").at(-1)!;
+    for (const [kind, component, version, artifact] of [
+      ["xpi", "thunderbird-extension", "0.1.1", xpi],
+      ["plugin-tgz", "openclaw-plugin", "0.1.1", plugin],
+    ] as const) {
+      const result = validate(kind, artifact);
+      assert.equal(result.status, 0, result.stderr);
+      const report = JSON.parse(result.stdout) as Record<string, unknown>;
+      assert.equal(report.kind, kind);
+      assert.equal(report.component, component);
+      assert.equal(report.version, version);
+      assert.match(String(report.sha256), /^[a-f0-9]{64}$/u);
+    }
+  } finally {
+    await rm(temporary, { recursive: true, force: true });
   }
 });
 
