@@ -20,6 +20,9 @@ else
   mise exec -- npm pack --workspace @thunderclaw/openclaw-plugin --pack-destination .spike/thunderclaw-packages --silent >/dev/null
 fi
 
+"${compose[@]}" run --rm --no-deps gateway node openclaw.mjs plugins install \
+  @openclaw/deepseek-provider@2026.8.1 --force --pin --accept-capabilities
+
 "${compose[@]}" run --rm --no-deps --entrypoint sh gateway -lc '
   node openclaw.mjs onboard \
     --non-interactive \
@@ -40,9 +43,6 @@ fi
     --no-install-daemon \
     --accept-risk
 '
-
-"${compose[@]}" run --rm --no-deps gateway node openclaw.mjs plugins install \
-  @openclaw/deepseek-provider@2026.8.1 --force --pin --accept-capabilities
 
 "${compose[@]}" run --rm --no-deps gateway node openclaw.mjs plugins install \
   "npm-pack:/workspace/thunderclaw/${package_path}" --force --accept-capabilities

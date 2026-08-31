@@ -29,6 +29,10 @@ test("hosted OpenClaw qualification is pinned, secretless, and ephemeral", async
   assert.match(bootstrap, /THUNDERCLAW_COMPOSE_USER="\$\{THUNDERCLAW_COMPOSE_USER:-\$\(id -u\):\$\(id -g\)\}"/u);
   assert.match(bootstrap, /mkdir -p \.spike\/thunderclaw-openclaw-cache/u);
   assert.match(bootstrap, /mkdir -p \.spike\/evidence/u);
+  assert.match(
+    bootstrap,
+    /plugins install \\\n  @openclaw\/deepseek-provider@2026\.8\.1 --force --pin --accept-capabilities[\s\S]*node openclaw\.mjs onboard/u,
+  );
   assert.match(compose, /user: "\$\{THUNDERCLAW_COMPOSE_USER:-1000:1000\}"/u);
   assert.match(compose, /\.\/\.spike\/thunderclaw-openclaw-cache:\/home\/node\/\.cache/u);
   assert.match(compose, /NPM_CONFIG_CACHE: \/home\/node\/\.cache\/npm/u);

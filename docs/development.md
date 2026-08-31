@@ -27,6 +27,10 @@ runs the test services with the invoking host user's numeric identity so private
 bind-mounted state remains writable on local and hosted runners. These paths are
 ignored but are not disposable.
 
+The bootstrap installs and explicitly accepts the pinned provider's declared
+capabilities before non-interactive onboarding selects it. This ordering is
+required because onboarding cannot answer a first-install capability prompt.
+
 Copy `.env.example` to `.env.openclaw.local` and supply the required provider
 secret. Never print, commit, document, or place populated values in artifacts.
 
