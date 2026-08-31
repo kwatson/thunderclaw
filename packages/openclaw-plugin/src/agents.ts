@@ -85,7 +85,12 @@ export function discoverThunderClawAgents(
   runtime: AgentRuntime,
   probeResults: ReadonlyMap<string, AgentProbeResult> = new Map(),
 ): ThunderClawAgentRecord[] {
-  const defaultAgentId = resolveDefaultAgentId(config);
+  let defaultAgentId: string | null = null;
+  try {
+    defaultAgentId = resolveDefaultAgentId(config);
+  } catch {
+    // Explicitly owned multi-agent rosters intentionally have no ambient default.
+  }
 
   return listAgentIds(config).map((agentId) => {
     const agentConfig = resolveAgentConfig(config, agentId);

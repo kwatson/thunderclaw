@@ -82,6 +82,13 @@ docker run --rm "${container_args[@]}" "${gateway_image}" \
     --accept-risk
 
 docker run --rm "${container_args[@]}" "${gateway_image}" \
+  node openclaw.mjs agents add deepseek-flash \
+    --non-interactive \
+    --workspace /home/node/.openclaw/workspace \
+    --model deepseek/deepseek-v4-flash \
+    --json
+
+docker run --rm "${container_args[@]}" "${gateway_image}" \
   node openclaw.mjs plugins install --force --accept-capabilities \
     "npm-pack:/workspace/thunderclaw-candidate.tgz"
 

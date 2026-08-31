@@ -521,6 +521,32 @@ test("discovers configured agents without claiming unrun compatibility checks", 
   });
 });
 
+test("discovers an explicitly owned multi-agent roster without requiring an ambient default", () => {
+  const config = {
+    agents: {
+      ownership: "explicit",
+      defaults: { model: { primary: "deepseek/deepseek-v4-pro" } },
+      entries: {
+        main: { workspace: "/tmp/main" },
+        "deepseek-flash": {
+          workspace: "/tmp/deepseek-flash",
+          agentDir: "/tmp/agents/deepseek-flash/agent",
+          model: "deepseek/deepseek-v4-flash",
+        },
+      },
+    },
+  } as OpenClawPluginApi["config"];
+
+  const records = discoverThunderClawAgents(config, {
+    resolveThinkingPolicy: () => ({ defaultLevel: null, levels: [] }),
+  });
+
+  assert.deepEqual(records.map(({ agentId, isDefault }) => ({ agentId, isDefault })), [
+    { agentId: "main", isDefault: false },
+    { agentId: "deepseek-flash", isDefault: false },
+  ]);
+});
+
 test("validates the minimal agent probe request", () => {
   assert.deepEqual(parseAgentProbeRequest({
     protocolVersion: 1,

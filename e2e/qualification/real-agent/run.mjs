@@ -72,7 +72,8 @@ async function gatewayCall(token, path, body) {
     body: body ? JSON.stringify(body) : undefined,
   });
   const value = await response.json();
-  if (!response.ok) throw new Error(`Gateway qualification call failed (${response.status})`);
+  const errorCode = typeof value?.error?.code === "string" ? value.error.code : "UNKNOWN";
+  if (!response.ok) throw new Error(`Gateway qualification call failed (${response.status}, ${errorCode})`);
   return value;
 }
 

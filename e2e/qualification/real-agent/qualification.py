@@ -728,7 +728,7 @@ def run(args: argparse.Namespace) -> dict:
         harness.wait_for_port(2828, process)
         client = Marionette(host="127.0.0.1", port=2828); client.start_session()
         actual = harness.chrome(client, "return Services.appinfo.version;")
-        if actual != "153.0.1": raise AssertionError(f"unexpected Thunderbird {actual}")
+        if actual != "153.0.3": raise AssertionError(f"unexpected Thunderbird {actual}")
         if Addons(client).install(str(args.xpi), temp=True) != product.EXTENSION_ID: raise AssertionError("unexpected extension ID")
         harness.wait_until("extension startup", lambda: harness.chrome(client, r"""
 const { ExtensionParent } = ChromeUtils.importESModule("resource://gre/modules/ExtensionParent.sys.mjs"); return ExtensionParent.GlobalManager.extensionMap.has(arguments[0]);

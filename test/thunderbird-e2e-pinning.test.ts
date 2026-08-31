@@ -29,6 +29,10 @@ test("real Thunderbird E2E pins and isolates the supported version matrix", asyn
   assert.match(driver, /consent\.checked = true/u);
   assert.match(driver, /consent\.dispatchEvent\(new Event\("change", \{ bubbles: true \}\)\)/u);
   assert.match(driver, /if \(pair\.disabled\) return false/u);
+
+  const realAgent = await readFile(new URL("../e2e/qualification/real-agent/qualification.py", import.meta.url), "utf8");
+  assert.match(realAgent, /actual != "153\.0\.3"/u);
+  assert.doesNotMatch(realAgent, /153\.0\.1/u);
 });
 
 test("Thunderbird upgrade qualification requires exact baseline and candidate XPIs", async () => {

@@ -36,6 +36,9 @@ test("hosted OpenClaw qualification is pinned, secretless, and ephemeral", async
   );
   assert.match(script, /plugins\.entries\.thunderclaw\.config/u);
   assert.match(script, /spike-plugin-config\.json/u);
+  assert.match(script, /agents add deepseek-flash/u);
+  assert.match(script, /--workspace \/home\/node\/\.openclaw\/workspace/u);
+  assert.match(script, /--model deepseek\/deepseek-v4-flash/u);
   assert.match(script, /cmp -s "\$\{candidate\}"/u);
   assert.doesNotMatch(script, /package-openclaw-plugin|npm run pack:plugin/u);
 
@@ -47,6 +50,9 @@ test("hosted OpenClaw qualification is pinned, secretless, and ephemeral", async
     /plugins install \\\n  @openclaw\/deepseek-provider@2026\.8\.1 --force --pin --accept-capabilities[\s\S]*node openclaw\.mjs onboard/u,
   );
   assert.match(bootstrap, /spike-plugin-config\.json/u);
+  assert.match(bootstrap, /agents add deepseek-flash/u);
+  assert.match(bootstrap, /--workspace \/home\/node\/\.openclaw\/workspace/u);
+  assert.match(bootstrap, /--model deepseek\/deepseek-v4-flash/u);
   assert.doesNotMatch(bootstrap, /THUNDERCLAW_PLUGIN_TOKEN|value:\s*\{\s*token/u);
   assert.equal(pluginManifest.configSchema.additionalProperties, false);
   assert.deepEqual(

@@ -71,6 +71,10 @@ function executionRouteProjection(
 ): unknown {
   const provider = config.models?.providers?.[reference.provider];
   if (!provider) return null;
+  const legacyProviderContext = provider as typeof provider & {
+    contextWindow?: number;
+    contextTokens?: number;
+  };
   const model = provider.models.find((candidate) => candidate.id === reference.model);
   const compat = model?.compat;
   // Credential material and secret-reference identity are deliberately absent.
@@ -81,8 +85,8 @@ function executionRouteProjection(
       baseUrl: safeEndpoint(provider.baseUrl),
       api: provider.api ?? null,
       authMode: provider.auth ?? null,
-      contextWindow: provider.contextWindow ?? null,
-      contextTokens: provider.contextTokens ?? null,
+      contextWindow: legacyProviderContext.contextWindow ?? null,
+      contextTokens: legacyProviderContext.contextTokens ?? null,
       maxTokens: provider.maxTokens ?? null,
       timeoutSeconds: provider.timeoutSeconds ?? null,
       region: provider.region ? boundedIdentifier(provider.region, 128) : null,

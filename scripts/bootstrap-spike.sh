@@ -44,6 +44,12 @@ fi
     --accept-risk
 '
 
+"${compose[@]}" run --rm --no-deps gateway node openclaw.mjs agents add deepseek-flash \
+  --non-interactive \
+  --workspace /home/node/.openclaw/workspace \
+  --model deepseek/deepseek-v4-flash \
+  --json
+
 "${compose[@]}" run --rm --no-deps gateway node openclaw.mjs plugins install \
   "npm-pack:/workspace/thunderclaw/${package_path}" --force --accept-capabilities
 
