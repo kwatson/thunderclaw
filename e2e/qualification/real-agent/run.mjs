@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { spawn, spawnSync } from "node:child_process";
 import { createQualificationArtifacts } from "./artifacts.mjs";
+import { providerRepairObserved } from "./evidence.mjs";
 
 const root = resolve(new URL("../../..", import.meta.url).pathname);
 const qualificationRoot = join(root, "e2e/qualification/real-agent");
@@ -194,10 +195,12 @@ async function reconcile(artifacts, metadata, secrets) {
   }
   for (const [index, record] of acceptedTransforms.entries()) {
     const matches = modelRecords.filter((entry) => entry.caseNonceSha256 === expectedNonceHashes[index]);
-    const finalStart = matches.map((entry) => entry.roles.length).lastIndexOf(2);
-    const finalAttemptCalls = matches.slice(finalStart);
-    assert(record.response.repairAttempted === (finalAttemptCalls.length > 1), `transform ${index} repair evidence mismatch`);
+    assert(record.response.repairAttempted === providerRepairObserved(matches), `transform ${index} repair evidence mismatch`);
   }
+  assert(provider.every((record) => Number.isSafeInteger(record.sequence) && record.sequence >= 1)
+    && new Set(provider.map((record) => record.sequence)).size === provider.length
+    && Math.max(...provider.map((record) => record.sequence)) === provider.length,
+  "provider request sequence is invalid");
   for (const record of provider) {
     assert(record.model === "deepseek-v4-flash" && record.upstreamStatus === 200, "provider model/status mismatch");
     assert(record.toolsFieldPresent === false && record.toolCount === 0 && record.toolChoiceFieldPresent === false, "provider tools were exposed");
