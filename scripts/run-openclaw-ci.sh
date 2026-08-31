@@ -32,6 +32,7 @@ container_args=(
   --env HOME=/home/node
   --env NPM_CONFIG_CACHE=/home/node/.openclaw/npm-cache
   --env OPENCLAW_DISABLE_BONJOUR=1
+  --env DEEPSEEK_API_KEY=sk-synthetic-qualification-only
   --env "OPENCLAW_GATEWAY_TOKEN=${gateway_token}"
   --mount "type=bind,src=${state_root},dst=/home/node/.openclaw"
   --mount "type=bind,src=${cache_root},dst=/home/node/.cache"
@@ -56,16 +57,21 @@ cmp -s "${candidate}" "${staged_candidate}" || {
 container_args+=(--mount "type=bind,src=${staged_candidate},dst=/workspace/thunderclaw-candidate.tgz,readonly")
 
 docker run --rm "${container_args[@]}" "${gateway_image}" \
+  node openclaw.mjs plugins install \
+    @openclaw/deepseek-provider@2026.8.1 --force --pin --accept-capabilities
+
+docker run --rm "${container_args[@]}" "${gateway_image}" \
   node openclaw.mjs onboard \
     --non-interactive \
     --mode local \
-    --auth-choice skip \
+    --auth-choice deepseek-api-key \
+    --deepseek-api-key sk-synthetic-qualification-only \
+    --secret-input-mode ref \
     --gateway-auth token \
     --gateway-token-ref-env OPENCLAW_GATEWAY_TOKEN \
     --gateway-bind lan \
     --gateway-port 18789 \
     --workspace /home/node/.openclaw/workspace \
-    --skip-bootstrap \
     --skip-channels \
     --skip-search \
     --skip-skills \
@@ -79,8 +85,17 @@ docker run --rm "${container_args[@]}" "${gateway_image}" \
   node openclaw.mjs plugins install --force --accept-capabilities \
     "npm-pack:/workspace/thunderclaw-candidate.tgz"
 
-docker run --rm "${container_args[@]}" "${gateway_image}" \
-  node openclaw.mjs config set plugins.entries.thunderclaw.enabled true --strict-json
+docker run --rm "${container_args[@]}" --entrypoint node "${gateway_image}" -e '
+  const { readFileSync } = require("node:fs");
+  const { spawnSync } = require("node:child_process");
+  const config = JSON.parse(readFileSync("/workspace/thunderclaw/scripts/spike-plugin-config.json", "utf8"));
+  const batch = JSON.stringify([
+    { path: "plugins.entries.thunderclaw.enabled", value: true },
+    { path: "plugins.entries.thunderclaw.config", value: config },
+  ]);
+  const result = spawnSync(process.execPath, ["openclaw.mjs", "config", "set", "--batch-json", batch], { stdio: "inherit" });
+  process.exit(result.status ?? 1);
+'
 
 docker run --detach \
   --name "${container_name}" \

@@ -17,8 +17,6 @@ on:
         required: true
       OPENCLAW_GATEWAY_TOKEN:
         required: true
-      THUNDERCLAW_PLUGIN_TOKEN:
-        required: true
 
 permissions:
   contents: read
@@ -81,7 +79,6 @@ jobs:
         env:
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
           OPENCLAW_GATEWAY_TOKEN: ${{ secrets.OPENCLAW_GATEWAY_TOKEN }}
-          THUNDERCLAW_PLUGIN_TOKEN: ${{ secrets.THUNDERCLAW_PLUGIN_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
@@ -89,7 +86,6 @@ jobs:
           {
             printf 'DEEPSEEK_API_KEY=%s\n' "$DEEPSEEK_API_KEY"
             printf 'OPENCLAW_GATEWAY_TOKEN=%s\n' "$OPENCLAW_GATEWAY_TOKEN"
-            printf 'THUNDERCLAW_PLUGIN_TOKEN=%s\n' "$THUNDERCLAW_PLUGIN_TOKEN"
           } > .env.openclaw.local
       - name: Install exact plugin and build exact-XPI Thunderbird lane
         env:

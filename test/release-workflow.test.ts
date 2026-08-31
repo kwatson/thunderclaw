@@ -79,6 +79,7 @@ test("protected pair qualification installs and exercises both exact component a
   assert.match(workflow, /THUNDERCLAW_E2E_XPI: \$\{\{ steps\.pair\.outputs\.xpi \}\}/u);
   assert.match(workflow, /bash scripts\/bootstrap-spike\.sh/u);
   assert.match(workflow, /npm run qualify:real-agent/u);
+  assert.doesNotMatch(workflow, /THUNDERCLAW_PLUGIN_TOKEN/u);
   verifyWorkflow(workflow, "qualify-release-pair.yml");
 });
 

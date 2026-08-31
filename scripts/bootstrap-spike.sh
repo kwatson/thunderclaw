@@ -48,17 +48,14 @@ fi
   "npm-pack:/workspace/thunderclaw/${package_path}" --force --accept-capabilities
 
 "${compose[@]}" run --rm --no-deps --entrypoint node gateway -e '
+  const { readFileSync } = require("node:fs");
   const { spawnSync } = require("node:child_process");
-  const token = process.env.THUNDERCLAW_PLUGIN_TOKEN;
-  if (!token || token.length < 32) {
-    process.stderr.write("THUNDERCLAW_PLUGIN_TOKEN must be set to at least 32 characters.\n");
-    process.exit(1);
-  }
+  const config = JSON.parse(readFileSync("/workspace/thunderclaw/scripts/spike-plugin-config.json", "utf8"));
   const batch = JSON.stringify([
     { path: "plugins.entries.thunderclaw.enabled", value: true },
     {
       path: "plugins.entries.thunderclaw.config",
-      value: { token, sessionTtlMs: 1800000, maxRequestBytes: 256000 },
+      value: config,
     },
   ]);
   const result = spawnSync(process.execPath, ["openclaw.mjs", "config", "set", "--batch-json", batch], { stdio: "inherit" });

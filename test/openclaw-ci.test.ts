@@ -5,11 +5,18 @@ import test from "node:test";
 test("hosted OpenClaw qualification is pinned, secretless, and ephemeral", async () => {
   const script = await readFile(new URL("../scripts/run-openclaw-ci.sh", import.meta.url), "utf8");
   const bootstrap = await readFile(new URL("../scripts/bootstrap-spike.sh", import.meta.url), "utf8");
+  const spikeConfig = JSON.parse(
+    await readFile(new URL("../scripts/spike-plugin-config.json", import.meta.url), "utf8"),
+  ) as Record<string, unknown>;
+  const pluginManifest = JSON.parse(
+    await readFile(new URL("../packages/openclaw-plugin/openclaw.plugin.json", import.meta.url), "utf8"),
+  ) as { configSchema: { additionalProperties: boolean; properties: Record<string, unknown> } };
   const compose = await readFile(new URL("../compose.spike.yaml", import.meta.url), "utf8");
   const workflow = await readFile(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8");
 
   assert.match(script, /ghcr\.io\/openclaw\/openclaw:2026\.8\.1@sha256:e7849cb6c1ef1ead39ab4be7d85edb2df89611f486e283284c7cf35ce39a20d4/u);
-  assert.match(script, /--auth-choice skip/u);
+  assert.match(script, /--auth-choice deepseek-api-key/u);
+  assert.match(script, /--secret-input-mode ref/u);
   assert.match(script, /--suppress-gateway-token-output/u);
   assert.match(script, /dst=\/workspace\/thunderclaw,readonly/u);
   assert.match(script, /src=\$\{cache_root\},dst=\/home\/node\/\.cache/u);
@@ -23,6 +30,12 @@ test("hosted OpenClaw qualification is pinned, secretless, and ephemeral", async
   assert.match(script, /validate-candidate-artifact\.mjs plugin-tgz/u);
   assert.match(script, /npm-pack:\/workspace\/thunderclaw-candidate\.tgz/u);
   assert.match(script, /plugins install --force --accept-capabilities/u);
+  assert.match(
+    script,
+    /plugins install \\\n+    @openclaw\/deepseek-provider@2026\.8\.1 --force --pin --accept-capabilities[\s\S]*node openclaw\.mjs onboard/u,
+  );
+  assert.match(script, /plugins\.entries\.thunderclaw\.config/u);
+  assert.match(script, /spike-plugin-config\.json/u);
   assert.match(script, /cmp -s "\$\{candidate\}"/u);
   assert.doesNotMatch(script, /package-openclaw-plugin|npm run pack:plugin/u);
 
@@ -33,6 +46,25 @@ test("hosted OpenClaw qualification is pinned, secretless, and ephemeral", async
     bootstrap,
     /plugins install \\\n  @openclaw\/deepseek-provider@2026\.8\.1 --force --pin --accept-capabilities[\s\S]*node openclaw\.mjs onboard/u,
   );
+  assert.match(bootstrap, /spike-plugin-config\.json/u);
+  assert.doesNotMatch(bootstrap, /THUNDERCLAW_PLUGIN_TOKEN|value:\s*\{\s*token/u);
+  assert.equal(pluginManifest.configSchema.additionalProperties, false);
+  assert.deepEqual(
+    Object.keys(spikeConfig).sort(),
+    Object.keys(pluginManifest.configSchema.properties).sort(),
+    "fresh-state bootstrap configuration must match the shipped plugin schema",
+  );
+  for (const [key, value] of Object.entries(spikeConfig)) {
+    const property = pluginManifest.configSchema.properties[key] as {
+      type?: string;
+      minimum?: number;
+      maximum?: number;
+    };
+    assert.equal(property.type, "integer", `${key} must remain an integer setting`);
+    assert.equal(Number.isInteger(value), true, `${key} bootstrap value must be an integer`);
+    assert.ok(Number(value) >= Number(property.minimum), `${key} bootstrap value is below its schema minimum`);
+    assert.ok(Number(value) <= Number(property.maximum), `${key} bootstrap value is above its schema maximum`);
+  }
   assert.match(compose, /user: "\$\{THUNDERCLAW_COMPOSE_USER:-1000:1000\}"/u);
   assert.match(compose, /\.\/\.spike\/thunderclaw-openclaw-cache:\/home\/node\/\.cache/u);
   assert.match(compose, /NPM_CONFIG_CACHE: \/home\/node\/\.cache\/npm/u);

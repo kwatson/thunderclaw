@@ -56,8 +56,8 @@ external controls; missing or ambiguous configuration blocks tagging:
 - restrict the separate `clawhub-legacy` and `thunderbird-addons-legacy`
   environments to `main`, require human approval, and use them only for the
   immutable-ledger legacy audit/retry workflow;
-- configure `release-qualification` with protected `DEEPSEEK_API_KEY`,
-  `OPENCLAW_GATEWAY_TOKEN`, and `THUNDERCLAW_PLUGIN_TOKEN` secrets; and
+- configure `release-qualification` with protected `DEEPSEEK_API_KEY` and
+  `OPENCLAW_GATEWAY_TOKEN` secrets; and
 - update the ClawHub OIDC trusted publisher for manual retries from
   `@thunderclaw/openclaw-plugin` from the combined tag scheme to repository
   `kwatson/thunderclaw`, the exact publishing workflow and `clawhub`
