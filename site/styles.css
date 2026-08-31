@@ -291,7 +291,7 @@ h1 {
   font-size: clamp(2.8rem, 5vw, 5.3rem);
   font-weight: 700;
   letter-spacing: -0.055em;
-  line-height: 0.96;
+  line-height: 1.04;
   text-wrap: balance;
 }
 
@@ -362,14 +362,15 @@ h1 {
   max-width: 100%;
   margin: 1rem 0;
   padding: 0.9rem 1rem;
-  overflow-x: auto;
+  overflow: hidden;
   border: 1px solid rgb(24 49 83 / 12%);
   border-radius: 0.65rem;
   background: var(--navy);
   color: var(--cream);
   font-size: clamp(0.72rem, 1.4vw, 0.82rem);
   line-height: 1.5;
-  -webkit-overflow-scrolling: touch;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .step-copy code,
