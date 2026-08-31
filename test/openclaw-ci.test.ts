@@ -6,7 +6,7 @@ test("hosted OpenClaw qualification is pinned, secretless, and ephemeral", async
   const script = await readFile(new URL("../scripts/run-openclaw-ci.sh", import.meta.url), "utf8");
   const workflow = await readFile(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8");
 
-  assert.match(script, /ghcr\.io\/openclaw\/openclaw:2026\.9\.1-beta\.1@sha256:8f61f45e0fdb1fca8ef7822e7faed0d73ee48c6500e52f9b11377189b51a15ba/u);
+  assert.match(script, /ghcr\.io\/openclaw\/openclaw:2026\.8\.1@sha256:e7849cb6c1ef1ead39ab4be7d85edb2df89611f486e283284c7cf35ce39a20d4/u);
   assert.match(script, /--auth-choice skip/u);
   assert.match(script, /--suppress-gateway-token-output/u);
   assert.match(script, /dst=\/workspace\/thunderclaw,readonly/u);
@@ -19,6 +19,7 @@ test("hosted OpenClaw qualification is pinned, secretless, and ephemeral", async
   assert.match(script, /THUNDERCLAW_OPENCLAW_PLUGIN_TGZ/u);
   assert.match(script, /validate-candidate-artifact\.mjs plugin-tgz/u);
   assert.match(script, /npm-pack:\/workspace\/thunderclaw-candidate\.tgz/u);
+  assert.match(script, /plugins install --force --accept-capabilities/u);
   assert.match(script, /cmp -s "\$\{candidate\}"/u);
   assert.doesNotMatch(script, /package-openclaw-plugin|npm run pack:plugin/u);
 

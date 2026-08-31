@@ -11,7 +11,7 @@ const compose = ["compose", "-f", "compose.spike.yaml"];
 const qualificationContainer = process.env.THUNDERCLAW_QUALIFICATION_CONTAINER;
 const qualificationStateRoot = process.env.THUNDERCLAW_QUALIFICATION_STATE_ROOT;
 const qualificationGatewayImage = process.env.THUNDERCLAW_QUALIFICATION_GATEWAY_IMAGE
-  ?? "ghcr.io/openclaw/openclaw:2026.9.1-beta.1";
+  ?? "ghcr.io/openclaw/openclaw:2026.8.1";
 if (Boolean(qualificationContainer) !== Boolean(qualificationStateRoot)) {
   throw new Error("container qualification requires both its container and state root");
 }
@@ -70,6 +70,13 @@ function docker(...args: string[]): string {
   return command("docker", [...compose, ...args]);
 }
 
+function pluginInstallArguments(source: string): string[] {
+  const help = docker("exec", "-T", "gateway", "node", "openclaw.mjs", "plugins", "install", "--help");
+  const options = ["--force"];
+  if (help.includes("--accept-capabilities")) options.push("--accept-capabilities");
+  return ["exec", "-T", "gateway", "node", "openclaw.mjs", "plugins", "install", ...options, source];
+}
+
 function inspectGateway(): void {
   if (qualificationContainer) {
     const running = command("docker", ["inspect", "--format", "{{.State.Running}}", qualificationContainer]).trim();
@@ -87,7 +94,7 @@ function inspectGateway(): void {
     throw new Error("the pinned Gateway must already be running");
   }
   const image = String(gateway.Image ?? "");
-  if (image !== "ghcr.io/openclaw/openclaw:2026.9.1-beta.1") {
+  if (image !== "ghcr.io/openclaw/openclaw:2026.8.1") {
     throw new Error(`unexpected Gateway image: ${image || "unknown"}`);
   }
   // Read before mutation as an operational safety check. Never print raw logs.
@@ -368,7 +375,7 @@ async function restoreInstalledPlugin(backup: PluginBackup): Promise<void> {
   backup.preserveArchive = true;
   assertSafeStatePaths();
   command("docker", [...compose, "exec", "-T", "gateway", "node", "openclaw.mjs", "plugins", "uninstall", "thunderclaw", "--force"], { allowFailure: true });
-  docker("exec", "-T", "gateway", "node", "openclaw.mjs", "plugins", "install", "--force", `npm-pack:/workspace/thunderclaw/build/${basename(backup.archive)}`);
+  docker(...pluginInstallArguments(`npm-pack:/workspace/thunderclaw/build/${basename(backup.archive)}`));
   const replacementConfig = join(stateRoot, `.openclaw.json.pairing-restore-${process.pid}`);
   try {
     cpSync(backup.config, replacementConfig, { preserveTimestamps: true });
@@ -472,7 +479,7 @@ async function main(): Promise<void> {
       // supported uninstall lifecycle removes that obsolete config/install
       // entry without deleting the separate plugin-owned registry state.
       docker("exec", "-T", "gateway", "node", "openclaw.mjs", "plugins", "uninstall", "thunderclaw", "--force");
-      docker("exec", "-T", "gateway", "node", "openclaw.mjs", "plugins", "install", "--force", `npm-pack:${candidate.container}`);
+      docker(...pluginInstallArguments(`npm-pack:${candidate.container}`));
       docker("exec", "-T", "gateway", "node", "openclaw.mjs", "config", "set", "plugins.entries.thunderclaw.enabled", "true", "--strict-json");
       docker("restart", "gateway");
       },

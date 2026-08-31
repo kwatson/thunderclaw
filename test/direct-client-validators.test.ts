@@ -112,7 +112,7 @@ test("status enforces protocol/plugin identity and reconstructs capabilities", (
   const source = Object.create({ inherited: true }) as Record<string, unknown>;
   source.protocolVersion = 1;
   source.plugin = "thunderclaw";
-  source.gatewayVersion = "2026.9.1-beta.1";
+  source.gatewayVersion = "2026.8.1";
   source.capabilities = { transform: true, cancellation: "compose", ignoredObject: { unsafe: true } };
   assert.throws(() => validateGatewayStatus(source), contractCode("INVALID_BACKEND_RESPONSE"));
 
@@ -120,7 +120,7 @@ test("status enforces protocol/plugin identity and reconstructs capabilities", (
   assert.deepEqual(validateGatewayStatus(source), {
     protocolVersion: 1,
     plugin: "thunderclaw",
-    gatewayVersion: "2026.9.1-beta.1",
+    gatewayVersion: "2026.8.1",
     capabilities: { transform: true, cancellation: "compose" },
   });
   assert.throws(() => validateGatewayStatus({ ...source, protocolVersion: 2 }), contractCode("UNSUPPORTED_PROTOCOL"));

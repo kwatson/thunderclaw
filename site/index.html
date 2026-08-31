@@ -82,7 +82,7 @@
             <span class="step-number" aria-hidden="true">01</span>
             <div class="step-copy">
               <h3>Get OpenClaw ready</h3>
-              <p>Use a supported OpenClaw version from 2026.7.2-beta.7 through the 2026.9.1 release line with a configured agent, then confirm that its Gateway is running.</p>
+              <p>Use a supported OpenClaw version from 2026.7.2-beta.7 through the 2026.8.1 release line with a configured agent, then confirm that its Gateway is running.</p>
               <pre><code>openclaw gateway status</code></pre>
               <a class="text-link" href="https://docs.openclaw.ai/install">OpenClaw installation guide <span aria-hidden="true">↗</span></a>
             </div>
@@ -91,8 +91,8 @@
             <span class="step-number" aria-hidden="true">02</span>
             <div class="step-copy">
               <h3>Install the OpenClaw plugin</h3>
-              <p>Install the published package directly from ClawHub, enable it, and restart the Gateway so the new plugin is loaded.</p>
-              <pre><code>openclaw plugins install clawhub:@thunderclaw/openclaw-plugin
+              <p>Install the published package from ClawHub and explicitly accept its declared OpenClaw capabilities, then enable it and restart the Gateway. Device pairing still requires its own later approval.</p>
+              <pre><code>openclaw plugins install --accept-capabilities clawhub:@thunderclaw/openclaw-plugin
 openclaw plugins enable thunderclaw
 openclaw gateway restart</code></pre>
               <a class="text-link" href="https://clawhub.ai/thunderclaw/plugins/openclaw-plugin">View ThunderClaw on ClawHub <span aria-hidden="true">↗</span></a>

@@ -4,14 +4,14 @@
 
 | Component | Supported baseline | Policy |
 | --- | --- | --- |
-| OpenClaw | `>=2026.7.2-beta.7 <2026.9.2-0` | Bounded compatible API range; current qualification uses `2026.9.1-beta.1` |
+| OpenClaw | `>=2026.7.2-beta.7 <2026.8.2-0` | Bounded compatible API range; current qualification uses stable `2026.8.1` |
 | Thunderbird | 128 and newer | Plain selected-text, summary, and translation baseline |
 | Thunderbird rich compose | Qualified 153 and newer shapes | Runtime-gated; unsupported shapes fail closed |
 | Node.js development runtime | 24 through `mise` | Repository build and test runtime |
 
 A newer Thunderbird major release or OpenClaw release line does not imply
 support. OpenClaw prereleases, release candidates, stable releases, and
-corrections within the declared 2026.9.1 range remain admitted, with exact
+corrections within the declared 2026.8.1 range remain admitted, with exact
 versions covered by ongoing compatibility surveillance.
 
 ## Desktop platform status
@@ -54,10 +54,10 @@ and fallback history or its no-normal-transcript/trajectory guarantee.
 
 Package development, minimum Gateway, and build SDK metadata remain pinned to
 the original `2026.7.2-beta.7` API floor so the plugin runtime code is unchanged.
-The Docker integration image is pinned to the currently qualified
-`2026.9.1-beta.1` runtime. The peer dependency and plugin API use a bounded
+The Docker integration image is pinned to the currently qualified stable
+`2026.8.1` runtime. The peer dependency and plugin API use a bounded
 range that preserves the original floor, admits prereleases, stable releases,
-and correction releases through the 2026.9.1 line, and excludes the 2026.9.2
+and correction releases through the 2026.8.1 line, and excludes the 2026.8.2
 line. Expanding that range requires contract inspection and qualification.
 
 ## OpenClaw upgrade qualification

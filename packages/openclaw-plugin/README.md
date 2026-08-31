@@ -8,8 +8,14 @@ Install the exact release archive through OpenClaw or ClawHub, enable the
 `thunderclaw` plugin, then use the operator command to review pairing requests:
 
 ```text
+openclaw plugins install --accept-capabilities clawhub:@thunderclaw/openclaw-plugin
+openclaw plugins enable thunderclaw
+openclaw gateway restart
 openclaw thunderclaw
 ```
+
+Capability consent during installation and approval of a Thunderbird pairing
+request are separate operator decisions.
 
 Provider credentials, configured agents, models, and model fallbacks remain in
 OpenClaw. The Thunderbird extension receives only a narrow paired-device

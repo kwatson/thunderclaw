@@ -33,7 +33,7 @@
 
 > [!NOTE]
 > **OpenClaw requirement:** ThunderClaw supports OpenClaw from
-> `2026.7.2-beta.7` through the `2026.9.1` release line. See the
+> `2026.7.2-beta.7` through the `2026.8.1` release line. See the
 > [compatibility policy](docs/compatibility.md) for details.
 
 ## AI assistance without handing over your inbox
@@ -148,7 +148,7 @@ remain in OpenClaw.
 
 ## Installation and pairing
 
-ThunderClaw supports OpenClaw from `2026.7.2-beta.7` through the `2026.9.1`
+ThunderClaw supports OpenClaw from `2026.7.2-beta.7` through the `2026.8.1`
 release line. See the [compatibility policy](docs/compatibility.md) before
 installing.
 
@@ -162,10 +162,14 @@ OpenClaw plugin `0.1.2`:
    on the OpenClaw host:
 
    ```bash
-   openclaw plugins install clawhub:@thunderclaw/openclaw-plugin
+   openclaw plugins install --accept-capabilities clawhub:@thunderclaw/openclaw-plugin
    openclaw plugins enable thunderclaw
    openclaw gateway restart
    ```
+
+   `--accept-capabilities` records the OpenClaw operator's approval of the
+   plugin's declared capabilities. It is separate from approving a Thunderbird
+   device during ThunderClaw pairing.
 
 Thunderbird initiates pairing and displays a short approval code. An
 authenticated OpenClaw operator approves the matching request with:

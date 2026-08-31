@@ -66,7 +66,7 @@ verify discovery and full runtime status:
 
 ```text
 docker compose -f compose.spike.yaml exec -T gateway \
-  node openclaw.mjs plugins install --force \
+  node openclaw.mjs plugins install --force --accept-capabilities \
     npm-pack:/workspace/thunderclaw/build/ARCHIVE_NAME.tgz
 docker compose -f compose.spike.yaml restart gateway
 docker compose -f compose.spike.yaml exec -T gateway \

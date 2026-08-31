@@ -30,9 +30,10 @@ Land the release-system migration as two logical commits:
    tags, changelog entries, workflows, strict legacy dispatch, and pinned
    counterpart qualification without changing either published component
    version.
-2. **Plugin compatibility release `0.1.2`.** Change only the plugin manifest,
-   lockfile mirror, and OpenClaw plugin entry in `CHANGELOG.md` for the qualified
-   OpenClaw compatibility expansion, then tag `openclaw-plugin-v0.1.2`.
+2. **Plugin compatibility release `0.1.2`.** Update the plugin compatibility
+   metadata, lockfile mirror, stable OpenClaw qualification pins, supported
+   capability-consent lifecycle, documentation, and OpenClaw plugin entry in
+   `CHANGELOG.md`, then tag `openclaw-plugin-v0.1.2`.
 
 Do not combine these commits: reviewers and publication provenance must be able
 to distinguish release-mechanism changes from the first independently shipped

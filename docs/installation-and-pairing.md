@@ -17,6 +17,22 @@ For development installation from source, see
 Install a pair listed as compatible in the component release notes and
 [`compatibility.md`](compatibility.md); numeric versions do not need to match.
 
+Stable OpenClaw `2026.8.1` requires the operator to accept a plugin's declared
+capabilities before activation. Install ThunderClaw from ClawHub with explicit
+consent, then enable it and restart the Gateway:
+
+```text
+openclaw plugins install --accept-capabilities clawhub:@thunderclaw/openclaw-plugin
+openclaw plugins enable thunderclaw
+openclaw gateway restart
+```
+
+This capability consent authorizes installation in OpenClaw. It does not
+approve a Thunderbird device; each device still follows the separate pairing
+flow below. If ThunderClaw was installed without recording consent, recover
+with `openclaw plugins enable --accept-capabilities thunderclaw` and restart the
+Gateway.
+
 ## Connection requirements
 
 Configure Thunderbird with the ThunderClaw plugin API base. Remote endpoints
