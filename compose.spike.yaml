@@ -24,6 +24,7 @@ services:
       - .env.openclaw.local
     environment:
       HOME: /home/node
+      NPM_CONFIG_CACHE: /home/node/.cache/npm
       NODE_ENV: development
       OPENCLAW_DISABLE_BONJOUR: "1"
     volumes:

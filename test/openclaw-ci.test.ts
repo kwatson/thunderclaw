@@ -31,6 +31,7 @@ test("hosted OpenClaw qualification is pinned, secretless, and ephemeral", async
   assert.match(bootstrap, /mkdir -p \.spike\/evidence/u);
   assert.match(compose, /user: "\$\{THUNDERCLAW_COMPOSE_USER:-1000:1000\}"/u);
   assert.match(compose, /\.\/\.spike\/thunderclaw-openclaw-cache:\/home\/node\/\.cache/u);
+  assert.match(compose, /NPM_CONFIG_CACHE: \/home\/node\/\.cache\/npm/u);
 
   assert.match(workflow, /openclaw-integration:/u);
   assert.match(workflow, /runs-on: ubuntu-24\.04/u);

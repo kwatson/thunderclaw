@@ -21,11 +21,11 @@ shim. Runtime-version changes must be deliberate repository changes.
 The Docker test Gateway is defined by `compose.spike.yaml` and pinned to the
 supported OpenClaw version. Persistent state is under
 `.spike/thunderclaw-openclaw/`; generated integration evidence is under
-`.spike/evidence/` and `build/`. The Gateway cache is isolated under
-`.spike/thunderclaw-openclaw-cache/`, and Compose runs the test services with
-the invoking host user's numeric identity so private bind-mounted state remains
-writable on local and hosted runners. These paths are ignored but are not
-disposable.
+`.spike/evidence/` and `build/`. The Gateway and its npm subprocesses share the
+isolated, writable cache under `.spike/thunderclaw-openclaw-cache/`, and Compose
+runs the test services with the invoking host user's numeric identity so private
+bind-mounted state remains writable on local and hosted runners. These paths are
+ignored but are not disposable.
 
 Copy `.env.example` to `.env.openclaw.local` and supply the required provider
 secret. Never print, commit, document, or place populated values in artifacts.
