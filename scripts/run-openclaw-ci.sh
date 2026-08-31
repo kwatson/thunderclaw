@@ -5,6 +5,7 @@ repository_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 gateway_image="ghcr.io/openclaw/openclaw:2026.8.1@sha256:e7849cb6c1ef1ead39ab4be7d85edb2df89611f486e283284c7cf35ce39a20d4"
 temporary_root=$(mktemp -d /tmp/thunderclaw-openclaw-ci.XXXXXX)
 state_root="${temporary_root}/state"
+cache_root="${temporary_root}/cache"
 evidence_root="${repository_root}/build/openclaw-ci-${$}"
 container_name="thunderclaw-openclaw-ci-${$}"
 gateway_token=$(mise exec -- node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("base64url"))')
@@ -24,7 +25,7 @@ cleanup() {
 }
 trap cleanup EXIT HUP INT TERM
 
-mkdir -p "${state_root}/workspace"
+mkdir -p "${state_root}/workspace" "${cache_root}"
 
 container_args=(
   --user "$(id -u):$(id -g)"
@@ -33,6 +34,7 @@ container_args=(
   --env OPENCLAW_DISABLE_BONJOUR=1
   --env "OPENCLAW_GATEWAY_TOKEN=${gateway_token}"
   --mount "type=bind,src=${state_root},dst=/home/node/.openclaw"
+  --mount "type=bind,src=${cache_root},dst=/home/node/.cache"
   --mount "type=bind,src=${repository_root},dst=/workspace/thunderclaw,readonly"
 )
 

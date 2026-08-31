@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+export THUNDERCLAW_COMPOSE_USER="${THUNDERCLAW_COMPOSE_USER:-$(id -u):$(id -g)}"
 compose=(docker compose -f compose.spike.yaml)
 
 mkdir -p .spike/thunderclaw-openclaw .spike/thunderclaw-openclaw/workspace
+mkdir -p .spike/thunderclaw-openclaw-cache
 mkdir -p .spike/thunderclaw-packages .spike/thunderclaw-packages/archive
+mkdir -p .spike/evidence
 if test -n "${THUNDERCLAW_OPENCLAW_PLUGIN_TGZ:-}"; then
   candidate=$(realpath "$THUNDERCLAW_OPENCLAW_PLUGIN_TGZ")
   mise exec -- node scripts/validate-candidate-artifact.mjs plugin-tgz "$candidate" >/dev/null

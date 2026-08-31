@@ -47,8 +47,9 @@ creating the first independent tag, an administrator must verify all of these
 external controls; missing or ambiguous configuration blocks tagging:
 
 - protect `openclaw-plugin-v*` and `thunderbird-extension-v*` tags against
-  deletion, update, and unauthorized creation, while preserving immutable
-  historical `v0.1.0` and `v0.1.1` tags;
+  unauthorized creation, deletion, and update. Restrict bypass authority to
+  maintainers performing the audited unpublished-tag recovery described below,
+  while preserving immutable historical `v0.1.0` and `v0.1.1` tags;
 - restrict the protected `release`, `release-qualification`, `clawhub`, and
   `thunderbird-addons` environments to the appropriate component tag patterns,
   require human approval, and keep write permissions only in promotion jobs;
@@ -99,8 +100,8 @@ Blocking checks include tests and typecheck, artifact inspection and secret
 scanning, hashes/provenance, pinned OpenClaw integration, real Thunderbird
 qualification, native filesystem/security checks, and relevant pairing and
 real-agent trials. Extension releases additionally reproduce the XPI from
-reviewer source. Failed gates cannot be waived by rebuilding or replacing bytes
-under the same version.
+reviewer source. Within a release attempt, failed gates cannot be waived by
+rebuilding or replacing its candidate bytes.
 
 ## Tags, changelogs, and legacy dispatch
 
@@ -116,8 +117,26 @@ Release notes come only from that section, using headings such as:
 
 This single file is the human-readable history for both components while the
 component label disambiguates versions that happen to match. Tags are annotated
-(or signed when configured), never moved or reused, and use exactly
-`openclaw-plugin-vX.Y.Z` or `thunderbird-extension-vX.Y.Z`.
+(or signed when configured) and use exactly `openclaw-plugin-vX.Y.Z` or
+`thunderbird-extension-vX.Y.Z`.
+
+### Unpublished failed-tag recovery
+
+Publication is the immutability boundary. A failed component tag may be deleted
+and recreated at a corrected commit only when an authorized maintainer verifies
+all of the following before deletion:
+
+- the workflow run is complete and retained as the audit record;
+- no GitHub release exists for the tag;
+- no GitHub build-provenance attestation exists for the candidate; and
+- no marketplace version or other public artifact exists for that version.
+
+Record the failed run URL and the absence checks in the replacement commit or
+release issue. The replacement tag must point to a reviewed commit contained in
+`main`, and its workflow builds a new candidate once; artifacts from the failed
+attempt are never promoted. Once a GitHub release, attestation, marketplace
+version, or other public artifact exists, the version and tag are permanently
+immutable and any correction requires a new component version.
 
 The strict dispatcher accepts only those component tags plus historical
 `v0.1.0` and `v0.1.1`. New tags route only their named build, qualification,
