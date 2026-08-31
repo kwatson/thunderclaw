@@ -3,6 +3,7 @@ import { copyFile, mkdtemp, readFile, writeFile, mkdir, stat, rename, rm } from 
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { spawn, spawnSync } from "node:child_process";
+import { createQualificationArtifacts } from "./artifacts.mjs";
 
 const root = resolve(new URL("../../..", import.meta.url).pathname);
 const qualificationRoot = join(root, "e2e/qualification/real-agent");
@@ -309,8 +310,7 @@ async function main() {
     : coreCaseSuffixes;
   assert(selectedSuffixes.length > 0, "no valid qualification trials selected");
   const runId = `qualification-${new Date().toISOString().replace(/[-:.TZ]/gu, "")}-${randomUUID().slice(0, 8)}`;
-  const artifacts = join(root, "build/e2e/product-real-agent/153.0.3", runId);
-  await mkdir(artifacts, { recursive: false, mode: 0o700 });
+  const artifacts = await createQualificationArtifacts(root, runId);
   const temporary = await mkdtemp(join(tmpdir(), "thunderclaw-real-agent-"));
   const originalConfig = await readFile(configPath, "utf8");
   const config = JSON.parse(originalConfig);
