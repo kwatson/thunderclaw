@@ -70,6 +70,10 @@ test("hosted OpenClaw qualification is pinned, secretless, and ephemeral", async
   assert.match(compose, /NPM_CONFIG_CACHE: \/home\/node\/\.cache\/npm/u);
 
   assert.match(workflow, /openclaw-integration:/u);
+  assert.match(
+    workflow,
+    /if: needs\.checks\.outputs\.run_full == 'true' && \(github\.event_name != 'workflow_dispatch' \|\| inputs\.release_qualification == true\)/u,
+  );
   assert.match(workflow, /runs-on: ubuntu-24\.04/u);
   assert.match(workflow, /npm run test:integration:openclaw/u);
 });

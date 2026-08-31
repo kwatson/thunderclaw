@@ -62,7 +62,8 @@ mise exec -- npm run test:integration:openclaw
 This fresh-state rehearsal installs the pinned provider, onboards OpenClaw with
 a synthetic non-production key, installs the exact plugin archive, applies the
 same plugin configuration as protected qualification, and exercises pairing.
-It makes no provider model calls.
+It makes no provider model calls. The hosted CI runs this rehearsal for every
+non-documentation change, before any release tag is created.
 
 The first native desktop lanes use fresh GitHub-hosted Windows and macOS
 runners. They are intentionally secretless trials: the native filesystem gate

@@ -262,7 +262,7 @@ jobs:
   openclaw-integration:
     name: Pinned OpenClaw 2026.8.1 integration
     needs: checks
-    if: github.event_name == 'workflow_dispatch' && inputs.release_qualification == true && needs.checks.outputs.run_full == 'true'
+    if: needs.checks.outputs.run_full == 'true' && (github.event_name != 'workflow_dispatch' || inputs.release_qualification == true)
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
