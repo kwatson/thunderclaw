@@ -21,7 +21,7 @@ else
 fi
 
 "${compose[@]}" run --rm --no-deps gateway node openclaw.mjs plugins install \
-  @openclaw/deepseek-provider@2026.8.1 --force --pin --accept-capabilities
+  @openclaw/deepseek-provider@2026.8.2 --force --pin --accept-capabilities
 
 "${compose[@]}" run --rm --no-deps --entrypoint sh gateway -lc '
   node openclaw.mjs onboard \
