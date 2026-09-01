@@ -116,6 +116,11 @@ jobs:
         working-directory: clawhub-source
         run: bun install --frozen-lockfile
 
+      - name: Apply audited ClawHub transport compatibility patch
+        run: |
+          mise exec -- node scripts/patch-clawhub-publisher.mjs \
+            clawhub-source/packages/clawhub/src/http.ts
+
       - name: Configure ClawHub authentication
         env:
           CLAWHUB_TOKEN: ${{ secrets.CLAWHUB_TOKEN }}
@@ -144,22 +149,30 @@ jobs:
         run: |
           set -euo pipefail
           cli="$GITHUB_WORKSPACE/clawhub-source/packages/clawhub/src/cli.ts"
+          result="$RUNNER_TEMP/clawhub-publish.json"
           release_notes=$(<release/assets/release-notes.md)
           publish_auth_args=()
           if [[ -n "$CLAWHUB_TOKEN" ]]; then
             publish_auth_args=(--owner thunderclaw --manual-override-reason "GitHub Actions publication of qualified ${RELEASE_TAG}")
           fi
+          set +e
           bun "$cli" package publish "$PLUGIN_ARCHIVE" \
             --family code-plugin \
             --source-repo "https://github.com/$GITHUB_REPOSITORY" \
             --source-ref "$RELEASE_TAG" \
             --source-commit "$RELEASE_COMMIT" \
             --changelog "$release_notes" \
-            --wait \
-            --wait-timeout 2400 \
             "${publish_auth_args[@]}" \
-            --json | tee "$RUNNER_TEMP/clawhub-publish.json"
-          jq -e '.publicationStatus == "published"' "$RUNNER_TEMP/clawhub-publish.json"
+            --json | tee "$result"
+          publisher_exit=${PIPESTATUS[0]}
+          set -e
+          if [[ "$publisher_exit" -eq 0 ]] && jq -e 'type == "object"' "$result" >/dev/null; then
+            exit 0
+          fi
+          jq -n \
+            --argjson publisherExitCode "$publisher_exit" \
+            '{publicationStatus: "client-unconfirmed", publisherExitCode: $publisherExitCode}' > "$result"
+          echo "::warning::ClawHub client did not confirm submission; exact public verification will determine the release outcome."
 
       - name: Verify public ClawHub artifact, source, scan state, and changelog
         run: |

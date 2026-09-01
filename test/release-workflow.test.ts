@@ -95,6 +95,10 @@ test("ClawHub publisher uses canonical notes and verifies the public catalog", a
   assert.match(workflow, /git merge-base --is-ancestor/u);
   assert.match(workflow, /gh release view "\$RELEASE_TAG" --json body/u);
   assert.match(workflow, /environment:\n\s+name: clawhub/u);
+  assert.match(workflow, /patch-clawhub-publisher\.mjs/u);
+  assert.match(workflow, /publisher_exit=\$\{PIPESTATUS\[0\]\}/u);
+  assert.match(workflow, /publicationStatus: "client-unconfirmed"/u);
+  assert.doesNotMatch(workflow, /--wait(?:-timeout)?/u);
   assert.doesNotMatch(workflow, /publish_clawhub|submit_thunderbird|npm run pack/u);
   verifyWorkflow(workflow, "publish-clawhub.yml");
 });
