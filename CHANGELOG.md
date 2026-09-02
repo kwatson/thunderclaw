@@ -4,6 +4,22 @@ All notable changes to ThunderClaw are documented in this file. The OpenClaw
 plugin and Thunderbird extension release independently, so every entry names
 the component and version it describes.
 
+## OpenClaw plugin [0.1.4] - 2026-09-01
+
+### Changed
+
+- Kept provider and model routing in OpenClaw while applying the same runtime
+  capability probe to every configured agent, including OpenAI-backed agents.
+- Documented that the existing `main` agent is supported and that a dedicated
+  ThunderClaw agent is optional context separation rather than a requirement.
+
+### Fixed
+
+- Recognized Codex app-server execution and cancellation evidence without
+  weakening the strict cancellation check used by other OpenClaw backends.
+- Prevented interactive pairing approval from exiting before confirmation and
+  made `--code-stdin` reject interactive terminals instead of waiting for EOF.
+
 ## OpenClaw plugin [0.1.3] - 2026-09-01
 
 ### Changed
