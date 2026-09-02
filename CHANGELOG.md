@@ -4,6 +4,16 @@ All notable changes to ThunderClaw are documented in this file. The OpenClaw
 plugin and Thunderbird extension release independently, so every entry names
 the component and version it describes.
 
+## Thunderbird extension [0.1.2] - 2026-09-01
+
+### Changed
+
+- Published and requalified the extension counterpart for OpenClaw plugin
+  `0.1.4`, including pairing and the Generate, Preview, Apply, and Undo flow.
+- Clarified that users may select their existing `main` OpenClaw agent or an
+  optional dedicated agent after either one passes the same compatibility
+  verification.
+
 ## OpenClaw plugin [0.1.4] - 2026-09-01
 
 ### Changed

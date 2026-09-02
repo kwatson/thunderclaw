@@ -23,7 +23,7 @@ test("candidate artifact validator accepts current ThunderClaw archives and repo
       cwd: root, encoding: "utf8",
     }).trim().split("\n").at(-1)!;
     for (const [kind, component, version, artifact] of [
-      ["xpi", "thunderbird-extension", "0.1.1", xpi],
+      ["xpi", "thunderbird-extension", "0.1.2", xpi],
       ["plugin-tgz", "openclaw-plugin", "0.1.4", plugin],
     ] as const) {
       const result = validate(kind, artifact);
