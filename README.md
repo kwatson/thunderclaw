@@ -25,12 +25,6 @@
   <a href="CONTRIBUTING.md">Contributing</a>
 </p>
 
-> [!IMPORTANT]
-> ThunderClaw `v0.1.1` is available now. Install the extension from
-> [Thunderbird Add-ons](https://addons.thunderbird.net/en-US/thunderbird/addon/thunderclaw/)
-> and its matching OpenClaw plugin from
-> [ClawHub](https://clawhub.ai/thunderclaw/plugins/openclaw-plugin).
-
 > [!NOTE]
 > **OpenClaw requirement:** ThunderClaw supports OpenClaw from
 > `2026.7.2-beta.7` through the `2026.8.2` release line. See the
@@ -146,6 +140,11 @@ There is no native helper, Native Messaging host, alternate transport, or
 OpenClaw core patch. Provider, model, agent, and provider-key configuration
 remain in OpenClaw.
 
+ThunderClaw does not keep its own provider allowlist. It uses OpenClaw as the
+model router and applies the same runtime capability probe to every configured
+provider. DeepSeek is the current paid release-qualification baseline, not the
+only supported backend; see the [compatibility policy](docs/compatibility.md).
+
 ## Installation and pairing
 
 ThunderClaw supports OpenClaw from `2026.7.2-beta.7` through the `2026.8.2`
@@ -170,6 +169,13 @@ OpenClaw plugin `0.1.3`:
    `--accept-capabilities` records the OpenClaw operator's approval of the
    plugin's declared capabilities. It is separate from approving a Thunderbird
    device during ThunderClaw pairing.
+
+ThunderClaw lists the agents already configured in OpenClaw; it does not create
+one while installing or pairing. Using `main` is fully supported. A dedicated
+agent is optional when separate mail personality, workspace, memory, or model
+configuration is desirable—not a required security boundary. See
+[installation and pairing](docs/installation-and-pairing.md#choose-an-openclaw-agent)
+for the tradeoffs and setup command.
 
 Thunderbird initiates pairing and displays a short approval code. An
 authenticated OpenClaw operator approves the matching request with:

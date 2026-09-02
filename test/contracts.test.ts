@@ -5,6 +5,7 @@ import type { OpenClawPluginApi } from "openclaw/plugin-sdk/plugin-entry";
 import { discoverThunderClawAgents } from "../packages/openclaw-plugin/src/agents.js";
 import { ContractError, parseAgentProbeCancelRequest, parseAgentProbeRequest, parseEditResult, parseMessageCancelRequest, parseMessageTransformRequest, parseMessageTransformResult, parseTransformRequest } from "../packages/openclaw-plugin/src/contracts.js";
 import {
+  buildCancellationProbePrompt,
   buildCompatibilityProbePrompt,
   isValidCompatibilityProbeOutput,
   ProbeExecutionError,
@@ -598,6 +599,13 @@ test("compatibility output requires the exact synthetic nonce envelope", () => {
   );
 });
 
+test("cancellation probe requests enough work to cancel after model execution begins", () => {
+  const prompt = buildCancellationProbePrompt();
+  assert.match(prompt, /synthetic content only/u);
+  assert.match(prompt, /integers 1 through 200/u);
+  assert.doesNotMatch(prompt, /single word ok/iu);
+});
+
 test("active compatibility probe verifies JSON, tool isolation, and cancellation", async () => {
   const config = {
     agents: {
@@ -654,6 +662,54 @@ test("active compatibility probe verifies JSON, tool isolation, and cancellation
     cancellation: "passed",
     fallbacks: "not_applicable",
   });
+});
+
+test("cancellation probe recognizes a Codex app-server turn as started", async () => {
+  const config = {
+    agents: {
+      defaults: { model: { primary: "openai/gpt-5.6-sol" } },
+      entries: { main: { default: true, name: "main" } },
+    },
+  } as OpenClawPluginApi["config"];
+  let callCount = 0;
+  const result = await runAgentCompatibilityProbe({
+    agentId: "main",
+    configurationFingerprint: "e".repeat(64),
+    config,
+    createSessionManager: () => ({}) as never,
+    resolveWorkspaceDir: () => "/tmp/synthetic-workspace",
+    runAgent: async (params) => {
+      callCount += 1;
+      if (callCount === 1) {
+        const nonce = params.prompt.match(/"nonce":"([^"]+)"/)?.[1];
+        return {
+          payloads: [],
+          meta: {
+            durationMs: 1,
+            finalAssistantRawText: JSON.stringify({ version: 1, nonce, status: "ok" }),
+            agentMeta: { provider: "openai", model: "gpt-5.6-sol" },
+            toolSummary: { calls: 0, tools: [] },
+          },
+        } as never;
+      }
+
+      params.onExecutionPhase?.({
+        phase: "turn_accepted",
+        backend: "codex-app-server",
+        provider: "openai",
+        model: "gpt-5.6-sol",
+      });
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      return {
+        payloads: [],
+        meta: { durationMs: 20, aborted: params.abortSignal?.aborted === true },
+      } as never;
+    },
+  });
+
+  assert.equal(callCount, 2);
+  assert.equal(result.state, "verified");
+  assert.equal(result.checks.cancellation, "passed");
 });
 
 test("configured fallbacks are suppressed and remain explicitly unverified", async () => {
@@ -874,4 +930,52 @@ test("an arbitrary exception after requesting abort is not positive cancellation
     }),
     (error) => error instanceof ProbeExecutionError && error.kind === "runtime_error",
   );
+});
+
+test("a Codex app-server AbortError after the owned signal fires is cancellation evidence", async () => {
+  const config = {
+    agents: {
+      defaults: { model: { primary: "openai/gpt-5.6-sol" } },
+      entries: { main: { default: true } },
+    },
+  } as OpenClawPluginApi["config"];
+  let calls = 0;
+  const result = await runAgentCompatibilityProbe({
+    agentId: "main",
+    configurationFingerprint: "9".repeat(64),
+    config,
+    createSessionManager: () => ({}) as never,
+    resolveWorkspaceDir: () => "/tmp/synthetic-workspace",
+    runAgent: async (params) => {
+      calls += 1;
+      if (calls === 1) {
+        const nonce = params.prompt.match(/"nonce":"([^"]+)"/)?.[1];
+        return {
+          payloads: [],
+          meta: {
+            durationMs: 1,
+            finalAssistantRawText: JSON.stringify({ version: 1, nonce, status: "ok" }),
+            agentMeta: { provider: "openai", model: "gpt-5.6-sol" },
+            toolSummary: { calls: 0, tools: [] },
+          },
+        } as never;
+      }
+
+      params.onExecutionPhase?.({
+        phase: "turn_accepted",
+        backend: "codex-app-server",
+        provider: "openai",
+        model: "gpt-5.6-sol",
+      });
+      await new Promise<void>((resolve) => {
+        if (params.abortSignal?.aborted) resolve();
+        else params.abortSignal?.addEventListener("abort", () => resolve(), { once: true });
+      });
+      throw new Error("Request was aborted.", { cause: params.abortSignal?.reason });
+    },
+  });
+
+  assert.equal(calls, 2);
+  assert.equal(result.state, "verified");
+  assert.equal(result.checks.cancellation, "passed");
 });

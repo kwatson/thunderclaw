@@ -33,6 +33,39 @@ flow below. If ThunderClaw was installed without recording consent, recover
 with `openclaw plugins enable --accept-capabilities thunderclaw` and restart the
 Gateway.
 
+## Choose an OpenClaw agent
+
+ThunderClaw does not create or modify OpenClaw agents during installation or
+pairing. It lists the agents already configured on the Gateway. Using the
+existing `main` agent is fully supported and is the simplest choice for most
+personal installations.
+
+Every ThunderClaw operation still uses a caller-owned in-memory session with
+model-callable tools and trajectory disabled. Selecting `main` does, however,
+allow the personality and workspace or memory context that OpenClaw supplies
+for `main` to influence the model request. This can be useful when the user
+wants their established assistant voice and context in email.
+
+An operator may instead create an optional dedicated agent:
+
+```text
+openclaw agents add ThunderClaw
+openclaw agents list
+```
+
+The interactive OpenClaw wizard creates a separate workspace, agent state,
+personality, memory, and session store and allows an independent model choice.
+No channel binding is required for ThunderClaw. After adding the agent, refresh
+the connection in Thunderbird and complete its restricted compatibility check
+before selecting it for mail operations.
+
+A dedicated agent is context separation, not a strong security boundary.
+Agents in the same Gateway profile still share the Gateway process and its
+installed global plugins and hooks. Deployments that require isolation from
+those components need a separately controlled Gateway profile. See
+[`security-and-privacy.md`](security-and-privacy.md) for the complete trust
+boundary.
+
 ## Connection requirements
 
 Configure Thunderbird with the ThunderClaw plugin API base. Remote endpoints
@@ -158,6 +191,13 @@ and routes. Verify the running Gateway separately:
 ```text
 openclaw thunderclaw status --json
 ```
+
+The OpenClaw plugin screen obtains the ThunderClaw icon through the Gateway
+from the HTTPS URL declared in the plugin manifest. If it shows an initials
+tile instead, confirm that the Gateway host can fetch
+`https://raw.githubusercontent.com/kwatson/thunderclaw/main/docs/brand/assets/raster/icons/thunderclaw-openclaw-plugin-icon-256.png`, then
+restart the Gateway and reload the OpenClaw UI. An unavailable icon does not
+change plugin execution or pairing state.
 
 Do not repair a missing or disabled plugin by editing its SQLite registry or
 OpenClaw core database. Use the supported plugin install/update lifecycle.

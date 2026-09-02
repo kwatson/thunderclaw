@@ -51,6 +51,14 @@ export function buildCompatibilityProbePrompt(nonce: string): string {
   ].join("\n");
 }
 
+export function buildCancellationProbePrompt(): string {
+  return [
+    "ThunderClaw is testing cancellation using synthetic content only.",
+    "Do not call tools.",
+    "Write the integers 1 through 200 in order, one integer per line, with no other text.",
+  ].join("\n");
+}
+
 export function isValidCompatibilityProbeOutput(text: string, nonce: string): boolean {
   let value: unknown;
   try {
@@ -70,6 +78,16 @@ export function isValidCompatibilityProbeOutput(text: string, nonce: string): bo
 
 function configuredFallbackCount(config: OpenClawPluginApi["config"], agentId: string): number {
   return resolveConfiguredFallbacks(config, agentId).length;
+}
+
+function isAbortError(error: unknown, signal: AbortSignal): boolean {
+  if (!signal.aborted) return false;
+  let current: unknown = error;
+  for (let depth = 0; depth < 4 && current instanceof Error; depth += 1) {
+    if (current === signal.reason || current.name === "AbortError") return true;
+    current = current.cause;
+  }
+  return false;
 }
 
 function probeState(
@@ -162,10 +180,11 @@ export async function runAgentCompatibilityProbe(options: ProbeOptions): Promise
   }
 
   const cancellationController = new AbortController();
-  let modelCallStarted = false;
+  let executionStarted = false;
   let cancellation: "passed" | "failed" = "failed";
   let scheduledAbort: ReturnType<typeof setTimeout> | undefined;
   const cancellationSessionId = `thunderclaw:probe-cancel:${randomUUID()}`;
+  const cancellationPrompt = buildCancellationProbePrompt();
   const forwardOuterAbort = () => cancellationController.abort();
   options.abortSignal?.addEventListener("abort", forwardOuterAbort, { once: true });
   if (options.abortSignal?.aborted) forwardOuterAbort();
@@ -180,8 +199,8 @@ export async function runAgentCompatibilityProbe(options: ProbeOptions): Promise
       config: options.config,
       runId: `thunderclaw-probe-cancel-${randomUUID()}`,
       trigger: "manual",
-      prompt: "ThunderClaw synthetic cancellation probe. Reply with the single word ok.",
-      transcriptPrompt: "ThunderClaw synthetic cancellation probe.",
+      prompt: cancellationPrompt,
+      transcriptPrompt: cancellationPrompt,
       promptMode: "full",
       disableTools: true,
       disableTrajectory: true,
@@ -189,9 +208,16 @@ export async function runAgentCompatibilityProbe(options: ProbeOptions): Promise
       timeoutMs: 30_000,
       abortSignal: cancellationController.signal,
       onExecutionPhase: (phase) => {
-        if (phase.phase === "model_call_started" && !modelCallStarted) {
-          modelCallStarted = true;
-          scheduledAbort = setTimeout(() => cancellationController.abort(), 50);
+        const cancellationStart =
+          phase.phase === "model_call_started" ||
+          phase.phase === "process_spawned" ||
+          (phase.phase === "turn_accepted" && phase.backend === "codex-app-server");
+        if (cancellationStart && !executionStarted) {
+          executionStarted = true;
+          // Each backend emits its start phase only after it owns a live model
+          // turn or process. Yield once so its abort listener is attached, then
+          // cancel without racing a fast response to completion.
+          scheduledAbort = setTimeout(() => cancellationController.abort(), 0);
         }
       },
     });
@@ -202,11 +228,19 @@ export async function runAgentCompatibilityProbe(options: ProbeOptions): Promise
       throw new ProbeExecutionError("runtime_error");
     }
     cancellation =
-      modelCallStarted && cancellationController.signal.aborted && cancellationResult.meta.aborted
+      executionStarted && cancellationController.signal.aborted && cancellationResult.meta.aborted
         ? "passed"
         : "failed";
-  } catch {
-    throw new ProbeExecutionError(options.abortSignal?.aborted ? "cancelled" : "runtime_error");
+  } catch (error) {
+    if (
+      executionStarted &&
+      !options.abortSignal?.aborted &&
+      isAbortError(error, cancellationController.signal)
+    ) {
+      cancellation = "passed";
+    } else {
+      throw new ProbeExecutionError(options.abortSignal?.aborted ? "cancelled" : "runtime_error");
+    }
   } finally {
     if (scheduledAbort) clearTimeout(scheduledAbort);
     options.abortSignal?.removeEventListener("abort", forwardOuterAbort);

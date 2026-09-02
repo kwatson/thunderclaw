@@ -5,6 +5,7 @@ export type CliInput = Readable & {
   isTTY?: boolean;
   isRaw?: boolean;
   setRawMode?: (mode: boolean) => unknown;
+  ref?: () => unknown;
   unref?: () => unknown;
 };
 
@@ -118,6 +119,8 @@ export function formatRelativeTime(now: number, timestamp: string): string {
 }
 
 export async function promptLine(input: CliInput, output: CliOutput, prompt: string): Promise<string> {
+  const promptOwnsFlow = input.readableFlowing !== true;
+  if (promptOwnsFlow) input.ref?.();
   const readline = createInterface({ input, output, terminal: input.isTTY === true });
   try {
     return await new Promise<string>((resolve, reject) => {
@@ -133,6 +136,7 @@ export async function promptLine(input: CliInput, output: CliOutput, prompt: str
     });
   } finally {
     readline.close();
+    if (promptOwnsFlow) input.unref?.();
   }
 }
 
@@ -223,6 +227,9 @@ export async function promptHiddenLine(input: CliInput, output: CliOutput, promp
 }
 
 export async function readSingleStdinLine(input: CliInput): Promise<string> {
+  if (input.isTTY === true) {
+    throw new PairingCliInputError("--code-stdin requires a protected pipe or redirected file; it cannot read from an interactive terminal");
+  }
   const chunks: Buffer[] = [];
   let size = 0;
   for await (const chunk of input) {

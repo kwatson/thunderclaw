@@ -19,6 +19,10 @@ await Promise.all([
     path.join(repositoryRoot, "packages", "thunderbird-extension", "src", "icons", "thunderclaw-128.png"),
     path.join(assetsDirectory, "thunderclaw-128.png"),
   ),
+  cp(
+    path.join(repositoryRoot, "docs", "brand", "assets", "raster", "icons", "thunderclaw-openclaw-plugin-icon-256.png"),
+    path.join(assetsDirectory, "thunderclaw-openclaw-plugin-icon-256.png"),
+  ),
 ]);
 
 const faviconSizes = [16, 32, 48];

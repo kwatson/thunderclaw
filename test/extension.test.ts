@@ -5,6 +5,8 @@ import test from "node:test";
 test("ClawHub catalog metadata presents the ThunderClaw brand", async () => {
   const pluginPackage = JSON.parse(await readFile(new URL("../packages/openclaw-plugin/package.json", import.meta.url), "utf8"));
   const pluginManifest = JSON.parse(await readFile(new URL("../packages/openclaw-plugin/openclaw.plugin.json", import.meta.url), "utf8"));
+  const pagesBuild = await readFile(new URL("../scripts/build-pages.mjs", import.meta.url), "utf8");
+  const pagesWorkflow = await readFile(new URL("../.github/workflows/pages.yml", import.meta.url), "utf8");
 
   assert.equal(pluginPackage.name, "@thunderclaw/openclaw-plugin");
   assert.equal(pluginPackage.peerDependencies.openclaw, ">=2026.7.2-beta.7 <2026.9.1-0");
@@ -14,7 +16,9 @@ test("ClawHub catalog metadata presents the ThunderClaw brand", async () => {
   assert.equal(pluginPackage.openclaw.build.pluginSdkVersion, "2026.7.2-beta.7");
   assert.equal(pluginManifest.name, "ThunderClaw");
   assert.equal(pluginPackage.description, pluginManifest.description);
-  assert.match(pluginManifest.icon, /^https:\/\//u);
+  assert.equal(pluginManifest.icon, "https://raw.githubusercontent.com/kwatson/thunderclaw/main/docs/brand/assets/raster/icons/thunderclaw-openclaw-plugin-icon-256.png");
+  assert.match(pagesBuild, /thunderclaw-openclaw-plugin-icon-256\.png/u);
+  assert.match(pagesWorkflow, /docs\/brand\/assets\/raster\/icons\/thunderclaw-openclaw-plugin-icon-256\.png/u);
 });
 
 test("Thunderbird extension declares compose and message-view boundaries", async () => {

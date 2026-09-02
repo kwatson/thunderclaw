@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - ".github/workflows/pages.yml"
+      - "docs/brand/assets/raster/icons/thunderclaw-openclaw-plugin-icon-256.png"
       - "docs/brand/assets/raster/thunderclaw-character-transparent-1024.webp"
       - "package-lock.json"
       - "package.json"

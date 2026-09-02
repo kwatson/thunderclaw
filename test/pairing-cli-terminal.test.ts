@@ -6,6 +6,7 @@ import {
   PairingCliInputError,
   PairingCliInterruptedError,
   promptHiddenLine,
+  promptLine,
   readSingleStdinLine,
   sanitizeTerminalText,
 } from "../packages/openclaw-plugin/src/pairing-cli-terminal.js";
@@ -34,6 +35,15 @@ test("stdin code input requires exactly one bounded newline-terminated value", a
     input.end(value);
     await assert.rejects(() => readSingleStdinLine(input), PairingCliInputError);
   }
+});
+
+test("stdin code input rejects an interactive terminal instead of waiting for EOF", async () => {
+  const input = new PassThrough() as PassThrough & { isTTY: boolean };
+  input.isTTY = true;
+  await assert.rejects(
+    () => readSingleStdinLine(input),
+    (error: unknown) => error instanceof PairingCliInputError && error.message.includes("protected pipe or redirected file"),
+  );
 });
 
 test("hidden input never echoes the code and restores raw mode on success and Ctrl+C", async () => {
@@ -82,6 +92,35 @@ test("hidden input restores stream flow ownership without pausing an existing co
     assert.equal(input.readableFlowing, initiallyFlowing);
     assert.equal(unrefs, initiallyFlowing ? 0 : 1);
   }
+});
+
+test("line input references stdin again after a hidden prompt releases it", async () => {
+  const input = new PassThrough() as PassThrough & {
+    isTTY: boolean;
+    isRaw: boolean;
+    setRawMode(mode: boolean): void;
+    ref(): void;
+    unref(): void;
+  };
+  input.isTTY = true;
+  input.isRaw = false;
+  input.setRawMode = (mode) => { input.isRaw = mode; };
+  let referenced = false;
+  input.ref = () => { referenced = true; };
+  input.unref = () => { referenced = false; };
+  const output = new PassThrough() as PassThrough & { isTTY: boolean };
+  output.isTTY = true;
+
+  const secret = promptHiddenLine(input, output, "Approval code: ");
+  input.write("abcde-fghij\r");
+  assert.equal(await secret, "abcde-fghij");
+  assert.equal(referenced, false);
+
+  const confirmation = promptLine(input, output, "Approve? [y/N] ");
+  assert.equal(referenced, true);
+  input.write("y\n");
+  assert.equal(await confirmation, "y");
+  assert.equal(referenced, false);
 });
 
 test("hidden input fails closed when raw mode is unavailable", async () => {

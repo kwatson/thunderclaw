@@ -17,6 +17,12 @@ openclaw thunderclaw
 Capability consent during installation and approval of a Thunderbird pairing
 request are separate operator decisions.
 
+ThunderClaw lists existing configured OpenClaw agents and does not create one
+during installation or pairing. The default `main` agent is supported. A
+dedicated agent is optional when separate mail personality, workspace, memory,
+or model configuration is desirable; create one with `openclaw agents add
+ThunderClaw`, then verify it from ThunderClaw's Thunderbird settings.
+
 Provider credentials, configured agents, models, and model fallbacks remain in
 OpenClaw. The Thunderbird extension receives only a narrow paired-device
 credential. See the ThunderClaw repository's installation, security, and

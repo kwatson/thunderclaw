@@ -5,6 +5,7 @@
 | Component | Supported baseline | Policy |
 | --- | --- | --- |
 | OpenClaw | `>=2026.7.2-beta.7 <2026.9.1-0` | Bounded compatible API range; current qualification uses stable `2026.8.2` |
+| Model providers | Any provider configured through supported OpenClaw agent APIs | Capability-gated at runtime; current paid release qualification uses DeepSeek |
 | Thunderbird | 128 and newer | Plain selected-text, summary, and translation baseline |
 | Thunderbird rich compose | Qualified 153 and newer shapes | Runtime-gated; unsupported shapes fail closed |
 | Node.js development runtime | 24 through `mise` | Repository build and test runtime |
@@ -83,6 +84,15 @@ For each proposed OpenClaw version:
 Failure at any step leaves the existing version pin unchanged.
 
 ## Agent compatibility
+
+ThunderClaw does not maintain a provider allowlist. Provider and model routing
+remain OpenClaw's responsibility: ThunderClaw sends every restricted model run
+through the selected agent and accepts any configured backend that passes the
+same capability checks. DeepSeek is the project's current paid real-agent
+qualification baseline for cost and logistics; that describes test coverage,
+not an intentional product restriction. Other OpenClaw providers, including
+OpenAI-backed agents, are expected to work when their configured runtime path
+passes the probe.
 
 Catalog presence is not evidence that an agent can safely serve ThunderClaw.
 Discovery reports configuration and an explicit compatibility state. Runtime
