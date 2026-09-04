@@ -7,7 +7,7 @@ import { verifyCounterpartBaseline } from "../scripts/verify-counterpart-baselin
 
 test("counterpart baseline manifest pins each independently published component", async () => {
   const manifest = JSON.parse(await readFile(new URL("../e2e/qualification/counterpart-baselines.json", import.meta.url), "utf8"));
-  assert.equal(manifest["openclaw-plugin"].tag, "openclaw-plugin-v0.1.4");
+  assert.equal(manifest["openclaw-plugin"].tag, "openclaw-plugin-v0.1.5");
   assert.equal(manifest["thunderbird-extension"].tag, "thunderbird-extension-v0.1.2");
   assert.match(manifest["openclaw-plugin"].sha256, /^[a-f0-9]{64}$/u);
   assert.match(manifest["thunderbird-extension"].sha256, /^[a-f0-9]{64}$/u);
