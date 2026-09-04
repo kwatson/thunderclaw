@@ -7,9 +7,9 @@
     "size": 108571
   },
   "thunderbird-extension": {
-    "tag": "v0.1.1",
-    "name": "thunderclaw-thunderbird-0.1.1.xpi",
-    "sha256": "9d87360c0492a4b98cf67143001c7569508c48ed151100aed058be85df1d0754",
-    "size": 119572
+    "tag": "thunderbird-extension-v0.1.2",
+    "name": "thunderclaw-thunderbird-0.1.2.xpi",
+    "sha256": "24bd448bb0d364184e3f72958564ef12bdcbac2c9aae568e353c64209e4bd497",
+    "size": 119484
   }
 }

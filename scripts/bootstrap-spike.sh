@@ -11,17 +11,16 @@ mkdir -p .spike/evidence
 if test -n "${THUNDERCLAW_OPENCLAW_PLUGIN_TGZ:-}"; then
   candidate=$(realpath "$THUNDERCLAW_OPENCLAW_PLUGIN_TGZ")
   mise exec -- node scripts/validate-candidate-artifact.mjs plugin-tgz "$candidate" >/dev/null
-  package_path=.spike/thunderclaw-packages/qualification-candidate.tgz
-  cp "$candidate" "$package_path"
-  cmp -s "$candidate" "$package_path" || { echo "Staged plugin differs from the explicit candidate" >&2; exit 1; }
 else
   plugin_version=$(mise exec -- node -p 'require("./packages/openclaw-plugin/package.json").version')
   package_path=".spike/thunderclaw-packages/thunderclaw-openclaw-plugin-${plugin_version}.tgz"
   mise exec -- npm pack --workspace @thunderclaw/openclaw-plugin --pack-destination .spike/thunderclaw-packages --silent >/dev/null
+  candidate=$(realpath "$package_path")
 fi
+candidate_mount_path=/tmp/thunderclaw-qualification-candidate.tgz
 
 "${compose[@]}" run --rm --no-deps gateway node openclaw.mjs plugins install \
-  @openclaw/deepseek-provider@2026.8.2 --force --pin --accept-capabilities
+  @openclaw/deepseek-provider@2026.9.1 --force --pin --accept-capabilities
 
 "${compose[@]}" run --rm --no-deps --entrypoint sh gateway -lc '
   node openclaw.mjs onboard \
@@ -44,14 +43,31 @@ fi
     --accept-risk
 '
 
-"${compose[@]}" run --rm --no-deps gateway node openclaw.mjs agents add deepseek-flash \
-  --non-interactive \
-  --workspace /home/node/.openclaw/workspace \
-  --model deepseek/deepseek-v4-flash \
-  --json
+if "${compose[@]}" run --rm --no-deps gateway node openclaw.mjs agents list --json \
+  | mise exec -- node -e '
+    let input = "";
+    process.stdin.setEncoding("utf8");
+    process.stdin.on("data", (chunk) => { input += chunk; });
+    process.stdin.on("end", () => {
+      const agents = JSON.parse(input);
+      process.exit(agents.some((agent) => agent.id === "deepseek-flash"
+        && agent.model === "deepseek/deepseek-v4-flash") ? 0 : 1);
+    });
+  '
+then
+  printf '%s\n' "Qualification agent already exists with the expected model."
+else
+  "${compose[@]}" run --rm --no-deps gateway node openclaw.mjs agents add deepseek-flash \
+    --non-interactive \
+    --workspace /home/node/.openclaw/workspace \
+    --model deepseek/deepseek-v4-flash \
+    --json
+fi
 
-"${compose[@]}" run --rm --no-deps gateway node openclaw.mjs plugins install \
-  "npm-pack:/workspace/thunderclaw/${package_path}" --force --accept-capabilities
+"${compose[@]}" run --rm --no-deps \
+  --volume "${candidate}:${candidate_mount_path}:ro" \
+  gateway node openclaw.mjs plugins install \
+  "npm-pack:${candidate_mount_path}" --force --accept-capabilities
 
 "${compose[@]}" run --rm --no-deps --entrypoint node gateway -e '
   const { readFileSync } = require("node:fs");

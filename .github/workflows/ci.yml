@@ -260,7 +260,7 @@ jobs:
           retention-days: 14
 
   openclaw-integration:
-    name: Pinned OpenClaw 2026.8.2 integration
+    name: Pinned OpenClaw 2026.9.1 integration
     needs: checks
     if: needs.checks.outputs.run_full == 'true' && (github.event_name != 'workflow_dispatch' || inputs.release_qualification == true)
     runs-on: ubuntu-24.04

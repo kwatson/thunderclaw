@@ -4,6 +4,19 @@ All notable changes to ThunderClaw are documented in this file. The OpenClaw
 plugin and Thunderbird extension release independently, so every entry names
 the component and version it describes.
 
+## OpenClaw plugin [0.1.5] - 2026-09-04
+
+### Changed
+
+- Qualified the stable OpenClaw `2026.9.1` runtime and expanded bounded
+  compatibility through the `2026.9.1` release line.
+- Pinned the independently published Thunderbird extension `0.1.2` as the
+  exact counterpart for plugin release qualification.
+- Made the local qualification bootstrap reusable when its synthetic
+  `deepseek-flash` agent already exists with the expected model.
+- Waited for the upgraded Gateway operator API before beginning real-agent
+  qualification.
+
 ## Thunderbird extension [0.1.2] - 2026-09-01
 
 ### Changed

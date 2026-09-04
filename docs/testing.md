@@ -46,7 +46,7 @@ candidate branch, enable that option, and run it. A pull request, push, tag, or
 GitHub release does not trigger these jobs. Failed Thunderbird jobs retain
 their synthetic evidence for seven days.
 
-The manually triggered OpenClaw integration job runs stable `2026.8.2`. It
+The manually triggered OpenClaw integration job runs stable `2026.9.1`. It
 creates a fresh temporary state directory, onboards without a model provider,
 installs the exact plugin archive
 provided in `THUNDERCLAW_OPENCLAW_PLUGIN_TGZ`, and qualifies public pairing, operator approval,
