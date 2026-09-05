@@ -23,8 +23,8 @@ makes releases reproducible and keeps asset provenance reviewable.
   the multi-size `favicon.ico` from those approved PNG derivatives.
 - The OpenClaw plugin's `assets/icon.png` is an exact copy of
   `assets/raster/icons/thunderclaw-openclaw-plugin-icon-256.png`, a mechanical
-  derivative of the approved toolbar icon master. Its manifest exposes that
-  size-appropriate derivative through the repository's stable public HTTPS URL.
+  derivative of the approved toolbar icon master. OpenClaw discovers that
+  size-appropriate derivative through its fixed package-local icon convention.
 
 The character document records which files are masters and which are
 mechanical derivatives. The PNG and WebP files contain no embedded author,

@@ -192,12 +192,14 @@ and routes. Verify the running Gateway separately:
 openclaw thunderclaw status --json
 ```
 
-The OpenClaw plugin screen obtains the ThunderClaw icon through the Gateway
-from the HTTPS URL declared in the plugin manifest. If it shows an initials
-tile instead, confirm that the Gateway host can fetch
-`https://raw.githubusercontent.com/kwatson/thunderclaw/main/docs/brand/assets/raster/icons/thunderclaw-openclaw-plugin-icon-256.png`, then
-restart the Gateway and reload the OpenClaw UI. An unavailable icon does not
-change plugin execution or pairing state.
+The OpenClaw plugin screen obtains the packaged ThunderClaw icon through the
+Gateway from `assets/icon.png` in the installed plugin directory. If it shows
+an initials tile immediately after an update, restart the Gateway and reload
+the OpenClaw UI so both use the new plugin metadata. If the fallback remains,
+confirm that `openclaw plugins list --json` reports `hasIcon: true` for
+`thunderclaw`; a missing icon indicates an incomplete installation and should
+be repaired through the supported plugin update lifecycle. An unavailable icon
+does not change plugin execution or pairing state.
 
 Do not repair a missing or disabled plugin by editing its SQLite registry or
 OpenClaw core database. Use the supported plugin install/update lifecycle.
