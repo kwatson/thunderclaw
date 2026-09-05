@@ -20,7 +20,7 @@ fi
 candidate_mount_path=/tmp/thunderclaw-qualification-candidate.tgz
 
 "${compose[@]}" run --rm --no-deps gateway node openclaw.mjs plugins install \
-  @openclaw/deepseek-provider@2026.9.1 --force --pin --accept-capabilities
+  @openclaw/deepseek-provider@2026.9.2 --force --pin --accept-capabilities
 
 "${compose[@]}" run --rm --no-deps --entrypoint sh gateway -lc '
   node openclaw.mjs onboard \

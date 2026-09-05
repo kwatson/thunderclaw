@@ -28,9 +28,9 @@ OpenClaw. The Thunderbird extension receives only a narrow paired-device
 credential. See the ThunderClaw repository's installation, security, and
 compatibility documentation before enabling the plugin.
 
-The package includes `assets/thunderclaw-plugin-icon.png` as a copy of its
+The package includes `assets/icon.png` as a copy of its
 256-pixel catalog artwork. OpenClaw loads the identical public brand derivative
-through the HTTPS URL declared in `openclaw.plugin.json`.
+through OpenClaw's fixed local plugin-icon convention.
 
 Licensed under Apache-2.0. The ThunderClaw name and marks are governed by the
 repository's trademark policy.

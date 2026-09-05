@@ -24,7 +24,7 @@ test("candidate artifact validator accepts current ThunderClaw archives and repo
     }).trim().split("\n").at(-1)!;
     for (const [kind, component, version, artifact] of [
       ["xpi", "thunderbird-extension", "0.1.2", xpi],
-      ["plugin-tgz", "openclaw-plugin", "0.1.5", plugin],
+      ["plugin-tgz", "openclaw-plugin", "0.1.6", plugin],
     ] as const) {
       const result = validate(kind, artifact);
       assert.equal(result.status, 0, result.stderr);
@@ -59,7 +59,7 @@ test("candidate artifact validator rejects wrong suffixes, versions, and identit
     const pluginSource = path.join(temporary, "plugin-source", "package");
     execFileSync("mkdir", ["-p", pluginSource]);
     await writeFile(path.join(pluginSource, "package.json"), JSON.stringify({
-      name: "@someone/other-plugin", version: "0.1.5",
+      name: "@someone/other-plugin", version: "0.1.6",
     }));
     await writeFile(path.join(pluginSource, "openclaw.plugin.json"), JSON.stringify({
       id: "thunderclaw", name: "ThunderClaw",

@@ -21,7 +21,7 @@ makes releases reproducible and keeps asset provenance reviewable.
   the 180, 192, and 512 pixel files are mechanical resize or cream-canvas
   derivatives of the approved toolbar icon master. The Pages build assembles
   the multi-size `favicon.ico` from those approved PNG derivatives.
-- The OpenClaw plugin's `assets/thunderclaw-plugin-icon.png` is an exact copy of
+- The OpenClaw plugin's `assets/icon.png` is an exact copy of
   `assets/raster/icons/thunderclaw-openclaw-plugin-icon-256.png`, a mechanical
   derivative of the approved toolbar icon master. Its manifest exposes that
   size-appropriate derivative through the repository's stable public HTTPS URL.

@@ -17,7 +17,7 @@ For development installation from source, see
 Install a pair listed as compatible in the component release notes and
 [`compatibility.md`](compatibility.md); numeric versions do not need to match.
 
-Stable OpenClaw `2026.9.1` requires the operator to accept a plugin's declared
+Stable OpenClaw `2026.9.2` requires the operator to accept a plugin's declared
 capabilities before activation. Install ThunderClaw from ClawHub with explicit
 consent, then enable it and restart the Gateway:
 
