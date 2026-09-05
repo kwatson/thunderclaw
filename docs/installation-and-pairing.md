@@ -196,12 +196,14 @@ The OpenClaw plugin screen obtains the packaged ThunderClaw icon through the
 Gateway from `assets/icon.png` in the installed plugin directory. If it shows
 an initials tile immediately after an update, restart the Gateway and reload
 the OpenClaw UI so both use the new plugin metadata. If the fallback remains,
-confirm that `openclaw plugins list --json` reports `hasIcon: true` for
-`thunderclaw`. If `hasIcon` is absent even though the installed
-`assets/icon.png` is present, run `openclaw plugins registry --refresh` and
-restart the Gateway to rebuild stale discovery metadata. A genuinely missing
-icon should be repaired through the supported plugin update lifecycle. An
-unavailable icon does not change plugin execution or pairing state.
+confirm that `openclaw gateway call plugins.list --json` reports `hasIcon:
+true` for `thunderclaw`; the cold `openclaw plugins list --json` inventory does
+not expose this presentation field. If the Gateway field is absent even though
+the installed `assets/icon.png` is present, run `openclaw plugins registry
+--refresh` and restart the Gateway to rebuild stale discovery metadata. A
+genuinely missing icon should be repaired through the supported plugin update
+lifecycle. An unavailable icon does not change plugin execution or pairing
+state.
 
 Do not repair a missing or disabled plugin by editing its SQLite registry or
 OpenClaw core database. Use the supported plugin install/update lifecycle.
