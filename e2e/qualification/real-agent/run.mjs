@@ -358,7 +358,14 @@ async function main() {
     expectedXpiSha256 = hash(await readFile(xpiPath));
     assert(JSON.stringify(xpiEntries(xpiPath)) === JSON.stringify(xpiEntries(currentXpi)), "qualified XPI copy is not exact");
 
+    const deepseekPluginEntry = config.plugins?.entries?.deepseek;
+    assert(deepseekPluginEntry && typeof deepseekPluginEntry === "object" && !Array.isArray(deepseekPluginEntry),
+      "qualification requires the installed DeepSeek provider plugin entry");
+    // Strict provider discovery pins the official endpoint, so the disposable
+    // qualification config disables it while an explicit audited proxy is active.
+    config.plugins.entries.deepseek = { ...deepseekPluginEntry, enabled: false };
     config.models.providers.deepseek.baseUrl = `http://${proxyName}:18888`;
+    config.models.providers.deepseek.apiKey = "sk-synthetic-qualification-only";
     await atomicWrite(configPath, `${JSON.stringify(config, null, 2)}\n`);
     command("docker", ["rm", "-f", proxyName], { capture: true });
   } catch (error) {

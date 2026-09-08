@@ -18,5 +18,8 @@ test("real-agent qualification consumes explicit plugin and counterpart XPI byte
   assert.match(source, /validate-candidate-artifact\.mjs", "plugin-tgz"/u);
   assert.match(source, /validate-candidate-artifact\.mjs", "xpi"/u);
   assert.match(source, /verify-counterpart-baseline\.mjs/u);
+  assert.match(source, /config\.plugins\.entries\.deepseek = \{ \.\.\.deepseekPluginEntry, enabled: false \}/u);
+  assert.match(source, /config\.models\.providers\.deepseek\.baseUrl = `http:\/\/\$\{proxyName\}:18888`/u);
+  assert.match(source, /config\.models\.providers\.deepseek\.apiKey = "sk-synthetic-qualification-only"/u);
   assert.doesNotMatch(source, /npm.*build:extension|package-openclaw-plugin|thunderclaw-openclaw-plugin-0\.1/u);
 });
