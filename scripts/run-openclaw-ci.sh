@@ -2,7 +2,7 @@
 set -euo pipefail
 
 repository_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-gateway_image="ghcr.io/openclaw/openclaw:2026.9.4@sha256:cc596b846506a5f4cfcee111394a2725f375f01cca2ebb492a161fd1b747f101"
+gateway_image="ghcr.io/openclaw/openclaw:2026.9.5@sha256:988320c1dc7b146b1e4feca5aa825f668f7cca385cb00aeb5682720bab69b63c"
 temporary_root=$(mktemp -d /tmp/thunderclaw-openclaw-ci.XXXXXX)
 state_root="${temporary_root}/state"
 cache_root="${temporary_root}/cache"
@@ -58,7 +58,7 @@ container_args+=(--mount "type=bind,src=${staged_candidate},dst=/workspace/thund
 
 docker run --rm "${container_args[@]}" "${gateway_image}" \
   node openclaw.mjs plugins install \
-    @openclaw/deepseek-provider@2026.9.4 --force --pin --accept-capabilities
+    @openclaw/deepseek-provider@2026.9.5 --force --pin --accept-capabilities
 
 docker run --rm "${container_args[@]}" "${gateway_image}" \
   node openclaw.mjs onboard \

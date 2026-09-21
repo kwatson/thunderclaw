@@ -14,7 +14,7 @@ test("hosted OpenClaw qualification is pinned, secretless, and ephemeral", async
   const compose = await readFile(new URL("../compose.spike.yaml", import.meta.url), "utf8");
   const workflow = await readFile(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8");
 
-  assert.match(script, /ghcr\.io\/openclaw\/openclaw:2026\.9\.4@sha256:cc596b846506a5f4cfcee111394a2725f375f01cca2ebb492a161fd1b747f101/u);
+  assert.match(script, /ghcr\.io\/openclaw\/openclaw:2026\.9\.5@sha256:988320c1dc7b146b1e4feca5aa825f668f7cca385cb00aeb5682720bab69b63c/u);
   assert.match(script, /--auth-choice deepseek-api-key/u);
   assert.match(script, /--secret-input-mode ref/u);
   assert.match(script, /--suppress-gateway-token-output/u);
@@ -32,7 +32,7 @@ test("hosted OpenClaw qualification is pinned, secretless, and ephemeral", async
   assert.match(script, /plugins install --force --accept-capabilities/u);
   assert.match(
     script,
-    /plugins install \\\n+    @openclaw\/deepseek-provider@2026\.9\.4 --force --pin --accept-capabilities[\s\S]*node openclaw\.mjs onboard/u,
+    /plugins install \\\n+    @openclaw\/deepseek-provider@2026\.9\.5 --force --pin --accept-capabilities[\s\S]*node openclaw\.mjs onboard/u,
   );
   assert.match(script, /plugins\.entries\.thunderclaw\.config/u);
   assert.match(script, /spike-plugin-config\.json/u);
@@ -49,7 +49,7 @@ test("hosted OpenClaw qualification is pinned, secretless, and ephemeral", async
   assert.match(bootstrap, /mkdir -p \.spike\/evidence/u);
   assert.match(
     bootstrap,
-    /plugins install \\\n  @openclaw\/deepseek-provider@2026\.9\.4 --force --pin --accept-capabilities[\s\S]*node openclaw\.mjs onboard/u,
+    /plugins install \\\n  @openclaw\/deepseek-provider@2026\.9\.5 --force --pin --accept-capabilities[\s\S]*node openclaw\.mjs onboard/u,
   );
   assert.match(bootstrap, /spike-plugin-config\.json/u);
   assert.match(bootstrap, /agents list --json/u);

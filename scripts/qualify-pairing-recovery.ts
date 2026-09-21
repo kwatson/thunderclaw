@@ -80,16 +80,23 @@ async function main(): Promise<void> {
     const databaseEntry = entries.find((entry) => entry.endsWith(suffix));
     assert(databaseEntry && entries.filter((entry) => entry.endsWith(suffix)).length === 1,
       "the recovery archive does not contain exactly one current pairing registry");
-    assert(!entries.some((entry) => entry === `${databaseEntry}-wal` || entry === `${databaseEntry}-shm`),
-      "the recovery archive retained transient SQLite sidecars");
-    command("tar", ["-xzf", archive, "-C", extraction, databaseEntry]);
+    const walEntries = entries.filter((entry) => entry === `${databaseEntry}-wal`);
+    const shmEntries = entries.filter((entry) => entry === `${databaseEntry}-shm`);
+    assert(walEntries.length <= 1 && shmEntries.length <= 1 && (shmEntries.length === 0 || walEntries.length === 1),
+      "the recovery archive contains an inconsistent SQLite file set");
+    const databaseEntries = [databaseEntry, ...walEntries, ...shmEntries];
+    command("tar", ["-xzf", archive, "-C", extraction, ...databaseEntries]);
     const restoredDatabase = join(extraction, databaseEntry);
     const restoredStateRoot = dirname(dirname(dirname(restoredDatabase)));
     const safeExtraction = resolve(extraction);
     assert(resolve(restoredDatabase).startsWith(`${safeExtraction}${sep}`), "the restored registry escaped its private root");
-    const stat = lstatSync(restoredDatabase);
-    assert(stat.isFile() && !stat.isSymbolicLink() && stat.nlink === 1 && (stat.mode & 0o777) === 0o600,
-      "the restored registry is not a private regular file");
+    for (const entry of databaseEntries) {
+      const restoredPath = join(extraction, entry);
+      assert(resolve(restoredPath).startsWith(`${safeExtraction}${sep}`), "a restored SQLite file escaped its private root");
+      const stat = lstatSync(restoredPath);
+      assert(stat.isFile() && !stat.isSymbolicLink() && stat.nlink === 1 && (stat.mode & 0o777) === 0o600,
+        "a restored SQLite file is not a private regular file");
+    }
 
     const database = new DatabaseSync(restoredDatabase, { readOnly: true });
     const quick = database.prepare("PRAGMA quick_check").get() as Record<string, unknown>;
@@ -115,7 +122,14 @@ async function main(): Promise<void> {
       archiveSha256: sha256(archive),
       archiveMode: "0600",
       entryCount: entries.length,
-      pairingDatabase: { schema: 2, quickCheck: "ok", mode: "0600", walExcluded: true, shmExcluded: true, counts },
+      pairingDatabase: {
+        schema: 2,
+        quickCheck: "ok",
+        mode: "0600",
+        walIncluded: walEntries.length === 1,
+        shmIncluded: shmEntries.length === 1,
+        counts,
+      },
       productionRegistryOpen: true,
     };
     writeFileSync(join(outputDirectory, "qualification-summary.json"), `${JSON.stringify(summary, null, 2)}\n`, { mode: 0o600 });
