@@ -8,10 +8,16 @@ import { spawnSync } from "node:child_process";
 
 const root = resolve(import.meta.dirname, "..");
 const compose = ["compose", "-f", "compose.spike.yaml"];
+const openClawQualification = JSON.parse(readFileSync(join(root, "openclaw-qualification.json"), "utf8")) as {
+  stableVersion: string;
+  image: { repository: string; linuxAmd64Digest: string };
+};
+const qualifiedGatewayImage = `${openClawQualification.image.repository}:${openClawQualification.stableVersion}`
+  + `@${openClawQualification.image.linuxAmd64Digest}`;
 const qualificationContainer = process.env.THUNDERCLAW_QUALIFICATION_CONTAINER;
 const qualificationStateRoot = process.env.THUNDERCLAW_QUALIFICATION_STATE_ROOT;
 const qualificationGatewayImage = process.env.THUNDERCLAW_QUALIFICATION_GATEWAY_IMAGE
-  ?? "ghcr.io/openclaw/openclaw:2026.9.5";
+  ?? qualifiedGatewayImage;
 if (Boolean(qualificationContainer) !== Boolean(qualificationStateRoot)) {
   throw new Error("container qualification requires both its container and state root");
 }
@@ -94,7 +100,7 @@ function inspectGateway(): void {
     throw new Error("the pinned Gateway must already be running");
   }
   const image = String(gateway.Image ?? "");
-  if (image !== "ghcr.io/openclaw/openclaw:2026.9.5") {
+  if (image !== qualifiedGatewayImage) {
     throw new Error(`unexpected Gateway image: ${image || "unknown"}`);
   }
   // Read before mutation as an operational safety check. Never print raw logs.

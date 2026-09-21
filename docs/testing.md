@@ -253,8 +253,10 @@ a promise of byte-identical OpenClaw install metadata.
 
 `qualify:pairing:recovery` verifies a supported backup outside the live state
 tree, safe archive entries, isolated extraction, private mode, SQLite integrity,
-current schema, sidecar exclusion, and opening the restored copy through the
-production registry. Backups contain broad OpenClaw state and remain sensitive.
+current schema, a complete and consistent database/WAL/SHM file set, and opening
+the restored copy through the production registry. SQLite sidecars are optional,
+but an SHM file is accepted only with its WAL, and every included file must be a
+private regular file. Backups contain broad OpenClaw state and remain sensitive.
 
 ## Agent and OpenClaw qualification
 

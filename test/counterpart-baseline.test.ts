@@ -3,16 +3,39 @@ import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { verifyCounterpartBaseline } from "../scripts/verify-counterpart-baseline.mjs";
+import { updateCounterpartManifest } from "../scripts/update-counterpart-baseline.mjs";
+import { validateCounterpartBaselines, verifyCounterpartBaseline } from "../scripts/verify-counterpart-baseline.mjs";
 
 test("counterpart baseline manifest pins each independently published component", async () => {
   const manifest = JSON.parse(await readFile(new URL("../e2e/qualification/counterpart-baselines.json", import.meta.url), "utf8"));
-  assert.equal(manifest["openclaw-plugin"].tag, "openclaw-plugin-v0.1.9");
-  assert.equal(manifest["thunderbird-extension"].tag, "thunderbird-extension-v0.1.2");
-  assert.match(manifest["openclaw-plugin"].sha256, /^[a-f0-9]{64}$/u);
-  assert.match(manifest["thunderbird-extension"].sha256, /^[a-f0-9]{64}$/u);
-  assert.equal(manifest["openclaw-plugin"].size, 108496);
-  assert.equal(manifest["thunderbird-extension"].size, 119484);
+  const validated = validateCounterpartBaselines(manifest);
+  for (const component of ["openclaw-plugin", "thunderbird-extension"] as const) {
+    assert.match(validated[component].sha256, /^[a-f0-9]{64}$/u);
+    assert.ok(validated[component].size > 0);
+  }
+});
+
+test("counterpart updater derives exact baseline metadata only from an advancing verified release", async () => {
+  const manifest = JSON.parse(await readFile(new URL("../e2e/qualification/counterpart-baselines.json", import.meta.url), "utf8"));
+  const updated = updateCounterpartManifest(manifest, {
+    component: "openclaw-plugin",
+    tag: "openclaw-plugin-v0.1.10",
+    version: "0.1.10",
+    artifacts: [{ name: "thunderclaw-openclaw-plugin-0.1.10.tgz", sha256: "a".repeat(64), size: 12345 }],
+  });
+  assert.deepEqual(updated["openclaw-plugin"], {
+    tag: "openclaw-plugin-v0.1.10",
+    name: "thunderclaw-openclaw-plugin-0.1.10.tgz",
+    sha256: "a".repeat(64),
+    size: 12345,
+  });
+  assert.deepEqual(updated["thunderbird-extension"], manifest["thunderbird-extension"]);
+  assert.throws(() => updateCounterpartManifest(manifest, {
+    component: "openclaw-plugin",
+    tag: "openclaw-plugin-v0.1.9",
+    version: "0.1.9",
+    artifacts: [{ name: "thunderclaw-openclaw-plugin-0.1.9.tgz", sha256: "b".repeat(64), size: 1 }],
+  }), /must advance openclaw-plugin/u);
 });
 
 test("counterpart verifier rejects bytes that do not match the permanent pin", async () => {

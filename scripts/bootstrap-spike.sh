@@ -18,9 +18,18 @@ else
   candidate=$(realpath "$package_path")
 fi
 candidate_mount_path=/tmp/thunderclaw-qualification-candidate.tgz
+provider_version=$(mise exec -- node -p 'require("./openclaw-qualification.json").provider.version')
+provider_archive=".spike/thunderclaw-packages/openclaw-qualified-provider-${provider_version}.tgz"
+mise exec -- node scripts/stage-openclaw-provider.mjs --output "$provider_archive" >/dev/null
+provider_archive=$(realpath "$provider_archive")
+provider_mount_path=/tmp/thunderclaw-qualified-provider.tgz
 
-"${compose[@]}" run --rm --no-deps gateway node openclaw.mjs plugins install \
-  @openclaw/deepseek-provider@2026.9.5 --force --pin --accept-capabilities
+"${compose[@]}" run --rm --no-deps \
+  --env NPM_CONFIG_OFFLINE=true \
+  --env "NPM_CONFIG_CACHE=/home/node/.cache/qualified-provider-${provider_version}" \
+  --volume "${provider_archive}:${provider_mount_path}:ro" \
+  gateway node openclaw.mjs plugins install \
+  "npm-pack:${provider_mount_path}" --force --accept-capabilities
 
 "${compose[@]}" run --rm --no-deps --entrypoint sh gateway -lc '
   node openclaw.mjs onboard \
@@ -65,6 +74,7 @@ else
 fi
 
 "${compose[@]}" run --rm --no-deps \
+  --env NPM_CONFIG_OFFLINE=true \
   --volume "${candidate}:${candidate_mount_path}:ro" \
   gateway node openclaw.mjs plugins install \
   "npm-pack:${candidate_mount_path}" --force --accept-capabilities

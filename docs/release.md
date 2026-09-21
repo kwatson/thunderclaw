@@ -22,24 +22,6 @@ source is generated from an explicit allowlist and must reproduce the candidate
 XPI. It excludes dependencies, generated output, local state, credentials, and
 qualification evidence.
 
-## Migration sequence
-
-Land the release-system migration as two logical commits:
-
-1. **Release refactor at existing `0.1.1`.** Introduce independent metadata,
-   tags, changelog entries, workflows, strict legacy dispatch, and pinned
-   counterpart qualification without changing either published component
-   version.
-2. **Plugin compatibility release `0.1.2`.** Update the plugin compatibility
-   metadata, lockfile mirror, stable OpenClaw qualification pins, supported
-   capability-consent lifecycle, documentation, and OpenClaw plugin entry in
-   `CHANGELOG.md`, then tag `openclaw-plugin-v0.1.2`.
-
-Do not combine these commits: reviewers and publication provenance must be able
-to distinguish release-mechanism changes from the first independently shipped
-product change. The extension remains `0.1.1` until it has its own change worth
-publishing.
-
 ## Blocking pre-tag administration gate
 
 Repository code cannot enforce GitHub or marketplace administration. Before
@@ -190,3 +172,7 @@ expand support or publish automatically. A human-reviewed compatibility change
 updates pins, runs the complete component/counterpart matrix, and only then
 updates [`compatibility.md`](compatibility.md) and the relevant component
 changelog.
+
+For the concrete OpenClaw compatibility-release sequence, use the
+[`OpenClaw upgrade runbook`](openclaw-upgrade-runbook.md). This policy remains
+authoritative if a runbook instruction and a release invariant ever disagree.

@@ -9,10 +9,7 @@ const counterparts = {
   "thunderbird-extension": "openclaw-plugin",
 };
 
-export async function verifyCounterpartBaseline({ forComponent, artifact }) {
-  const counterpart = counterparts[forComponent];
-  if (!counterpart) throw new Error(`Unknown release component: ${forComponent}`);
-  const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+export function validateCounterpartBaselines(manifest) {
   const rootKeys = Object.keys(manifest ?? {}).sort();
   if (JSON.stringify(rootKeys) !== JSON.stringify(["format", "openclaw-plugin", "thunderbird-extension"].sort())
       || manifest.format !== "thunderclaw-counterpart-baselines-v1") {
@@ -36,6 +33,13 @@ export async function verifyCounterpartBaseline({ forComponent, artifact }) {
       throw new Error(`Counterpart baseline ${component} tag and artifact name do not agree`);
     }
   }
+  return manifest;
+}
+
+export async function verifyCounterpartBaseline({ forComponent, artifact }) {
+  const counterpart = counterparts[forComponent];
+  if (!counterpart) throw new Error(`Unknown release component: ${forComponent}`);
+  const manifest = validateCounterpartBaselines(JSON.parse(await readFile(manifestPath, "utf8")));
   const expected = manifest[counterpart];
   if (!expected || !/^(?:v|openclaw-plugin-v|thunderbird-extension-v)\d+\.\d+\.\d+$/u.test(expected.tag)) {
     throw new Error(`Counterpart baseline has an invalid ${counterpart} release tag`);

@@ -5,6 +5,7 @@ import { basename, dirname, join, resolve, sep } from "node:path";
 import { spawnSync } from "node:child_process";
 import { DatabaseSync } from "node:sqlite";
 import { PairingRegistry } from "../packages/openclaw-plugin/src/pairing-registry.js";
+import { extractSQLiteBackupFileSet, isPrivateRegularSQLiteFile } from "./sqlite-backup-file-set.js";
 
 const root = resolve(new URL("..", import.meta.url).pathname);
 const compose = ["compose", "-f", "compose.spike.yaml"];
@@ -37,10 +38,6 @@ function docker(...args: string[]): string {
 }
 function assert(value: unknown, message: string): asserts value { if (!value) throw new Error(message); }
 function sha256(path: string): string { return createHash("sha256").update(readFileSync(path)).digest("hex"); }
-
-function safeArchiveEntry(entry: string): boolean {
-  return entry.length > 0 && !entry.startsWith("/") && !entry.split("/").includes("..") && !entry.includes("\\");
-}
 
 async function main(): Promise<void> {
   const gatewayContainer = qualificationContainer
@@ -75,17 +72,10 @@ async function main(): Promise<void> {
     assert(verified.ok === true, "the copied recovery archive failed verification");
 
     const entries = command("tar", ["-tzf", archive]).split(/\r?\n/u).filter(Boolean);
-    assert(entries.every(safeArchiveEntry), "the recovery archive contains an unsafe path");
     const suffix = "/payload/posix/home/node/.openclaw/plugins/thunderclaw/pairing.sqlite";
-    const databaseEntry = entries.find((entry) => entry.endsWith(suffix));
-    assert(databaseEntry && entries.filter((entry) => entry.endsWith(suffix)).length === 1,
-      "the recovery archive does not contain exactly one current pairing registry");
-    const walEntries = entries.filter((entry) => entry === `${databaseEntry}-wal`);
-    const shmEntries = entries.filter((entry) => entry === `${databaseEntry}-shm`);
-    assert(walEntries.length <= 1 && shmEntries.length <= 1 && (shmEntries.length === 0 || walEntries.length === 1),
-      "the recovery archive contains an inconsistent SQLite file set");
-    const databaseEntries = [databaseEntry, ...walEntries, ...shmEntries];
-    command("tar", ["-xzf", archive, "-C", extraction, ...databaseEntries]);
+    const { databaseEntry, walEntries, shmEntries, databaseEntries } = extractSQLiteBackupFileSet(
+      archive, extraction, entries, suffix,
+    );
     const restoredDatabase = join(extraction, databaseEntry);
     const restoredStateRoot = dirname(dirname(dirname(restoredDatabase)));
     const safeExtraction = resolve(extraction);
@@ -94,7 +84,7 @@ async function main(): Promise<void> {
       const restoredPath = join(extraction, entry);
       assert(resolve(restoredPath).startsWith(`${safeExtraction}${sep}`), "a restored SQLite file escaped its private root");
       const stat = lstatSync(restoredPath);
-      assert(stat.isFile() && !stat.isSymbolicLink() && stat.nlink === 1 && (stat.mode & 0o777) === 0o600,
+      assert(isPrivateRegularSQLiteFile(stat),
         "a restored SQLite file is not a private regular file");
     }
 

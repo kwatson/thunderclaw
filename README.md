@@ -241,6 +241,7 @@ open an issue before investing in an implementation.
 - [Development](docs/development.md) — development environment and plugin updates
 - [Testing](docs/testing.md) — test layers and qualification matrices
 - [Release process](docs/release.md) — artifact acceptance and publication policy
+- [OpenClaw upgrade runbook](docs/openclaw-upgrade-runbook.md) — compatibility-bump and publication sequence
 - [Protocol reference](docs/reference/) — normative boundary contracts
 - [Brand](docs/brand/) — assets, specification, licensing, and provenance
 

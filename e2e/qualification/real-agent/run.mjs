@@ -3,10 +3,15 @@ import { copyFile, mkdtemp, readFile, writeFile, mkdir, stat, rename, rm } from 
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { spawn, spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { createQualificationArtifacts } from "./artifacts.mjs";
 import { providerRepairObserved } from "./evidence.mjs";
 
-const root = resolve(new URL("../../..", import.meta.url).pathname);
+const root = resolve(fileURLToPath(new URL("../../..", import.meta.url)));
+const openClawQualification = JSON.parse(await readFile(join(root, "openclaw-qualification.json"), "utf8"));
+const qualifiedGatewayImage = `${openClawQualification.image.repository}:${openClawQualification.stableVersion}`
+  + `@${openClawQualification.image.linuxAmd64Digest}`;
+const qualifiedGatewayRepoDigest = `${openClawQualification.image.repository}@${openClawQualification.image.linuxAmd64Digest}`;
 const qualificationRoot = join(root, "e2e/qualification/real-agent");
 const richComposeRoot = join(root, "e2e/thunderbird/rich-compose");
 const configPath = join(root, ".spike/thunderclaw-openclaw/openclaw.json");
@@ -381,7 +386,7 @@ async function main() {
       "--mount", `type=bind,src=${artifacts},dst=/evidence`, "node:24.19.0-alpine", "node", "/app/proxy.mjs"], { capture: true });
     command("docker", ["compose", "-f", "compose.spike.yaml", "restart", "gateway"]);
     const status = await waitForGateway(token);
-    assert(status.gatewayVersion === "2026.9.5" && status.capabilities?.flatListItemReplacement === true
+    assert(status.gatewayVersion === openClawQualification.stableVersion && status.capabilities?.flatListItemReplacement === true
       && status.capabilities?.toolsDisabled === true, "Gateway status capability mismatch");
     const probeRequest = { protocolVersion: 1, requestId: randomUUID(), probeRunId: randomUUID(), agentId: "deepseek-flash" };
     await gatewayCall(token, "/agents/probe", probeRequest);
@@ -405,10 +410,13 @@ async function main() {
     const parsedProviderProxyRepoDigests = JSON.parse(providerProxyRepoDigests);
     assert(Array.isArray(parsedProviderProxyRepoDigests) && parsedProviderProxyRepoDigests.length > 0,
       "provider proxy image has no immutable repository digest");
-    const gatewayImageId = command("docker", ["image", "inspect", "ghcr.io/openclaw/openclaw:2026.9.5", "--format", "{{.Id}}"], { capture: true });
+    const gatewayImageId = command("docker", ["image", "inspect", qualifiedGatewayImage, "--format", "{{.Id}}"], { capture: true });
     const gatewayContainerImageId = command("docker", ["inspect", "thunderclaw-spike-gateway-1", "--format", "{{.Image}}"], { capture: true });
     assert(gatewayContainerImageId === gatewayImageId, "Gateway container is not using the pinned immutable image");
-    const gatewayRepoDigests = command("docker", ["image", "inspect", "ghcr.io/openclaw/openclaw:2026.9.5", "--format", "{{json .RepoDigests}}"], { capture: true });
+    const gatewayRepoDigests = command("docker", ["image", "inspect", qualifiedGatewayImage, "--format", "{{json .RepoDigests}}"], { capture: true });
+    const parsedGatewayRepoDigests = JSON.parse(gatewayRepoDigests);
+    assert(Array.isArray(parsedGatewayRepoDigests) && parsedGatewayRepoDigests.includes(qualifiedGatewayRepoDigest),
+      "Gateway image repository digests do not contain the qualified immutable digest");
     const pluginArchiveSha256 = hash(await readFile(pluginPath));
     const pluginList = JSON.parse(command("docker", ["compose", "-f", "compose.spike.yaml", "exec", "-T", "gateway",
       "node", "openclaw.mjs", "plugins", "list", "--json"], { capture: true }));
@@ -426,7 +434,7 @@ async function main() {
       agent: { agentId: agent.agentId, provider: agent.provider, model: agent.model,
         compatibilityState: agent.compatibility.state, observedProvider: agent.compatibility.lastProbe.observedProvider,
         observedModel: agent.compatibility.lastProbe.observedModel }, imageId, pluginArchiveSha256, installedPluginSha256,
-      xpiSha256: expectedXpiSha256, gatewayImageId, gatewayRepoDigests,
+      xpiSha256: expectedXpiSha256, gatewayImageId, gatewayRepoDigests: parsedGatewayRepoDigests,
       providerProxyImageId, providerProxyRepoDigests: parsedProviderProxyRepoDigests,
       runnerSha256: hash(await readFile(join(qualificationRoot, "run.mjs"))),
       comparatorSha256: hash(await readFile(join(qualificationRoot, "run.mjs"))),

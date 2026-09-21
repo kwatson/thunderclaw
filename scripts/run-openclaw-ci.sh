@@ -2,7 +2,11 @@
 set -euo pipefail
 
 repository_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-gateway_image="ghcr.io/openclaw/openclaw:2026.9.5@sha256:988320c1dc7b146b1e4feca5aa825f668f7cca385cb00aeb5682720bab69b63c"
+cd "${repository_root}"
+gateway_image=$(mise exec -- node -e '
+  const qualification = require("./openclaw-qualification.json");
+  process.stdout.write(`${qualification.image.repository}:${qualification.stableVersion}@${qualification.image.linuxAmd64Digest}`);
+')
 temporary_root=$(mktemp -d /tmp/thunderclaw-openclaw-ci.XXXXXX)
 state_root="${temporary_root}/state"
 cache_root="${temporary_root}/cache"
@@ -31,6 +35,7 @@ container_args=(
   --user "$(id -u):$(id -g)"
   --env HOME=/home/node
   --env NPM_CONFIG_CACHE=/home/node/.openclaw/npm-cache
+  --env NPM_CONFIG_OFFLINE=true
   --env OPENCLAW_DISABLE_BONJOUR=1
   --env DEEPSEEK_API_KEY=sk-synthetic-qualification-only
   --env "OPENCLAW_GATEWAY_TOKEN=${gateway_token}"
@@ -39,7 +44,6 @@ container_args=(
   --mount "type=bind,src=${repository_root},dst=/workspace/thunderclaw,readonly"
 )
 
-cd "${repository_root}"
 if [[ ! -v THUNDERCLAW_OPENCLAW_PLUGIN_TGZ || -z "${THUNDERCLAW_OPENCLAW_PLUGIN_TGZ}" ]]; then
   printf '%s\n' "THUNDERCLAW_OPENCLAW_PLUGIN_TGZ must name an existing candidate archive" >&2
   exit 2
@@ -55,10 +59,13 @@ cmp -s "${candidate}" "${staged_candidate}" || {
   exit 1
 }
 container_args+=(--mount "type=bind,src=${staged_candidate},dst=/workspace/thunderclaw-candidate.tgz,readonly")
+provider_archive="${temporary_root}/openclaw-qualified-provider.tgz"
+mise exec -- node scripts/stage-openclaw-provider.mjs --output "${provider_archive}"
+container_args+=(--mount "type=bind,src=${provider_archive},dst=/workspace/openclaw-qualified-provider.tgz,readonly")
 
 docker run --rm "${container_args[@]}" "${gateway_image}" \
   node openclaw.mjs plugins install \
-    @openclaw/deepseek-provider@2026.9.5 --force --pin --accept-capabilities
+    npm-pack:/workspace/openclaw-qualified-provider.tgz --force --accept-capabilities
 
 docker run --rm "${container_args[@]}" "${gateway_image}" \
   node openclaw.mjs onboard \
