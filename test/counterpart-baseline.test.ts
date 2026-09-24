@@ -19,13 +19,13 @@ test("counterpart updater derives exact baseline metadata only from an advancing
   const manifest = JSON.parse(await readFile(new URL("../e2e/qualification/counterpart-baselines.json", import.meta.url), "utf8"));
   const updated = updateCounterpartManifest(manifest, {
     component: "openclaw-plugin",
-    tag: "openclaw-plugin-v0.1.10",
-    version: "0.1.10",
-    artifacts: [{ name: "thunderclaw-openclaw-plugin-0.1.10.tgz", sha256: "a".repeat(64), size: 12345 }],
+    tag: "openclaw-plugin-v0.1.11",
+    version: "0.1.11",
+    artifacts: [{ name: "thunderclaw-openclaw-plugin-0.1.11.tgz", sha256: "a".repeat(64), size: 12345 }],
   });
   assert.deepEqual(updated["openclaw-plugin"], {
-    tag: "openclaw-plugin-v0.1.10",
-    name: "thunderclaw-openclaw-plugin-0.1.10.tgz",
+    tag: "openclaw-plugin-v0.1.11",
+    name: "thunderclaw-openclaw-plugin-0.1.11.tgz",
     sha256: "a".repeat(64),
     size: 12345,
   });
@@ -39,16 +39,16 @@ test("counterpart updater derives exact baseline metadata only from an advancing
 
   const alreadyComplete = updateCounterpartManifest(updated, {
     component: "openclaw-plugin",
-    tag: "openclaw-plugin-v0.1.10",
-    version: "0.1.10",
-    artifacts: [{ name: "thunderclaw-openclaw-plugin-0.1.10.tgz", sha256: "a".repeat(64), size: 12345 }],
+    tag: "openclaw-plugin-v0.1.11",
+    version: "0.1.11",
+    artifacts: [{ name: "thunderclaw-openclaw-plugin-0.1.11.tgz", sha256: "a".repeat(64), size: 12345 }],
   });
   assert.deepEqual(alreadyComplete, updated);
   assert.throws(() => updateCounterpartManifest(updated, {
     component: "openclaw-plugin",
-    tag: "openclaw-plugin-v0.1.10",
-    version: "0.1.10",
-    artifacts: [{ name: "thunderclaw-openclaw-plugin-0.1.10.tgz", sha256: "b".repeat(64), size: 12345 }],
+    tag: "openclaw-plugin-v0.1.11",
+    version: "0.1.11",
+    artifacts: [{ name: "thunderclaw-openclaw-plugin-0.1.11.tgz", sha256: "b".repeat(64), size: 12345 }],
   }), /already has a different release identity/u);
 });
 
