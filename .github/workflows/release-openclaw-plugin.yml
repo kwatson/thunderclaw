@@ -267,6 +267,7 @@ jobs:
       version: ${{ needs.build.outputs.version }}
       candidate_artifact: thunderclaw-openclaw-plugin-${{ needs.build.outputs.version }}
       release_lane: ${{ needs.classify.outputs.release_lane }}
+    secrets: inherit
 
   release:
     name: Create plugin GitHub release
@@ -350,6 +351,7 @@ jobs:
     with:
       tag: ${{ github.ref_name }}
       release_lane: ${{ needs.classify.outputs.release_lane }}
+    secrets: inherit
 
   counterpart-closeout:
     name: Open exact counterpart baseline closeout

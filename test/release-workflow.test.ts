@@ -120,11 +120,13 @@ test("OpenClaw automatic release is selected only by the read-only durable-state
   assert.match(release, /build:\n[\s\S]*?needs: classify/u);
   assert.match(release, /release-auto' \|\| 'release'/u);
   assert.match(release, /release_lane: \$\{\{ needs\.classify\.outputs\.release_lane \}\}/u);
-  assert.doesNotMatch(release, /release_lane: \$\{\{ needs\.classify\.outputs\.release_lane \}\}\n\s+secrets: inherit/u);
+  assert.equal((release.match(/release_lane: \$\{\{ needs\.classify\.outputs\.release_lane \}\}\n\s+secrets: inherit/gu) ?? []).length, 2);
   assert.equal((release.match(/npm run pack:plugin/gu) ?? []).length, 1, "the authoritative tag candidate must be packed once");
 
   assert.match(qualification, /release-qualification-auto' \|\| 'release-qualification/u);
   assert.match(qualification, /The selected environment owns an independently scoped value/u);
+  assert.match(qualification, /inputs\.release_lane == 'automatic' && '' \|\| secrets\.OPENCLAW_GATEWAY_TOKEN/u);
+  assert.match(qualification, /gateway_token=\$\(openssl rand -hex 32\)/u);
   assert.doesNotMatch(qualification, /automatic.*&& secrets\./u);
   assert.match(publisher, /clawhub-auto' \|\| 'clawhub/u);
   assert.match(publisher, /clawhub-auto and clawhub own independent values/u);

@@ -17,6 +17,11 @@ on:
         required: false
         default: manual
         type: string
+    secrets:
+      DEEPSEEK_API_KEY:
+        required: false
+      OPENCLAW_GATEWAY_TOKEN:
+        required: false
 permissions:
   contents: read
 
@@ -78,7 +83,7 @@ jobs:
         env:
           # The selected environment owns an independently scoped value under each name.
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
-          OPENCLAW_GATEWAY_TOKEN: ${{ secrets.OPENCLAW_GATEWAY_TOKEN }}
+          OPENCLAW_GATEWAY_TOKEN: ${{ inputs.release_lane == 'automatic' && '' || secrets.OPENCLAW_GATEWAY_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
