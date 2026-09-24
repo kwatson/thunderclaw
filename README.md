@@ -152,7 +152,7 @@ release line. See the [compatibility policy](docs/compatibility.md) before
 installing.
 
 Install the current compatible pair: Thunderbird extension `0.1.2` and
-OpenClaw plugin `0.1.9`:
+OpenClaw plugin `0.1.10`:
 
 1. Install **ThunderClaw** from its
    [Thunderbird Add-ons listing](https://addons.thunderbird.net/en-US/thunderbird/addon/thunderclaw/).
