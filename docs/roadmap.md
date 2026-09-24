@@ -1,21 +1,21 @@
 # ThunderClaw roadmap
 
-Last reconciled: 2026-08-12
+Last reconciled: 2026-09-24
 
 This file contains unfinished work only. Current behavior belongs in the
 product and architecture documents; completed test results belong in release
 provenance and CI artifacts.
 
-## Now: independent publication migration
+## Now: compatibility release autopilot
 
-1. Before tagging, complete and record the external GitHub tag/environment
-   protections and migrate ClawHub OIDC trust to the exact workflow,
-   `clawhub` environment, and `openclaw-plugin-v*` ref binding.
-2. Land the independent-release refactor while both components remain `0.1.1`,
-   then land the OpenClaw compatibility change as the separate plugin `0.1.2`
-   commit and release.
-3. Re-enable hosted macOS real-Thunderbird automation after Thunderbird 154.
-4. Add ATN reviewer-source automation if Thunderbird exposes a supported API.
+1. Land the versioned OpenClaw metadata generator, field-level classifier,
+   durable release state, and adversarial tests.
+2. Rehearse the controller, automatic tag lane, publication, and idempotent
+   closeout in dry-run and nonpublishing modes before enabling each mutation.
+3. Configure protected App-only component tags, automatic environments,
+   stage-specific credentials, and exact ClawHub OIDC or broker claims.
+4. Re-enable hosted macOS real-Thunderbird automation after Thunderbird 154.
+5. Add ATN reviewer-source automation if Thunderbird exposes a supported API.
    Until then, source and notes remain a recorded Developer Hub handoff; add
    exact post-publication ATN API verification and signed-XPI smoke evidence.
 

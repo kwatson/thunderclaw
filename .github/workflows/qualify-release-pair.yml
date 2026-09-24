@@ -12,11 +12,16 @@ on:
       candidate_artifact:
         required: true
         type: string
+      release_lane:
+        description: Human-approved manual lane or pre-authorized compatibility autopilot lane
+        required: false
+        default: manual
+        type: string
     secrets:
       DEEPSEEK_API_KEY:
-        required: true
+        required: false
       OPENCLAW_GATEWAY_TOKEN:
-        required: true
+        required: false
 
 permissions:
   contents: read
@@ -27,7 +32,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 50
     environment:
-      name: release-qualification
+      name: ${{ inputs.release_lane == 'automatic' && 'release-qualification-auto' || 'release-qualification' }}
     steps:
       - name: Check out tagged source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -77,15 +82,23 @@ jobs:
           echo "xpi=$candidate_xpi" >> "$GITHUB_OUTPUT"
       - name: Create protected synthetic qualification environment
         env:
+          # The selected environment owns an independently scoped value under each name.
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
           OPENCLAW_GATEWAY_TOKEN: ${{ secrets.OPENCLAW_GATEWAY_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
+          test -n "$DEEPSEEK_API_KEY" || { echo "The selected qualification lane has no provider credential" >&2; exit 1; }
+          if [[ '${{ inputs.release_lane }}' == automatic ]]; then
+            gateway_token=$(openssl rand -hex 32)
+          else
+            test -n "$OPENCLAW_GATEWAY_TOKEN" || { echo "The selected qualification lane has no Gateway credential" >&2; exit 1; }
+            gateway_token=$OPENCLAW_GATEWAY_TOKEN
+          fi
           umask 077
           {
             printf 'DEEPSEEK_API_KEY=%s\n' "$DEEPSEEK_API_KEY"
-            printf 'OPENCLAW_GATEWAY_TOKEN=%s\n' "$OPENCLAW_GATEWAY_TOKEN"
+            printf 'OPENCLAW_GATEWAY_TOKEN=%s\n' "$gateway_token"
           } > .env.openclaw.local
       - name: Install exact plugin and build exact-XPI Thunderbird lane
         env:

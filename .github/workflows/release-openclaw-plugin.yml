@@ -16,12 +16,99 @@ env:
   CI: "true"
 
 jobs:
+  classify:
+    name: Select fail-closed release lane
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      release_lane: ${{ steps.classifier.outputs.release_lane }}
+      reservation_id: ${{ steps.classifier.outputs.reservation_id }}
+      state_commit: ${{ steps.classifier.outputs.state_commit }}
+    steps:
+      - name: Check out tagged source without credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify active reservation and authenticated qualification evidence
+        id: classifier
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_SHA: ${{ github.sha }}
+          STATE_REF: refs/heads/automation/openclaw-autopilot-state
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "release_lane=manual" >> "$GITHUB_OUTPUT"
+          evidence_root=$(mktemp -d "$RUNNER_TEMP/thunderclaw-release-classifier.XXXXXX")
+          trap 'git worktree remove --force "$evidence_root/trusted" 2>/dev/null || true; find "$evidence_root" -depth -delete' EXIT
+          if ! state_commit=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/${STATE_REF#refs/}" --jq .object.sha 2>/dev/null); then
+            echo "No active autopilot state ref; retaining the human-approved lane."
+            exit 0
+          fi
+          if ! gh api "repos/$GITHUB_REPOSITORY/contents/state.json?ref=$state_commit" --jq .content \
+              | tr -d '\n' | base64 --decode > "$evidence_root/state.json"; then
+            echo "The autopilot state could not be authenticated; retaining the human-approved lane."
+            exit 0
+          fi
+          base_sha=$(jq -er .baseSha "$evidence_root/state.json") || exit 0
+          git worktree add --detach "$evidence_root/trusted" "$base_sha"
+          expected_classifier=$(jq -er '.outputs.preparation.automation.classifierSha' "$evidence_root/state.json") || exit 0
+          actual_classifier=$(cd "$evidence_root/trusted" && { sha256sum scripts/classify-openclaw-release.mjs scripts/classify-openclaw-upgrade.mjs scripts/prepare-openclaw-upgrade.mjs scripts/openclaw-upgrade-policy.mjs scripts/openclaw-release-state.mjs scripts/verify-openclaw-autopilot-result.mjs scripts/openclaw-qualification.mjs; } | sha256sum | cut -d ' ' -f1)
+          test "$actual_classifier" = "$expected_classifier" || {
+            echo "The tagged classifier is not the exact reserved verifier; retaining the human-approved lane."
+            exit 0
+          }
+          expected_workflow=$(jq -er '.outputs.preparation.automation.releaseWorkflowSha' "$evidence_root/state.json") || exit 0
+          test "$(sha256sum .github/workflows/release-openclaw-plugin.yml | cut -d ' ' -f1)" = "$expected_workflow" || {
+            echo "The tagged release workflow is not the exact reserved workflow; retaining the human-approved lane."
+            exit 0
+          }
+          request_id=$(jq -er '.outputs.qualification.requestId' "$evidence_root/state.json") || exit 0
+          run_id=$(jq -er '.outputs.qualification.runId' "$evidence_root/state.json") || exit 0
+          run_attempt=$(jq -er '.outputs.qualification.runAttempt' "$evidence_root/state.json") || exit 0
+          artifact_name="openclaw-autopilot-result-${request_id}-${run_attempt}"
+          if ! gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id" > "$evidence_root/run.json"; then
+            echo "The reserved qualification run is unavailable; retaining the human-approved lane."
+            exit 0
+          fi
+          if ! gh run download "$run_id" --name "$artifact_name" --dir "$evidence_root/artifact"; then
+            echo "The immutable qualification evidence is unavailable; retaining the human-approved lane."
+            exit 0
+          fi
+          candidate_tree=$(git show -s --format=%T "$RELEASE_SHA")
+          if ! result=$(node "$evidence_root/trusted/scripts/classify-openclaw-release.mjs" \
+              --root "$GITHUB_WORKSPACE" \
+              --state "$evidence_root/state.json" \
+              --state-commit "$state_commit" \
+              --result "$evidence_root/artifact/result.json" \
+              --run "$evidence_root/run.json" \
+              --repository "$GITHUB_REPOSITORY" \
+              --repository-id "$GITHUB_REPOSITORY_ID" \
+              --tag "$RELEASE_TAG" \
+              --commit "$RELEASE_SHA" \
+              --tree "$candidate_tree"); then
+            echo "Autopilot evidence did not authorize this exact tag; retaining the human-approved lane."
+            exit 0
+          fi
+          test "$(jq -r .releaseLane <<<"$result")" = automatic || exit 0
+          echo "release_lane=automatic" >> "$GITHUB_OUTPUT"
+          echo "reservation_id=$(jq -r .reservationId <<<"$result")" >> "$GITHUB_OUTPUT"
+          echo "state_commit=$state_commit" >> "$GITHUB_OUTPUT"
+
   build:
     name: Validate and build plugin once
+    needs: classify
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     outputs:
       version: ${{ steps.metadata.outputs.version }}
+      artifact_sha256: ${{ steps.artifact.outputs.sha256 }}
+      artifact_size: ${{ steps.artifact.outputs.size }}
     steps:
       - name: Check out tagged source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -65,6 +152,7 @@ jobs:
         run: mise exec -- npm run pack:plugin
 
       - name: Assemble plugin checksum and provenance
+        id: artifact
         env:
           RELEASE_VERSION: ${{ steps.metadata.outputs.version }}
         shell: bash
@@ -97,6 +185,8 @@ jobs:
           };
           await writeFile(path.join(root, "release-provenance.json"), `${JSON.stringify(provenance, null, 2)}\n`);
           NODE
+          echo "sha256=$(cut -d ' ' -f1 "$release_root/SHA256SUMS")" >> "$GITHUB_OUTPUT"
+          echo "size=$(stat -c %s "$release_root/thunderclaw-openclaw-plugin-${RELEASE_VERSION}.tgz")" >> "$GITHUB_OUTPUT"
 
       - name: Scan unpacked plugin for secrets
         env:
@@ -126,7 +216,7 @@ jobs:
 
   qualify:
     name: Qualify exact plugin archive
-    needs: build
+    needs: [classify, build]
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
@@ -170,21 +260,21 @@ jobs:
 
   paired-qualification:
     name: Qualify exact plugin with pinned extension
-    needs: build
+    needs: [classify, build]
     uses: ./.github/workflows/qualify-release-pair.yml
     with:
       component: openclaw-plugin
       version: ${{ needs.build.outputs.version }}
       candidate_artifact: thunderclaw-openclaw-plugin-${{ needs.build.outputs.version }}
-    secrets: inherit
+      release_lane: ${{ needs.classify.outputs.release_lane }}
 
   release:
-    name: Approve and create plugin GitHub release
-    needs: [build, qualify, paired-qualification]
+    name: Create plugin GitHub release
+    needs: [classify, build, qualify, paired-qualification]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     environment:
-      name: release
+      name: ${{ needs.classify.outputs.release_lane == 'automatic' && 'release-auto' || 'release' }}
     permissions:
       attestations: write
       contents: write
@@ -201,11 +291,42 @@ jobs:
           path: release
       - name: Verify qualified bytes
         run: (cd release && sha256sum --check SHA256SUMS)
+      - name: Probe for an exact existing GitHub release
+        id: existing
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ needs.build.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! gh release view "$GITHUB_REF_NAME" --json databaseId,name,body > "$RUNNER_TEMP/existing-release.json" 2>/dev/null; then
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          mkdir "$RUNNER_TEMP/existing-assets"
+          gh release download "$GITHUB_REF_NAME" --dir "$RUNNER_TEMP/existing-assets"
+          for file in "thunderclaw-openclaw-plugin-${RELEASE_VERSION}.tgz" release-notes.md SHA256SUMS release-provenance.json; do
+            cmp -s "release/$file" "$RUNNER_TEMP/existing-assets/$file" || {
+              echo "Existing GitHub release has different $file bytes" >&2
+              exit 1
+            }
+          done
+          test "$(jq -r .name "$RUNNER_TEMP/existing-release.json")" = "ThunderClaw OpenClaw plugin ${RELEASE_VERSION}"
+          jq -r .body "$RUNNER_TEMP/existing-release.json" > "$RUNNER_TEMP/existing-notes.md"
+          cmp -s release/release-notes.md "$RUNNER_TEMP/existing-notes.md"
+          gh attestation verify "release/thunderclaw-openclaw-plugin-${RELEASE_VERSION}.tgz" \
+            --repo "$GITHUB_REPOSITORY" \
+            --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/release-openclaw-plugin.yml" \
+            --source-ref "refs/tags/$GITHUB_REF_NAME" \
+            --source-digest "$GITHUB_SHA"
+          echo "exists=true" >> "$GITHUB_OUTPUT"
       - name: Attest plugin provenance
+        if: steps.existing.outputs.exists != 'true'
         uses: actions/attest-build-provenance@96278af6caaf10aea03fd8d33a09a777ca52d62f # v3.2.0
         with:
           subject-path: release/thunderclaw-openclaw-plugin-${{ needs.build.outputs.version }}.tgz
       - name: Create plugin GitHub release with canonical notes
+        if: steps.existing.outputs.exists != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
@@ -221,11 +342,199 @@ jobs:
 
   clawhub:
     name: Promote qualified plugin to ClawHub
-    needs: release
+    needs: [classify, release]
     permissions:
       contents: read
       id-token: write
     uses: ./.github/workflows/publish-clawhub.yml
     with:
       tag: ${{ github.ref_name }}
-    secrets: inherit
+      release_lane: ${{ needs.classify.outputs.release_lane }}
+
+  counterpart-closeout:
+    name: Open exact counterpart baseline closeout
+    if: needs.classify.outputs.release_lane == 'automatic'
+    needs: [classify, build, clawhub]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment:
+      name: autopilot-closeout
+    permissions:
+      contents: read
+    steps:
+      - name: Mint a narrowly scoped GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2.2.2
+        with:
+          app-id: ${{ vars.OPENCLAW_AUTOPILOT_APP_ID }}
+          private-key: ${{ secrets.OPENCLAW_AUTOPILOT_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+      - name: Check out current protected main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token }}
+          persist-credentials: false
+      - name: Install managed runtimes
+        uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4
+      - name: Verify public bytes and prepare the one-file closeout
+        id: update
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          result=$(mise exec -- node scripts/update-counterpart-baseline.mjs \
+            --tag "$RELEASE_TAG" --repository "$GITHUB_REPOSITORY" \
+            --expected-sha256 '${{ needs.build.outputs.artifact_sha256 }}' \
+            --expected-size '${{ needs.build.outputs.artifact_size }}')
+          status=$(jq -r .status <<<"$result")
+          case "$status" in
+            already-complete)
+              echo "changed=false" >> "$GITHUB_OUTPUT"
+              ;;
+            updated)
+              test "$(git diff --name-only)" = e2e/qualification/counterpart-baselines.json || {
+                echo "Counterpart closeout may change exactly one file" >&2
+                exit 1
+              }
+              echo "changed=true" >> "$GITHUB_OUTPUT"
+              ;;
+            *) echo "Unknown counterpart updater status" >&2; exit 1 ;;
+          esac
+          echo "baseline=$(jq -c --arg repository "$GITHUB_REPOSITORY" '.baseline + {repository:$repository}' <<<"$result")" >> "$GITHUB_OUTPUT"
+      - name: Open or update deterministic closeout pull request
+        id: closeout
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          branch="automation/counterpart-${RELEASE_TAG}"
+          if [[ "${{ steps.update.outputs.changed }}" == true ]]; then
+            desired=$(mktemp "$RUNNER_TEMP/counterpart-baseline.XXXXXX")
+            cp e2e/qualification/counterpart-baselines.json "$desired"
+            if git ls-remote --exit-code --heads origin "refs/heads/$branch" >/dev/null 2>&1; then
+              git fetch --no-tags origin "refs/heads/$branch:refs/remotes/origin/$branch"
+              unexpected=$(git diff --name-only origin/main..."refs/remotes/origin/$branch" \
+                | grep -Fvx e2e/qualification/counterpart-baselines.json || true)
+              test -z "$unexpected" || { echo "Existing closeout branch changes unexpected files" >&2; exit 1; }
+              git switch --create "$branch" "refs/remotes/origin/$branch"
+            else
+              git switch --create "$branch" origin/main
+            fi
+            cp "$desired" e2e/qualification/counterpart-baselines.json
+            git config user.name thunderclaw-autopilot[bot]
+            git config user.email 000000+thunderclaw-autopilot[bot]@users.noreply.github.com
+            if ! git diff --quiet -- e2e/qualification/counterpart-baselines.json; then
+              git add e2e/qualification/counterpart-baselines.json
+              git commit -m "chore(release): record ${RELEASE_TAG} counterpart"
+              git -c http.extraheader="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)" \
+                push origin "HEAD:refs/heads/$branch"
+            fi
+          fi
+          pr=$(gh pr list --head "$branch" --state all --json number,state,mergedAt --jq '.[0] // empty')
+          if [[ -z "$pr" ]]; then
+            gh pr create --head "$branch" --base main \
+              --title "Record ${RELEASE_TAG} counterpart" \
+              --body "Records the exact publicly verified ${RELEASE_TAG} artifact for future pair qualification."
+            pr=$(gh pr list --head "$branch" --state open --json number,state,mergedAt --jq '.[0]')
+          fi
+          state=$(jq -r .state <<<"$pr")
+          [[ "$state" == OPEN || "$state" == MERGED ]] || { echo "Existing closeout pull request is closed without merge" >&2; exit 1; }
+          pr_number=$(jq -r .number <<<"$pr")
+          pr_details=$(gh pr view "$pr_number" --json headRefOid,mergeCommit)
+          head_sha=$(jq -r .headRefOid <<<"$pr_details")
+          head_tree=$(gh api "repos/$GITHUB_REPOSITORY/git/commits/$head_sha" --jq .tree.sha)
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+          echo "pr_number=$pr_number" >> "$GITHUB_OUTPUT"
+          echo "head_sha=$head_sha" >> "$GITHUB_OUTPUT"
+          echo "head_tree=$head_tree" >> "$GITHUB_OUTPUT"
+          echo "merged=$([[ "$state" == MERGED ]] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          if [[ "$state" == MERGED ]]; then
+            merge_sha=$(jq -r .mergeCommit.oid <<<"$pr_details")
+            merge_tree=$(gh api "repos/$GITHUB_REPOSITORY/git/commits/$merge_sha" --jq .tree.sha)
+            echo "merge_sha=$merge_sha" >> "$GITHUB_OUTPUT"
+            echo "merge_tree=$merge_tree" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Record verified publication and closeout state
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          EXPECTED_STATE_COMMIT: ${{ needs.classify.outputs.state_commit }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_VERSION: ${{ needs.build.outputs.version }}
+          BASELINE: ${{ steps.update.outputs.baseline }}
+          CLOSEOUT_BRANCH: ${{ steps.closeout.outputs.branch }}
+          CLOSEOUT_PR: ${{ steps.closeout.outputs.pr_number }}
+          CLOSEOUT_HEAD_SHA: ${{ steps.closeout.outputs.head_sha }}
+          CLOSEOUT_HEAD_TREE: ${{ steps.closeout.outputs.head_tree }}
+          CLOSEOUT_MERGED: ${{ steps.closeout.outputs.merged }}
+          CLOSEOUT_MERGE_SHA: ${{ steps.closeout.outputs.merge_sha }}
+          CLOSEOUT_MERGE_TREE: ${{ steps.closeout.outputs.merge_tree }}
+          STATE_REF: refs/heads/automation/openclaw-autopilot-state
+        shell: bash
+        run: |
+          set -euo pipefail
+          work=$(mktemp -d "$RUNNER_TEMP/openclaw-closeout-state.XXXXXX")
+          trap 'find "$work" -depth -delete' EXIT
+          git fetch --no-tags origin "+$STATE_REF:refs/remotes/origin/openclaw-autopilot-state"
+          state_commit=$(git rev-parse refs/remotes/origin/openclaw-autopilot-state)
+          git show "$state_commit:state.json" > "$work/state.json"
+          test "$(jq -r .outputs.preparation.tag "$work/state.json")" = "$RELEASE_TAG"
+          update_state() {
+            local intent=$1 message=$2
+            mise exec -- node scripts/openclaw-release-state.mjs apply --state "$work/state.json" --intent "$intent" | jq .state > "$work/next.json"
+            blob=$(git hash-object -w "$work/next.json")
+            tree=$(printf '100644 blob %s\tstate.json\n' "$blob" | git mktree)
+            next_commit=$(printf '%s\n' "$message" | git commit-tree "$tree" -p "$state_commit")
+            auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+            git -c "http.extraheader=AUTHORIZATION: basic $auth" push origin \
+              --force-with-lease="$STATE_REF:$state_commit" "$next_commit:$STATE_REF"
+            state_commit=$next_commit
+            mv "$work/next.json" "$work/state.json"
+          }
+          release=$(gh release view "$RELEASE_TAG" --json databaseId)
+          artifact_sha=$(jq -r .sha256 <<<"$BASELINE")
+          if [[ "$(jq -r .phase "$work/state.json")" == tagged ]]; then
+            jq -n --arg id "github-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" --argjson revision "$(jq -r .revision "$work/state.json")" \
+              --arg at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg tag "$RELEASE_TAG" --arg commit "$GITHUB_SHA" \
+              --arg artifactSha256 "$artifact_sha" --argjson releaseId "$(jq -r .databaseId <<<"$release")" \
+              '{format:"thunderclaw-openclaw-autopilot-intent-v1",intentId:$id,expectedRevision:$revision,type:"record-github-publication",at:$at,payload:{tag:$tag,commit:$commit,artifactSha256:$artifactSha256,releaseId:$releaseId}}' > "$work/intent.json"
+            update_state "$work/intent.json" "Record GitHub publication"
+          fi
+          test "$(jq -r .outputs.githubPublication.artifactSha256 "$work/state.json")" = "$artifact_sha"
+          if [[ "$(jq -r .phase "$work/state.json")" == github-published ]]; then
+            jq -n --arg id "clawhub-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" --argjson revision "$(jq -r .revision "$work/state.json")" \
+              --arg at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg tag "$RELEASE_TAG" --arg version "$RELEASE_VERSION" \
+              --arg artifactSha256 "$artifact_sha" \
+              '{format:"thunderclaw-openclaw-autopilot-intent-v1",intentId:$id,expectedRevision:$revision,type:"record-clawhub-verification",at:$at,payload:{tag:$tag,version:$version,artifactSha256:$artifactSha256,verifiedAt:$at}}' > "$work/intent.json"
+            update_state "$work/intent.json" "Record ClawHub verification"
+          fi
+          test "$(jq -r .outputs.clawhubVerification.artifactSha256 "$work/state.json")" = "$artifact_sha"
+          if [[ "$(jq -r .phase "$work/state.json")" == clawhub-verified ]]; then
+            jq -n --arg id "closeout-$CLOSEOUT_PR" --argjson revision "$(jq -r .revision "$work/state.json")" \
+              --arg at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg branch "$CLOSEOUT_BRANCH" \
+              --argjson prNumber "$CLOSEOUT_PR" --argjson baseline "$BASELINE" --arg headSha "$CLOSEOUT_HEAD_SHA" --arg tree "$CLOSEOUT_HEAD_TREE" \
+              '{format:"thunderclaw-openclaw-autopilot-intent-v1",intentId:$id,expectedRevision:$revision,type:"open-closeout",at:$at,payload:{branch:$branch,prNumber:$prNumber,baseline:$baseline,headSha:$headSha,tree:$tree}}' > "$work/intent.json"
+            update_state "$work/intent.json" "Record counterpart closeout"
+          fi
+          test "$(jq -r .outputs.closeout.prNumber "$work/state.json")" = "$CLOSEOUT_PR"
+          if [[ "$CLOSEOUT_MERGED" == true ]]; then
+            jq -n --arg id "complete-$CLOSEOUT_MERGE_SHA" --argjson revision "$(jq -r .revision "$work/state.json")" \
+              --arg at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg mergeSha "$CLOSEOUT_MERGE_SHA" --arg mergeTree "$CLOSEOUT_MERGE_TREE" \
+              '{format:"thunderclaw-openclaw-autopilot-intent-v1",intentId:$id,expectedRevision:$revision,type:"complete-closeout",at:$at,payload:{mergeSha:$mergeSha,mergeTree:$mergeTree}}' > "$work/intent.json"
+            update_state "$work/intent.json" "Complete counterpart closeout"
+          fi
+      - name: Enable guarded closeout auto-merge
+        if: steps.closeout.outputs.merged != 'true'
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          CLOSEOUT_PR: ${{ steps.closeout.outputs.pr_number }}
+          CLOSEOUT_HEAD_SHA: ${{ steps.closeout.outputs.head_sha }}
+        run: |
+          pr_number="$CLOSEOUT_PR"
+          gh pr merge "$pr_number" --auto --squash --match-head-commit "$CLOSEOUT_HEAD_SHA"

@@ -1,0 +1,79 @@
+name: Complete OpenClaw autopilot closeout
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: read
+
+env:
+  GIT_AUTHOR_NAME: thunderclaw-autopilot
+  GIT_AUTHOR_EMAIL: thunderclaw-autopilot@users.noreply.github.com
+  GIT_COMMITTER_NAME: thunderclaw-autopilot
+  GIT_COMMITTER_EMAIL: thunderclaw-autopilot@users.noreply.github.com
+
+jobs:
+  complete:
+    name: Verify merged closeout and complete durable state
+    if: github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main' && startsWith(github.event.pull_request.head.ref, 'automation/counterpart-openclaw-plugin-v')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment:
+      name: openclaw-autopilot-mutation
+    steps:
+      - name: Check out trusted main without credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Install managed runtimes
+        uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4
+      - name: Mint the narrow state token
+        id: app
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2.2.2
+        with:
+          app-id: ${{ vars.OPENCLAW_AUTOPILOT_APP_ID }}
+          private-key: ${{ secrets.OPENCLAW_AUTOPILOT_APP_PRIVATE_KEY }}
+          permission-contents: write
+      - name: Bind the exact merged pull request and complete state
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          KILL_SWITCH: ${{ vars.OPENCLAW_AUTOPILOT_ENABLED }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_BRANCH: ${{ github.event.pull_request.head.ref }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+          STATE_REF: refs/heads/automation/openclaw-autopilot-state
+        shell: bash
+        run: |
+          set -euo pipefail
+          work=$(mktemp -d "$RUNNER_TEMP/openclaw-complete.XXXXXX")
+          trap 'find "$work" -depth -delete' EXIT
+          git fetch --no-tags origin "+$STATE_REF:refs/remotes/origin/openclaw-autopilot-state"
+          state_commit=$(git rev-parse refs/remotes/origin/openclaw-autopilot-state)
+          git show "$state_commit:state.json" > "$work/state.json"
+          test "$(jq -r .phase "$work/state.json")" = closeout-open
+          closeout=$(jq -c .outputs.closeout "$work/state.json")
+          test "$(jq -r .prNumber <<<"$closeout")" = "$PR_NUMBER"
+          test "$(jq -r .branch <<<"$closeout")" = "$PR_BRANCH"
+          test "$(jq -r .headSha <<<"$closeout")" = "$PR_HEAD_SHA"
+          head_tree=$(gh api "repos/$GITHUB_REPOSITORY/git/commits/$PR_HEAD_SHA" --jq .tree.sha)
+          test "$head_tree" = "$(jq -r .tree <<<"$closeout")"
+          merge_tree=$(gh api "repos/$GITHUB_REPOSITORY/git/commits/$MERGE_SHA" --jq .tree.sha)
+          git fetch --no-tags origin "$MERGE_SHA"
+          test "$(git diff-tree --no-commit-id --name-only -r "$MERGE_SHA")" = e2e/qualification/counterpart-baselines.json
+          git show "$MERGE_SHA:e2e/qualification/counterpart-baselines.json" > "$work/merged-baselines.json"
+          jq -e --argjson expected "$(jq -c .baseline <<<"$closeout")" '."openclaw-plugin" == ($expected | del(.repository))' "$work/merged-baselines.json" >/dev/null
+          jq -n --arg id "complete-$MERGE_SHA" --argjson revision "$(jq -r .revision "$work/state.json")" \
+            --arg at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg mergeSha "$MERGE_SHA" --arg mergeTree "$merge_tree" \
+            '{format:"thunderclaw-openclaw-autopilot-intent-v1",intentId:$id,expectedRevision:$revision,type:"complete-closeout",at:$at,payload:{mergeSha:$mergeSha,mergeTree:$mergeTree}}' > "$work/intent.json"
+          mise exec -- node scripts/openclaw-release-state.mjs apply --state "$work/state.json" --intent "$work/intent.json" | jq .state > "$work/next.json"
+          blob=$(git hash-object -w "$work/next.json")
+          tree=$(printf '100644 blob %s\tstate.json\n' "$blob" | git mktree)
+          next_commit=$(printf 'Complete OpenClaw counterpart closeout\n' | git commit-tree "$tree" -p "$state_commit")
+          test "$KILL_SWITCH" = true
+          auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          git -c "http.extraheader=AUTHORIZATION: basic $auth" push origin \
+            --force-with-lease="$STATE_REF:$state_commit" "$next_commit:$STATE_REF"

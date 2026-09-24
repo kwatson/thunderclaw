@@ -72,7 +72,7 @@ test("component release tags build, qualify, and publish only their own artifact
 
 test("protected pair qualification installs and exercises both exact component artifacts", async () => {
   const workflow = await readFile(new URL("../.github/workflows/qualify-release-pair.yml", import.meta.url), "utf8");
-  assert.match(workflow, /environment:\n\s+name: release-qualification/u);
+  assert.match(workflow, /release-qualification-auto' \|\| 'release-qualification/u);
   assert.match(workflow, /verify-counterpart-baseline\.mjs/u);
   assert.match(workflow, /if \[\[ "\$RELEASE_COMPONENT" == openclaw-plugin \]\]; then[\s\S]*validate-candidate-artifact\.mjs plugin-tgz "\$candidate_plugin"[\s\S]*else[\s\S]*validate-candidate-artifact\.mjs xpi "\$candidate_xpi"/u);
   assert.match(workflow, /THUNDERCLAW_OPENCLAW_PLUGIN_TGZ: \$\{\{ steps\.pair\.outputs\.plugin \}\}/u);
@@ -94,13 +94,63 @@ test("ClawHub publisher uses canonical notes and verifies the public catalog", a
   assert.match(workflow, /--source-digest/u);
   assert.match(workflow, /git merge-base --is-ancestor/u);
   assert.match(workflow, /gh release view "\$RELEASE_TAG" --json body/u);
-  assert.match(workflow, /environment:\n\s+name: clawhub/u);
+  assert.match(workflow, /clawhub-auto' \|\| 'clawhub/u);
   assert.match(workflow, /patch-clawhub-publisher\.mjs/u);
   assert.match(workflow, /publisher_exit=\$\{PIPESTATUS\[0\]\}/u);
   assert.match(workflow, /publicationStatus: "client-unconfirmed"/u);
   assert.doesNotMatch(workflow, /--wait(?:-timeout)?/u);
   assert.doesNotMatch(workflow, /publish_clawhub|submit_thunderbird|npm run pack/u);
   verifyWorkflow(workflow, "publish-clawhub.yml");
+});
+
+test("OpenClaw automatic release is selected only by the read-only durable-state classifier", async () => {
+  const release = await readFile(new URL("../.github/workflows/release-openclaw-plugin.yml", import.meta.url), "utf8");
+  const qualification = await readFile(new URL("../.github/workflows/qualify-release-pair.yml", import.meta.url), "utf8");
+  const publisher = await readFile(new URL("../.github/workflows/publish-clawhub.yml", import.meta.url), "utf8");
+  const classifier = release.slice(release.indexOf("  classify:"), release.indexOf("  build:"));
+  assert.match(classifier, /permissions:\n\s+actions: read\n\s+contents: read/u);
+  assert.doesNotMatch(classifier, /contents: write|id-token: write|secrets\./u);
+  assert.match(classifier, /release_lane=manual/u);
+  assert.match(classifier, /refs\/heads\/automation\/openclaw-autopilot-state/u);
+  assert.match(classifier, /contents\/state\.json\?ref=\$state_commit/u);
+  assert.match(classifier, /openclaw-autopilot-result-\$\{request_id\}-\$\{run_attempt\}/u);
+  assert.match(classifier, /classify-openclaw-release\.mjs/u);
+  assert.match(classifier, /release_lane=automatic/u);
+  assert.doesNotMatch(classifier, /workflow_dispatch|github\.event\.inputs|tag message/u);
+  assert.match(release, /build:\n[\s\S]*?needs: classify/u);
+  assert.match(release, /release-auto' \|\| 'release'/u);
+  assert.match(release, /release_lane: \$\{\{ needs\.classify\.outputs\.release_lane \}\}/u);
+  assert.doesNotMatch(release, /release_lane: \$\{\{ needs\.classify\.outputs\.release_lane \}\}\n\s+secrets: inherit/u);
+  assert.equal((release.match(/npm run pack:plugin/gu) ?? []).length, 1, "the authoritative tag candidate must be packed once");
+
+  assert.match(qualification, /release-qualification-auto' \|\| 'release-qualification/u);
+  assert.match(qualification, /The selected environment owns an independently scoped value/u);
+  assert.doesNotMatch(qualification, /automatic.*&& secrets\./u);
+  assert.match(publisher, /clawhub-auto' \|\| 'clawhub/u);
+  assert.match(publisher, /clawhub-auto and clawhub own independent values/u);
+  assert.doesNotMatch(publisher, /automatic.*&& secrets\./u);
+  assert.match(publisher, /GITHUB_WORKFLOW_REF/u);
+});
+
+test("automatic publication probes external state and isolates App-powered one-file closeout", async () => {
+  const release = await readFile(new URL("../.github/workflows/release-openclaw-plugin.yml", import.meta.url), "utf8");
+  const publisher = await readFile(new URL("../.github/workflows/publish-clawhub.yml", import.meta.url), "utf8");
+  assert.match(release, /Probe for an exact existing GitHub release/u);
+  assert.match(release, /cmp -s "release\/\$file"/u);
+  assert.match(release, /if: steps\.existing\.outputs\.exists != 'true'[\s\S]*attest-build-provenance/u);
+  assert.match(publisher, /client-unconfirmed/u);
+  assert.match(publisher, /Verify public ClawHub artifact/u);
+  const closeout = release.slice(release.indexOf("  counterpart-closeout:"));
+  assert.match(closeout, /if: needs\.classify\.outputs\.release_lane == 'automatic'/u);
+  assert.match(closeout, /environment:\n\s+name: autopilot-closeout/u);
+  assert.match(closeout, /create-github-app-token@[a-f0-9]{40}/u);
+  assert.match(closeout, /update-counterpart-baseline\.mjs/u);
+  assert.match(closeout, /git diff --name-only/u);
+  assert.match(closeout, /automation\/counterpart-\$\{RELEASE_TAG\}/u);
+  assert.match(closeout, /gh pr list --head/u);
+  assert.match(closeout, /gh pr merge "\$pr_number" --auto --squash --match-head-commit/u);
+  assert.doesNotMatch(release.slice(0, release.indexOf("  counterpart-closeout:")), /OPENCLAW_AUTOPILOT_APP_PRIVATE_KEY/u);
+  verifyWorkflow(release, "release-openclaw-plugin.yml");
 });
 
 test("ATN publisher uses supported signing and a distinct manual metadata handoff", async () => {

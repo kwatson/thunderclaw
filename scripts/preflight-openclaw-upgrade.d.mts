@@ -8,3 +8,7 @@ export function evaluateReleaseTag(refObject: unknown, annotatedTag: unknown): {
   verifiedTag: boolean;
   tagKind: "lightweight" | "annotated";
 };
+export function summarizeUpstreamCi(releaseBody: unknown): {
+  conclusion: string;
+  waived: true;
+} | undefined;

@@ -11,7 +11,12 @@ import {
   verifyDigestPinningSources,
   verifyOpenClawQualification,
 } from "../scripts/openclaw-qualification.mjs";
-import { evaluateReleaseTag, selectLinuxAmd64Digest, summarizeSdkExports } from "../scripts/preflight-openclaw-upgrade.mjs";
+import {
+  evaluateReleaseTag,
+  selectLinuxAmd64Digest,
+  summarizeSdkExports,
+  summarizeUpstreamCi,
+} from "../scripts/preflight-openclaw-upgrade.mjs";
 import { sha512Integrity } from "../scripts/stage-openclaw-provider.mjs";
 
 test("OpenClaw qualification manifest agrees with every active repository pin", async () => {
@@ -102,6 +107,18 @@ test("OpenClaw preflight attributes verification only to the release tag itself"
     object: { type: "tag", sha: "c".repeat(40) },
     verification: { verified: false },
   }), /pointing directly to a commit/u);
+});
+
+test("OpenClaw preflight records official upstream waivers as advisory evidence", () => {
+  assert.deepEqual(summarizeUpstreamCi("Stable soak waived by operator; waived lanes: soak-only."), {
+    conclusion: "waived in official release evidence",
+    waived: true,
+  });
+  assert.deepEqual(summarizeUpstreamCi("Operator lane waiver approved for non-proof CI."), {
+    conclusion: "waived in official release evidence",
+    waived: true,
+  });
+  assert.equal(summarizeUpstreamCi("All required release lanes completed."), undefined);
 });
 
 test("provider staging computes canonical SHA-512 subresource integrity", () => {

@@ -134,7 +134,7 @@ export async function verifyOpenClawQualification({ root }) {
   captureOne("packages/openclaw-plugin/src/compatibility-fingerprint.ts", activeFiles.fingerprint,
     /^export const PINNED_OPENCLAW_COMPATIBILITY_VERSION = "([^"]+)";$/gmu, apiFloor);
   captureOne(".github/workflows/ci.yml", activeFiles.workflow,
-    /^\s+name: (Pinned OpenClaw .* integration)$/gmu, `Pinned OpenClaw ${stableVersion} integration`);
+    /^\s+name: (Pinned qualified OpenClaw integration)$/gmu, "Pinned qualified OpenClaw integration");
   for (const [file, contents] of [
     ["scripts/run-openclaw-ci.sh", activeFiles.ciScript],
     ["scripts/bootstrap-spike.sh", activeFiles.bootstrap],

@@ -43,8 +43,10 @@ external controls; missing or ambiguous configuration blocks tagging:
 - update the ClawHub OIDC trusted publisher for manual retries from
   `@thunderclaw/openclaw-plugin` from the combined tag scheme to repository
   `kwatson/thunderclaw`, the exact publishing workflow and `clawhub`
-  environment, and an `openclaw-plugin-v*` tag-ref binding. Automatic tag-push
-  publication still requires `CLAWHUB_TOKEN`; and
+  environment, and an `openclaw-plugin-v*` tag-ref binding. Configure a
+  separate exact-workflow, `clawhub-auto` environment, and protected
+  `openclaw-plugin-v*` tag-ref binding for tokenless automatic publication;
+  and
 - confirm ATN credentials cannot run from plugin tags or untrusted pull
   requests and remain scoped to `thunderbird-addons`.
 
@@ -141,8 +143,8 @@ exact release tag; it must not relabel an old artifact with the dispatch commit
 or publish the counterpart.
 
 ClawHub publishes the qualified TGZ through its protected environment. The
-automatic tag path requires `CLAWHUB_TOKEN`; tokenless OIDC is allowed only for
-a manual dispatch from the exact release tag and bound workflow/environment.
+automatic tag path requires exact tokenless OIDC or broker claims and rejects
+a static `CLAWHUB_TOKEN`; the manual lane may use its separately scoped token.
 Wait for definitive catalog visibility, then query the public package
 record/API and verify exact name, version, source tag/commit, scan state, and
 artifact digest against the GitHub release.
@@ -165,13 +167,34 @@ Publication evidence is synthetic and never exposes credentials, real mail,
 provider keys, endpoint details, or local state. No native helper or operating
 system package belongs to the release graph.
 
-## Compatibility surveillance
+## Compatibility automation
 
-Scheduled checks may discover newer Thunderbird or OpenClaw releases but never
-expand support or publish automatically. A human-reviewed compatibility change
-updates pins, runs the complete component/counterpart matrix, and only then
-updates [`compatibility.md`](compatibility.md) and the relevant component
-changelog.
+The narrowly scoped OpenClaw compatibility autopilot may prepare, qualify, and
+publish a metadata-only plugin patch release after a 24-hour upstream soak. It
+pins and revalidates the official release's exact npm and provider integrities,
+Linux/AMD64 container digest, tag, and commit. Upstream signature status and CI
+waivers are recorded evidence, not ThunderClaw compatibility gates; every
+ThunderClaw gate remains blocking and cannot be waived.
+
+The automatic lane independently regenerates and verifies the permitted
+field-level change, qualifies the exact source tree with the last published
+extension counterpart, and builds the authoritative tagged candidate once.
+Runtime, workflow, release-tooling, test, fixture, contract, or other
+non-generated changes require the existing human-reviewed release lane. See the
+[`OpenClaw compatibility autopilot`](openclaw-autopilot.md) for its admission,
+state, credential, recovery, and rollout requirements.
+
+For a manual counterpart closeout, first obtain the authoritative artifact
+digest and byte size from the qualified build, then run:
+
+```text
+mise exec -- node scripts/update-counterpart-baseline.mjs \
+  --tag <component-vX.Y.Z> --repository <owner/repository> \
+  --expected-sha256 <64-hex-digest> --expected-size <bytes>
+```
+
+Scheduled Thunderbird surveillance remains advisory and never expands support
+or publishes automatically.
 
 For the concrete OpenClaw compatibility-release sequence, use the
 [`OpenClaw upgrade runbook`](openclaw-upgrade-runbook.md). This policy remains

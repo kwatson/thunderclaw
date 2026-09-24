@@ -83,7 +83,7 @@ function npmMetadata(packageName, version) {
   if (result.version !== version || typeof result["dist.integrity"] !== "string" || typeof result["dist.tarball"] !== "string") {
     throw new Error(`${packageName}@${version} returned incomplete npm metadata`);
   }
-  return { version: result.version, integrity: result["dist.integrity"], tarball: result["dist.tarball"] };
+  return { package: packageName, version: result.version, integrity: result["dist.integrity"], tarball: result["dist.tarball"] };
 }
 
 export function evaluateReleaseTag(refObject, annotatedTag) {
@@ -102,13 +102,45 @@ export function evaluateReleaseTag(refObject, annotatedTag) {
   };
 }
 
+export function summarizeUpstreamCi(releaseBody) {
+  if (typeof releaseBody !== "string") return undefined;
+  const waiverPatterns = [
+    /stable soak waived/iu,
+    /operator lane waiver/iu,
+    /waived lanes:/iu,
+  ];
+  if (!waiverPatterns.some((pattern) => pattern.test(releaseBody))) return undefined;
+  return { conclusion: "waived in official release evidence", waived: true };
+}
+
 function githubReleaseIdentity(repository, version) {
   const tag = `v${version}`;
+  const release = JSON.parse(command("gh", ["api", `repos/${repository}/releases/tags/${tag}`]));
+  if (release.tag_name !== tag || release.draft !== false || release.prerelease !== false
+      || !Number.isSafeInteger(release.id) || typeof release.html_url !== "string"
+      || typeof release.published_at !== "string") {
+    throw new Error("OpenClaw release must be an official published stable release");
+  }
   const refObject = JSON.parse(command("gh", ["api", `repos/${repository}/git/ref/tags/${tag}`])).object;
   const annotatedTag = refObject?.type === "tag"
     ? JSON.parse(command("gh", ["api", `repos/${repository}/git/tags/${refObject.sha}`]))
     : undefined;
-  return { repository, tag, ...evaluateReleaseTag(refObject, annotatedTag) };
+  const commit = evaluateReleaseTag(refObject, annotatedTag);
+  const commitRecord = JSON.parse(command("gh", ["api", `repos/${repository}/commits/${commit.commit}`]));
+  return {
+    repository,
+    tag,
+    releaseTag: release.tag_name,
+    ...commit,
+    verifiedCommit: commitRecord?.commit?.verification?.verified === true,
+    officialRelease: true,
+    releaseId: release.id,
+    releaseUrl: release.html_url,
+    publishedAt: new Date(release.published_at).toISOString(),
+    draft: false,
+    prerelease: false,
+    upstreamCi: summarizeUpstreamCi(release.body),
+  };
 }
 
 async function proposedPackage(directory, version) {
@@ -138,6 +170,7 @@ function parseArguments(args) {
 async function preflight(version) {
   const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
   const current = await readOpenClawQualification(root);
+  const currentPlugin = JSON.parse(await readFile(path.join(root, "packages/openclaw-plugin/package.json"), "utf8"));
   const temporary = await mkdtemp(path.join(os.tmpdir(), "thunderclaw-openclaw-preflight-"));
   try {
     const [openclawNpm, providerNpm] = [
@@ -145,6 +178,8 @@ async function preflight(version) {
       npmMetadata(current.provider.package, version),
     ];
     const upstream = githubReleaseIdentity(current.upstream.repository, version);
+    const upstreamCi = upstream.upstreamCi;
+    delete upstream.upstreamCi;
     const imageManifest = JSON.parse(command("docker", ["buildx", "imagetools", "inspect",
       `${current.image.repository}:${version}`, "--format", "{{json .Manifest}}"]));
     const image = {
@@ -160,16 +195,22 @@ async function preflight(version) {
     const changedDeclarations = declarationFiles.filter((file) => installedDeclarations[file] !== proposed.declarations[file]);
     const blockingFindings = [
       ...sdk.missingEntrypoints.map((entrypoint) => `missing required export ${entrypoint}`),
-      ...(upstream.verifiedTag ? [] : ["upstream release tag is not verified"]),
       ...(installedManifest.version === current.stableVersion ? [] : ["installed OpenClaw does not match the current qualification manifest"]),
     ];
     return {
-      format: "thunderclaw-openclaw-upgrade-preflight-v1",
-      current: { version: current.stableVersion, releaseCommit: current.upstream.releaseCommit },
+      format: "thunderclaw-openclaw-upgrade-preflight-v2",
+      observedAt: new Date().toISOString(),
+      current: { version: current.stableVersion, releaseCommit: current.upstream.releaseCommit, pluginVersion: currentPlugin.version },
       proposed: { version, npm: openclawNpm, providerNpm, upstream, image },
+      ...(upstreamCi ? { upstreamCi } : {}),
       sdk: { ...sdk, declarationFiles, changedDeclarations, currentHashes: installedDeclarations, proposedHashes: proposed.declarations },
       repositoryImpact: qualificationSurfaces,
       blockingFindings,
+      advisoryFindings: [
+        ...(upstream.verifiedTag ? [] : ["upstream release tag is unsigned or unverified"]),
+        ...(upstream.verifiedCommit ? [] : ["upstream release commit is unsigned or unverified"]),
+        ...(upstreamCi?.waived === true ? ["upstream CI waivers are recorded in the official release evidence"] : []),
+      ],
       compatibilityDecision: "not-made",
     };
   } finally {

@@ -1,0 +1,488 @@
+name: Qualify OpenClaw autopilot candidate
+run-name: Qualify OpenClaw ${{ inputs.version }} (${{ inputs.request_id }})
+
+on:
+  workflow_dispatch:
+    inputs:
+      request_id:
+        description: Reserved 32-character qualification request ID
+        required: true
+        type: string
+      reservation_id:
+        description: Durable state reservation ID
+        required: true
+        type: string
+      version:
+        description: Exact stable OpenClaw version
+        required: true
+        type: string
+      identity_sha256:
+        description: SHA-256 of canonical upstream identity evidence
+        required: true
+        type: string
+      source_ref:
+        description: Reserved automation branch without refs/heads/
+        required: true
+        type: string
+      source_sha:
+        description: Exact candidate commit
+        required: true
+        type: string
+      source_tree:
+        description: Exact candidate tree
+        required: true
+        type: string
+      base_sha:
+        description: Exact trusted main commit from which the candidate was prepared
+        required: true
+        type: string
+      release_tag:
+        description: Reserved OpenClaw plugin component tag
+        required: true
+        type: string
+      classification_sha256:
+        description: SHA-256 of compatibility-only classification evidence
+        required: true
+        type: string
+      controller_workflow_sha256:
+        description: SHA-256 of the trusted controller workflow
+        required: true
+        type: string
+      qualification_workflow_sha256:
+        description: SHA-256 of this trusted qualification workflow
+        required: true
+        type: string
+      release_workflow_sha256:
+        description: SHA-256 of the trusted release workflow
+        required: true
+        type: string
+      classifier_sha256:
+        description: SHA-256 of the trusted release classifier
+        required: true
+        type: string
+      counterpart_tag:
+        description: Exact published Thunderbird counterpart tag
+        required: true
+        type: string
+      counterpart_name:
+        description: Exact published Thunderbird counterpart filename
+        required: true
+        type: string
+      counterpart_sha256:
+        description: Exact published Thunderbird counterpart SHA-256
+        required: true
+        type: string
+      counterpart_size:
+        description: Exact published Thunderbird counterpart size
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: openclaw-autopilot-qualification-${{ inputs.source_sha }}
+  cancel-in-progress: false
+
+env:
+  CI: "true"
+  STATE_REF: refs/heads/automation/openclaw-autopilot-state
+
+jobs:
+  bind-source:
+    name: Bind immutable source and trusted workflow
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      source_tree: ${{ steps.bind.outputs.source_tree }}
+    steps:
+      - name: Check out the explicit candidate without credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.source_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Reject ambiguous or mismatched dispatch identity
+        id: bind
+        env:
+          EXPECTED_REF: ${{ inputs.source_ref }}
+          EXPECTED_SHA: ${{ inputs.source_sha }}
+          EXPECTED_TREE: ${{ inputs.source_tree }}
+          BASE_SHA: ${{ inputs.base_sha }}
+          EXPECTED_VERSION: ${{ inputs.version }}
+          EXPECTED_IDENTITY: ${{ inputs.identity_sha256 }}
+          CONTROLLER_WORKFLOW_SHA256: ${{ inputs.controller_workflow_sha256 }}
+          QUALIFICATION_WORKFLOW_SHA256: ${{ inputs.qualification_workflow_sha256 }}
+          RELEASE_WORKFLOW_SHA256: ${{ inputs.release_workflow_sha256 }}
+          CLASSIFIER_SHA256: ${{ inputs.classifier_sha256 }}
+          REQUEST_ID: ${{ inputs.request_id }}
+          RESERVATION_ID: ${{ inputs.reservation_id }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          CLASSIFICATION_SHA256: ${{ inputs.classification_sha256 }}
+          COUNTERPART_TAG: ${{ inputs.counterpart_tag }}
+          COUNTERPART_NAME: ${{ inputs.counterpart_name }}
+          COUNTERPART_SHA256: ${{ inputs.counterpart_sha256 }}
+          COUNTERPART_SIZE: ${{ inputs.counterpart_size }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_EVENT_NAME" == workflow_dispatch ]]
+          [[ "$GITHUB_REF" == refs/heads/main ]]
+          [[ "$EXPECTED_REF" =~ ^automation/openclaw-[0-9]{4}\.[0-9]{1,2}\.[0-9]+$ ]]
+          [[ "$EXPECTED_SHA" =~ ^[a-f0-9]{40}$ ]]
+          [[ "$EXPECTED_TREE" =~ ^[a-f0-9]{40}$ ]]
+          [[ "$BASE_SHA" =~ ^[a-f0-9]{40}$ ]]
+          [[ "$EXPECTED_VERSION" =~ ^[0-9]{4}\.[0-9]{1,2}\.[0-9]+$ ]]
+          [[ "$EXPECTED_IDENTITY" =~ ^[a-f0-9]{64}$ ]]
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          actual_tree=$(git rev-parse 'HEAD^{tree}')
+          test "$actual_tree" = "$EXPECTED_TREE"
+          git merge-base --is-ancestor "$BASE_SHA" "$EXPECTED_SHA"
+          git fetch --no-tags origin "+refs/heads/$EXPECTED_REF:refs/remotes/origin/$EXPECTED_REF"
+          test "$(git rev-parse "refs/remotes/origin/$EXPECTED_REF")" = "$EXPECTED_SHA"
+          git fetch --no-tags origin "+$STATE_REF:refs/remotes/origin/openclaw-autopilot-state"
+          git show "refs/remotes/origin/openclaw-autopilot-state:state.json" > "$RUNNER_TEMP/openclaw-autopilot-state.json"
+          jq -e \
+            --arg requestId "$REQUEST_ID" --arg reservationId "$RESERVATION_ID" \
+            --arg version "$EXPECTED_VERSION" --arg identitySha256 "$EXPECTED_IDENTITY" \
+            --arg sourceRef "$EXPECTED_REF" --arg sourceSha "$EXPECTED_SHA" --arg sourceTree "$EXPECTED_TREE" \
+            --arg baseSha "$BASE_SHA" --arg releaseTag "$RELEASE_TAG" --arg classificationSha256 "$CLASSIFICATION_SHA256" \
+            --arg workflowCommit "$GITHUB_SHA" --arg controllerSha "$CONTROLLER_WORKFLOW_SHA256" \
+            --arg qualificationSha "$QUALIFICATION_WORKFLOW_SHA256" --arg releaseSha "$RELEASE_WORKFLOW_SHA256" \
+            --arg classifierSha "$CLASSIFIER_SHA256" --arg counterpartTag "$COUNTERPART_TAG" \
+            --arg counterpartName "$COUNTERPART_NAME" --arg counterpartSha "$COUNTERPART_SHA256" \
+            --argjson counterpartSize "$COUNTERPART_SIZE" \
+            '.phase == "qualifying"
+              and .reservationId == $reservationId
+              and .identity.version == $version
+              and .identitySha256 == $identitySha256
+              and .outputs.preparation.baseSha == $baseSha
+              and .outputs.preparation.branch == $sourceRef
+              and .outputs.preparation.candidateSha == $sourceSha
+              and .outputs.preparation.candidateTree == $sourceTree
+              and .outputs.preparation.tag == $releaseTag
+              and .outputs.preparation.classificationEvidenceSha256 == $classificationSha256
+              and .outputs.preparation.automation.controllerWorkflowSha == $controllerSha
+              and .outputs.preparation.automation.qualificationWorkflowSha == $qualificationSha
+              and .outputs.preparation.automation.releaseWorkflowSha == $releaseSha
+              and .outputs.preparation.automation.classifierSha == $classifierSha
+              and .outputs.preparation.counterpart.tag == $counterpartTag
+              and .outputs.preparation.counterpart.name == $counterpartName
+              and .outputs.preparation.counterpart.sha256 == $counterpartSha
+              and .outputs.preparation.counterpart.size == $counterpartSize
+              and .outputs.qualificationDispatch.requestId == $requestId
+              and .outputs.qualificationDispatch.workflowCommit == $workflowCommit
+              and .outputs.qualificationDispatch.workflowSha256 == $qualificationSha' \
+            "$RUNNER_TEMP/openclaw-autopilot-state.json" >/dev/null
+          echo "$CONTROLLER_WORKFLOW_SHA256  .github/workflows/openclaw-autopilot.yml" | sha256sum --check -
+          echo "$QUALIFICATION_WORKFLOW_SHA256  .github/workflows/qualify-openclaw-autopilot.yml" | sha256sum --check -
+          echo "$RELEASE_WORKFLOW_SHA256  .github/workflows/release-openclaw-plugin.yml" | sha256sum --check -
+          actual_classifier=$({ sha256sum scripts/classify-openclaw-release.mjs scripts/classify-openclaw-upgrade.mjs scripts/prepare-openclaw-upgrade.mjs scripts/openclaw-upgrade-policy.mjs scripts/openclaw-release-state.mjs scripts/verify-openclaw-autopilot-result.mjs scripts/openclaw-qualification.mjs; } | sha256sum | cut -d ' ' -f1)
+          test "$actual_classifier" = "$CLASSIFIER_SHA256"
+          echo "source_tree=$actual_tree" >> "$GITHUB_OUTPUT"
+
+  deterministic:
+    name: Deterministic tests, types, and packages
+    needs: bind-source
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    outputs:
+      candidate_artifact_sha256: ${{ steps.artifacts.outputs.candidate_artifact_sha256 }}
+    steps:
+      - name: Check out the explicit candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.source_sha }}
+          persist-credentials: false
+      - name: Install managed runtimes
+        uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4
+      - name: Install locked dependencies
+        run: mise exec -- npm ci
+      - name: Verify exact OpenClaw qualification pins
+        run: mise exec -- npm run verify:openclaw-qualification
+      - name: Run deterministic tests and type checks
+        run: |
+          mise exec -- npm test
+          mise exec -- npm run typecheck
+      - name: Build candidate artifacts once
+        id: artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          mise exec -- npm run pack:plugin
+          mise exec -- npm run build:extension
+          plugin_version=$(mise exec -- node -p 'require("./packages/openclaw-plugin/package.json").version')
+          mv "build/thunderclaw-openclaw-plugin-${plugin_version}.tgz" build/thunderclaw-autopilot-plugin.tgz
+          (cd build && sha256sum thunderclaw-autopilot-plugin.tgz thunderclaw-extension.xpi > autopilot-candidate.sha256)
+          echo "candidate_artifact_sha256=$(sha256sum build/thunderclaw-autopilot-plugin.tgz | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
+      - name: Upload exact candidate bytes
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: openclaw-autopilot-candidate-${{ inputs.request_id }}-${{ github.run_attempt }}
+          path: |
+            build/thunderclaw-autopilot-plugin.tgz
+            build/thunderclaw-extension.xpi
+            build/autopilot-candidate.sha256
+          if-no-files-found: error
+          retention-days: 14
+
+  openclaw-integration:
+    name: Pinned OpenClaw integration
+    needs: [bind-source, deterministic]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out the explicit candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.source_sha }}
+          persist-credentials: false
+      - name: Install managed runtimes
+        uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4
+      - name: Install locked dependencies
+        run: mise exec -- npm ci
+      - name: Download exact candidate bytes
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: openclaw-autopilot-candidate-${{ inputs.request_id }}-${{ github.run_attempt }}
+          path: build/autopilot-candidate
+      - name: Verify and exercise the exact plugin archive
+        env:
+          THUNDERCLAW_OPENCLAW_PLUGIN_TGZ: ${{ github.workspace }}/build/autopilot-candidate/thunderclaw-autopilot-plugin.tgz
+        shell: bash
+        run: |
+          (cd build/autopilot-candidate && sha256sum --check autopilot-candidate.sha256 --ignore-missing)
+          mise exec -- npm run test:integration:openclaw
+
+  thunderbird-linux:
+    name: Thunderbird Linux qualification
+    needs: [bind-source, deterministic]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - name: Check out the explicit candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.source_sha }}
+          persist-credentials: false
+      - name: Install managed runtimes
+        uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4
+      - name: Install locked dependencies
+        run: mise exec -- npm ci
+      - name: Download exact candidate bytes
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: openclaw-autopilot-candidate-${{ inputs.request_id }}-${{ github.run_attempt }}
+          path: build/autopilot-candidate
+      - name: Verify and exercise the exact XPI
+        env:
+          THUNDERCLAW_E2E_VERSIONS: 153.0.3
+          THUNDERCLAW_E2E_XPI: ${{ github.workspace }}/build/autopilot-candidate/thunderclaw-extension.xpi
+        shell: bash
+        run: |
+          (cd build/autopilot-candidate && sha256sum --check autopilot-candidate.sha256 --ignore-missing)
+          mise exec -- npm run test:e2e:thunderbird
+      - name: Retain sanitized failure evidence
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: openclaw-autopilot-thunderbird-failure-${{ inputs.request_id }}-${{ github.run_attempt }}
+          path: build/e2e/thunderbird/
+          if-no-files-found: warn
+          retention-days: 7
+
+  native-platform:
+    name: Native ${{ matrix.platform }} qualification
+    needs: [bind-source, deterministic]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: Windows
+            runner: windows-2025
+          - platform: macOS
+            runner: macos-15
+    steps:
+      - name: Check out the explicit candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.source_sha }}
+          persist-credentials: false
+      - name: Install managed runtimes
+        uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4
+      - name: Install locked dependencies
+        run: mise exec -- npm ci
+      - name: Run native deterministic and filesystem qualification
+        run: |
+          mise exec -- npm test
+          mise exec -- npm run qualify:native-filesystem
+
+  pair-qualification:
+    name: Protected exact-pair real-agent qualification
+    needs: [bind-source, deterministic]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    environment:
+      name: openclaw-autopilot-qualification
+    steps:
+      - name: Check out the explicit candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.source_sha }}
+          persist-credentials: false
+      - name: Install managed runtimes
+        uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4
+      - name: Install locked dependencies
+        run: mise exec -- npm ci
+      - name: Download exact candidate bytes
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: openclaw-autopilot-candidate-${{ inputs.request_id }}-${{ github.run_attempt }}
+          path: candidate
+      - name: Download and verify the exact published counterpart
+        id: counterpart
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COUNTERPART_TAG: ${{ inputs.counterpart_tag }}
+          COUNTERPART_NAME: ${{ inputs.counterpart_name }}
+          COUNTERPART_SHA256: ${{ inputs.counterpart_sha256 }}
+          COUNTERPART_SIZE: ${{ inputs.counterpart_size }}
+          CANDIDATE_ARTIFACT_SHA256: ${{ needs.deterministic.outputs.candidate_artifact_sha256 }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$COUNTERPART_SHA256" =~ ^[a-f0-9]{64}$ ]]
+          [[ "$COUNTERPART_SIZE" =~ ^[1-9][0-9]*$ ]]
+          mkdir counterpart
+          gh release download "$COUNTERPART_TAG" --pattern "$COUNTERPART_NAME" --dir counterpart
+          counterpart_path="$GITHUB_WORKSPACE/counterpart/$COUNTERPART_NAME"
+          test "$(stat --format=%s "$counterpart_path")" = "$COUNTERPART_SIZE"
+          echo "$COUNTERPART_SHA256  $counterpart_path" | sha256sum --check -
+          mise exec -- node scripts/validate-candidate-artifact.mjs xpi "$counterpart_path"
+          (cd candidate && sha256sum --check autopilot-candidate.sha256 --ignore-missing)
+          mise exec -- node scripts/validate-candidate-artifact.mjs plugin-tgz candidate/thunderclaw-autopilot-plugin.tgz
+          echo "path=$counterpart_path" >> "$GITHUB_OUTPUT"
+      - name: Create protected synthetic qualification environment
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$DEEPSEEK_API_KEY"
+          gateway_token=$(openssl rand -hex 32)
+          echo "::add-mask::$gateway_token"
+          umask 077
+          {
+            printf 'DEEPSEEK_API_KEY=%s\n' "$DEEPSEEK_API_KEY"
+            printf 'OPENCLAW_GATEWAY_TOKEN=%s\n' "$gateway_token"
+          } > .env.openclaw.local
+      - name: Exercise exact pair through the protected product harness
+        env:
+          THUNDERCLAW_QUALIFICATION_COMPONENT: openclaw-plugin
+          THUNDERCLAW_OPENCLAW_PLUGIN_TGZ: ${{ github.workspace }}/candidate/thunderclaw-autopilot-plugin.tgz
+          THUNDERCLAW_E2E_XPI: ${{ steps.counterpart.outputs.path }}
+          THUNDERCLAW_E2E_VERSIONS: 153.0.3
+        shell: bash
+        run: |
+          bash scripts/bootstrap-spike.sh
+          mise exec -- npm run test:e2e:thunderbird
+          mise exec -- npm run qualify:real-agent
+      - name: Retain sanitized failure evidence
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: openclaw-autopilot-pair-failure-${{ inputs.request_id }}-${{ github.run_attempt }}
+          path: build/e2e/product-real-agent/
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Remove credentials and stop ephemeral services
+        if: always()
+        shell: bash
+        run: |
+          find . -maxdepth 1 -name '.env.openclaw.local' -delete
+          docker compose -f compose.spike.yaml down
+
+  result:
+    name: Bind successful qualification result
+    if: always()
+    needs: [bind-source, deterministic, openclaw-integration, thunderbird-linux, native-platform, pair-qualification]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Reject skipped, waived, cancelled, or failed gates
+        env:
+          BIND_SOURCE: ${{ needs.bind-source.result }}
+          DETERMINISTIC: ${{ needs.deterministic.result }}
+          OPENCLAW_INTEGRATION: ${{ needs.openclaw-integration.result }}
+          THUNDERBIRD_LINUX: ${{ needs.thunderbird-linux.result }}
+          NATIVE_PLATFORM: ${{ needs.native-platform.result }}
+          PAIR_QUALIFICATION: ${{ needs.pair-qualification.result }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for result in "$BIND_SOURCE" "$DETERMINISTIC" "$OPENCLAW_INTEGRATION" \
+            "$THUNDERBIRD_LINUX" "$NATIVE_PLATFORM" "$PAIR_QUALIFICATION"; do
+            test "$result" = success
+          done
+      - name: Create exact run evidence
+        env:
+          REQUEST_ID: ${{ inputs.request_id }}
+          RESERVATION_ID: ${{ inputs.reservation_id }}
+          VERSION: ${{ inputs.version }}
+          IDENTITY_SHA256: ${{ inputs.identity_sha256 }}
+          SOURCE_REF: ${{ inputs.source_ref }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          SOURCE_TREE: ${{ inputs.source_tree }}
+          BASE_SHA: ${{ inputs.base_sha }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          CLASSIFICATION_SHA256: ${{ inputs.classification_sha256 }}
+          CONTROLLER_WORKFLOW_SHA256: ${{ inputs.controller_workflow_sha256 }}
+          QUALIFICATION_WORKFLOW_SHA256: ${{ inputs.qualification_workflow_sha256 }}
+          RELEASE_WORKFLOW_SHA256: ${{ inputs.release_workflow_sha256 }}
+          CLASSIFIER_SHA256: ${{ inputs.classifier_sha256 }}
+          COUNTERPART_TAG: ${{ inputs.counterpart_tag }}
+          COUNTERPART_NAME: ${{ inputs.counterpart_name }}
+          COUNTERPART_SHA256: ${{ inputs.counterpart_sha256 }}
+          COUNTERPART_SIZE: ${{ inputs.counterpart_size }}
+          CANDIDATE_ARTIFACT_SHA256: ${{ needs.deterministic.outputs.candidate_artifact_sha256 }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir result
+          jq -n \
+            --arg repository "$GITHUB_REPOSITORY" \
+            --argjson repositoryId "$GITHUB_REPOSITORY_ID" \
+            --arg workflowCommit "$GITHUB_SHA" \
+            --arg workflowSha256 "$QUALIFICATION_WORKFLOW_SHA256" \
+            --argjson runId "$GITHUB_RUN_ID" \
+            --argjson runAttempt "$GITHUB_RUN_ATTEMPT" \
+            --arg requestId "$REQUEST_ID" \
+            --arg reservationId "$RESERVATION_ID" \
+            --arg version "$VERSION" \
+            --arg identitySha256 "$IDENTITY_SHA256" \
+            --arg ref "$SOURCE_REF" \
+            --arg sha "$SOURCE_SHA" \
+            --arg tree "$SOURCE_TREE" \
+            --arg baseSha "$BASE_SHA" \
+            --arg tag "$RELEASE_TAG" \
+            --arg classificationSha256 "$CLASSIFICATION_SHA256" \
+            --arg controllerWorkflowSha256 "$CONTROLLER_WORKFLOW_SHA256" \
+            --arg qualificationWorkflowSha256 "$QUALIFICATION_WORKFLOW_SHA256" \
+            --arg releaseWorkflowSha256 "$RELEASE_WORKFLOW_SHA256" \
+            --arg classifierSha256 "$CLASSIFIER_SHA256" \
+            --arg counterpartTag "$COUNTERPART_TAG" \
+            --arg counterpartName "$COUNTERPART_NAME" \
+            --arg counterpartSha256 "$COUNTERPART_SHA256" \
+            --argjson counterpartSize "$COUNTERPART_SIZE" \
+            --arg candidateArtifactSha256 "$CANDIDATE_ARTIFACT_SHA256" \
+            '{format:"thunderclaw-openclaw-autopilot-result-v1",repository:$repository,repositoryId:$repositoryId,workflow:".github/workflows/qualify-openclaw-autopilot.yml",workflowCommit:$workflowCommit,workflowSha256:$workflowSha256,event:"workflow_dispatch",runId:$runId,runAttempt:$runAttempt,requestId:$requestId,reservationId:$reservationId,version:$version,identitySha256:$identitySha256,baseSha:$baseSha,tag:$tag,candidateArtifactSha256:$candidateArtifactSha256,candidate:{ref:$ref,sha:$sha,tree:$tree},counterpart:{repository:$repository,tag:$counterpartTag,name:$counterpartName,sha256:$counterpartSha256,size:$counterpartSize},classification:{decision:"compatibility-only",evidenceSha256:$classificationSha256},automation:{controllerWorkflowSha:$controllerWorkflowSha256,qualificationWorkflowSha:$qualificationWorkflowSha256,releaseWorkflowSha:$releaseWorkflowSha256,classifierSha:$classifierSha256},gates:{deterministic:"success","openclaw-integration":"success","pair-qualification":"success","thunderbird-linux":"success","native-windows":"success","native-macos":"success"},decision:"pass"}' \
+            > result/result.json
+      - name: Upload immutable qualification result
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: openclaw-autopilot-result-${{ inputs.request_id }}-${{ github.run_attempt }}
+          path: result/result.json
+          if-no-files-found: error
+          retention-days: 90

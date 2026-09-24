@@ -6,9 +6,14 @@ on:
       tag:
         required: true
         type: string
+      release_lane:
+        description: Human-approved manual lane or verified compatibility autopilot lane
+        required: false
+        default: manual
+        type: string
     secrets:
       CLAWHUB_TOKEN:
-        required: true
+        required: false
   workflow_dispatch:
     inputs:
       tag:
@@ -29,7 +34,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     environment:
-      name: clawhub
+      name: ${{ inputs.release_lane == 'automatic' && 'clawhub-auto' || 'clawhub' }}
     permissions:
       contents: read
       id-token: write
@@ -99,6 +104,26 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "commit=$commit" >> "$GITHUB_OUTPUT"
 
+      - name: Verify publication lane and protected ref
+        env:
+          RELEASE_LANE: ${{ inputs.release_lane || 'manual' }}
+          RELEASE_COMMIT: ${{ steps.release.outputs.commit }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "$RELEASE_LANE" in manual|automatic) ;; *) echo "Unknown publication lane" >&2; exit 1 ;; esac
+          if [[ "$RELEASE_LANE" == automatic ]]; then
+            [[ "$GITHUB_EVENT_NAME" == push && "$GITHUB_REF" == "refs/tags/$RELEASE_TAG" && "$GITHUB_SHA" == "$RELEASE_COMMIT" ]] || {
+              echo "Automatic ClawHub publication requires the exact tag-push run" >&2
+              exit 1
+            }
+            [[ "$GITHUB_WORKFLOW_REF" == "$GITHUB_REPOSITORY/.github/workflows/release-openclaw-plugin.yml@refs/tags/$RELEASE_TAG" ]] || {
+              echo "Automatic ClawHub publication requires the protected plugin release workflow" >&2
+              exit 1
+            }
+          fi
+
       - name: Install pinned Bun runtime
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
@@ -123,19 +148,25 @@ jobs:
 
       - name: Configure ClawHub authentication
         env:
+          # clawhub-auto and clawhub own independent values under this name.
           CLAWHUB_TOKEN: ${{ secrets.CLAWHUB_TOKEN }}
+          RELEASE_LANE: ${{ inputs.release_lane || 'manual' }}
           RELEASE_COMMIT: ${{ steps.release.outputs.commit }}
           RELEASE_TAG: ${{ inputs.tag }}
         shell: bash
         run: |
           set -euo pipefail
+          if [[ "$RELEASE_LANE" == automatic && -n "$CLAWHUB_TOKEN" ]]; then
+            echo "Automatic publication must use the ClawHub OIDC trust policy, not a static token" >&2
+            exit 1
+          fi
           if [[ -n "$CLAWHUB_TOKEN" ]]; then
             config="$RUNNER_TEMP/clawhub-config.json"
             jq -n --arg token "$CLAWHUB_TOKEN" '{registry: "https://clawhub.ai", token: $token}' > "$config"
             chmod 600 "$config"
             echo "CLAWHUB_CONFIG_PATH=$config" >> "$GITHUB_ENV"
-          elif [[ "$GITHUB_EVENT_NAME" != "workflow_dispatch" || "$GITHUB_SHA" != "$RELEASE_COMMIT" || "$GITHUB_REF" != "refs/tags/$RELEASE_TAG" ]]; then
-            echo "CLAWHUB_TOKEN is required for tag-push publication; tokenless OIDC is limited to workflow_dispatch from the exact release tag" >&2
+          elif [[ "$RELEASE_LANE" != automatic && ( "$GITHUB_EVENT_NAME" != "workflow_dispatch" || "$GITHUB_SHA" != "$RELEASE_COMMIT" || "$GITHUB_REF" != "refs/tags/$RELEASE_TAG" ) ]]; then
+            echo "A publisher token is required unless exact OIDC policy authorizes this workflow, environment, repository, and tag" >&2
             exit 1
           fi
 

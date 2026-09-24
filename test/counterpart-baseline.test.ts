@@ -32,10 +32,24 @@ test("counterpart updater derives exact baseline metadata only from an advancing
   assert.deepEqual(updated["thunderbird-extension"], manifest["thunderbird-extension"]);
   assert.throws(() => updateCounterpartManifest(manifest, {
     component: "openclaw-plugin",
-    tag: "openclaw-plugin-v0.1.9",
-    version: "0.1.9",
-    artifacts: [{ name: "thunderclaw-openclaw-plugin-0.1.9.tgz", sha256: "b".repeat(64), size: 1 }],
+    tag: "openclaw-plugin-v0.1.8",
+    version: "0.1.8",
+    artifacts: [{ name: "thunderclaw-openclaw-plugin-0.1.8.tgz", sha256: "b".repeat(64), size: 1 }],
   }), /must advance openclaw-plugin/u);
+
+  const alreadyComplete = updateCounterpartManifest(updated, {
+    component: "openclaw-plugin",
+    tag: "openclaw-plugin-v0.1.10",
+    version: "0.1.10",
+    artifacts: [{ name: "thunderclaw-openclaw-plugin-0.1.10.tgz", sha256: "a".repeat(64), size: 12345 }],
+  });
+  assert.deepEqual(alreadyComplete, updated);
+  assert.throws(() => updateCounterpartManifest(updated, {
+    component: "openclaw-plugin",
+    tag: "openclaw-plugin-v0.1.10",
+    version: "0.1.10",
+    artifacts: [{ name: "thunderclaw-openclaw-plugin-0.1.10.tgz", sha256: "b".repeat(64), size: 12345 }],
+  }), /already has a different release identity/u);
 });
 
 test("counterpart verifier rejects bytes that do not match the permanent pin", async () => {

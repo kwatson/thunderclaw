@@ -1,9 +1,11 @@
 # OpenClaw upgrade runbook
 
-This is the operator sequence for qualifying and publishing a ThunderClaw
-OpenClaw compatibility release. The safety and exact-byte requirements in
-[`release.md`](release.md) remain authoritative. These steps never make a newer
-OpenClaw version compatible merely because its version or types look similar.
+This is the manual and exception sequence for qualifying and publishing a
+ThunderClaw OpenClaw compatibility release. Routine metadata-only releases use
+the [`OpenClaw compatibility autopilot`](openclaw-autopilot.md). The safety and
+exact-byte requirements in [`release.md`](release.md) remain authoritative.
+These steps never make a newer OpenClaw version compatible merely because its
+version or types look similar.
 
 ## 1. Collect upstream evidence without changing the repository
 
@@ -17,20 +19,27 @@ mise exec -- npm run --silent preflight:openclaw-upgrade -- --version YYYY.M.PAT
   > build/openclaw-upgrade-preflight.json
 ```
 
-The report records the npm package and provider integrity, verified upstream
-tag and commit, multi-platform image identity, exact Linux/AMD64 image digest,
-required SDK entrypoints, declaration hashes that changed, and the repository
-surfaces affected by the bump. It deliberately records
+The report records the npm package and provider integrity, upstream tag and
+commit identity and signature status, multi-platform image identity, exact
+Linux/AMD64 image digest, required SDK entrypoints, declaration hashes that
+changed, and the repository surfaces affected by the bump. It deliberately records
 `compatibilityDecision: "not-made"`.
 
-Stop and investigate before editing support metadata if the report has a
-blocking finding, the release notes describe a relevant behavioral change, a
-required export disappeared, or an SDK declaration changed incompatibly. Type
+Stop and investigate before editing support metadata if a required artifact is
+missing, inconsistent, replaced, or withdrawn; a required export disappeared;
+or an SDK declaration changed incompatibly. Unsigned upstream Git identities
+and upstream CI waivers are evidence, not automatic blockers. Type
 compatibility is necessary but not sufficient: inspect changes to backup,
 plugin installation, configuration, Gateway, CLI, agent execution, session,
 hook, and state behavior as well.
 
 ## 2. Prepare the compatibility change
+
+For an automatic release, the controller starts only after the official stable
+release has soaked for 24 hours and the exact upstream identities remain
+unchanged. It runs the versioned generator and independently verifies the
+resulting field-level diff. Continue manually below only for an exception or a
+change outside that policy.
 
 Update the single evidence ledger in `openclaw-qualification.json` first. It
 records the API floor, proposed stable version, supported range, next excluded
