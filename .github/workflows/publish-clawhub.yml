@@ -11,9 +11,6 @@ on:
         required: false
         default: manual
         type: string
-    secrets:
-      CLAWHUB_TOKEN:
-        required: false
   workflow_dispatch:
     inputs:
       tag:

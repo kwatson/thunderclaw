@@ -17,12 +17,6 @@ on:
         required: false
         default: manual
         type: string
-    secrets:
-      DEEPSEEK_API_KEY:
-        required: false
-      OPENCLAW_GATEWAY_TOKEN:
-        required: false
-
 permissions:
   contents: read
 
