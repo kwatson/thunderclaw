@@ -147,6 +147,7 @@ test("OpenClaw automatic release is selected only by the read-only durable-state
   assert.match(releaseClassifier, /automation\.releaseWorkflowSha = digest\(publicationWorkflowPaths\.map/u);
   assert.match(release, /Re-read the live autopilot guard before provenance[\s\S]*attest-build-provenance/u);
   assert.match(release, /release:\n[\s\S]*?permissions:\n\s+actions: read[\s\S]*?Install managed runtimes/u);
+  assert.match(release, /clawhub:\n[\s\S]*?permissions:\n\s+actions: read\n\s+contents: read\n\s+id-token: write/u);
   assert.match(release, /RELEASE_LANE[\s\S]*assert-openclaw-autopilot-enabled\.mjs[\s\S]*gh release create/u);
   assert.match(publisher, /publish-clawhub:\n[\s\S]*?permissions:\n\s+actions: read/u);
   assert.match(publisher, /RELEASE_LANE" == automatic[\s\S]*assert-openclaw-autopilot-enabled\.mjs[\s\S]*bun "\$cli" package publish/u);
