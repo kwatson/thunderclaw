@@ -8,7 +8,7 @@ import { assessUpgradeEvidence, immutableReleaseIdentity, validateUpgradePreflig
 export const RELEASE_STATE_FORMAT = "thunderclaw-openclaw-autopilot-state-v1";
 export const RELEASE_INTENT_FORMAT = "thunderclaw-openclaw-autopilot-intent-v1";
 const phases = ["observed", "ready", "prepared", "qualifying", "qualified", "merged", "tagged", "github-published", "clawhub-verified", "closeout-open", "complete", "blocked"];
-const intentTypes = ["reobserve", "record-preparation", "record-qualification-dispatch", "record-qualification", "record-merge", "record-tag", "record-github-publication", "record-clawhub-verification", "open-closeout", "complete-closeout", "block"];
+const intentTypes = ["reobserve", "waive-soak", "record-preparation", "record-qualification-dispatch", "record-qualification", "record-merge", "record-tag", "record-github-publication", "record-clawhub-verification", "open-closeout", "complete-closeout", "block"];
 const sha40 = /^[a-f0-9]{40}$/u;
 const sha256 = /^[a-f0-9]{64}$/u;
 const hash = (value) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
@@ -102,6 +102,10 @@ export function applyReleaseStateIntent(stateValue, intentValue) {
     exact(payload, ["preflight", "baseSha"], "reobserve payload"); const current = validateUpgradePreflight(payload.preflight); pattern(payload.baseSha, sha40, "reobserve baseSha");
     const assessment = assessUpgradeEvidence({ baseline: state.baseline, current, now: intent.at }); state.lastObservedAt = current.observedAt; state.advisories = assessment.advisories; state.blockers = assessment.blockers;
     if (assessment.identitySha256 !== state.identitySha256) state.blockers = [...new Set([...state.blockers, "immutable release identity changed during soak"])]; state.baseSha = payload.baseSha; state.phase = state.blockers.length ? "blocked" : assessment.decision === "ready" ? "ready" : "observed";
+  } else if (intent.type === "waive-soak") {
+    phase(state, "observed", "soak waiver"); exact(payload, ["reason"], "soak waiver payload");
+    if (typeof payload.reason !== "string" || !payload.reason) throw new Error("soak waiver reason is malformed");
+    state.advisories = [...new Set([...state.advisories, `24-hour soak waived: ${payload.reason}`])]; state.phase = "ready";
   } else if (intent.type === "record-preparation") {
     phase(state, "ready", "preparation"); exact(payload, ["reservationId", "pluginVersion", "preparedDate", "baseSha", "branch", "prNumber", "candidateSha", "candidateTree", "tag", "classificationEvidenceSha256", "counterpart", "automation"], "preparation payload");
     if (payload.reservationId !== state.reservationId || payload.baseSha !== state.baseSha) throw new Error("preparation does not match its reservation");

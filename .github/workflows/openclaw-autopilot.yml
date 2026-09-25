@@ -9,6 +9,11 @@ on:
         description: Exact official stable OpenClaw version (YYYY.M.PATCH)
         required: true
         type: string
+      expedite_soak:
+        description: Waive only the remaining 24-hour soak after a second unchanged observation
+        required: false
+        default: false
+        type: boolean
   workflow_run:
     workflows: ["Qualify OpenClaw autopilot candidate"]
     types: [completed]
@@ -160,6 +165,7 @@ jobs:
           GH_TOKEN: ${{ steps.app.outputs.token }}
           KILL_SWITCH: ${{ vars.OPENCLAW_AUTOPILOT_ENABLED }}
           VERSION: ${{ needs.inspect.outputs.version }}
+          EXPEDITE_SOAK: ${{ github.event_name == 'workflow_dispatch' && inputs.expedite_soak || false }}
         shell: bash
         run: |
           set -euo pipefail
@@ -189,6 +195,16 @@ jobs:
             else
               cp "$work/state.json" "$work/next.json"
             fi
+          fi
+          if [[ "$EXPEDITE_SOAK" == true ]] && [[ -n "$old_state_commit" ]] && [[ "$(jq -r .phase "$work/next.json")" == observed ]]; then
+            jq -n --arg id "waive-soak-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
+              --argjson revision "$(jq -r .revision "$work/next.json")" \
+              --arg at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+              --arg reason "explicit manual expedite for OpenClaw $VERSION" \
+              '{format:"thunderclaw-openclaw-autopilot-intent-v1",intentId:$id,expectedRevision:$revision,type:"waive-soak",at:$at,payload:{reason:$reason}}' > "$work/intent.json"
+            mise exec -- node scripts/openclaw-release-state.mjs apply --state "$work/next.json" --intent "$work/intent.json" \
+              | jq .state > "$work/expedited.json"
+            mv "$work/expedited.json" "$work/next.json"
           fi
           action=$(mise exec -- node scripts/openclaw-release-state.mjs resume --state "$work/next.json" | jq -r .action)
           if ! cmp -s "$work/state.json" "$work/next.json" 2>/dev/null; then

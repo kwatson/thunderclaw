@@ -214,3 +214,35 @@ test("release state provides strict CAS, replay, and safe resume through qualifi
   const bad = structuredClone(qualification); bad.headSha = hex("f", 40);
   assert.throws(() => applyReleaseStateIntent(qualifying, intent("bad", 3, "record-qualification", bad) as never), /differs/u);
 });
+
+test("a manual expedite records an auditable one-release soak waiver", () => {
+  const state = createReleaseState(preflight(), { reservationId: hex("1", 32), baseSha: hex("2", 40) });
+  const reobserved = applyReleaseStateIntent(state, {
+    format: "thunderclaw-openclaw-autopilot-intent-v1",
+    intentId: "observe-before-expedite",
+    expectedRevision: 0,
+    type: "reobserve",
+    at: "2026-09-22T02:00:00.000Z",
+    payload: { preflight: preflight("2026-09-22T02:00:00.000Z"), baseSha: hex("2", 40) },
+  } as never).state;
+  assert.equal(reobserved.phase, "observed");
+  const expedited = applyReleaseStateIntent(reobserved, {
+    format: "thunderclaw-openclaw-autopilot-intent-v1",
+    intentId: "manual-expedite",
+    expectedRevision: 1,
+    type: "waive-soak",
+    at: "2026-09-22T02:00:01.000Z",
+    payload: { reason: `explicit manual expedite for OpenClaw ${proposedVersion}` },
+  } as never).state;
+  assert.equal(expedited.phase, "ready");
+  assert.equal(decideReleaseResume(expedited).action, "prepare");
+  assert.ok(expedited.advisories.includes(`24-hour soak waived: explicit manual expedite for OpenClaw ${proposedVersion}`));
+  assert.throws(() => applyReleaseStateIntent(state, {
+    format: "thunderclaw-openclaw-autopilot-intent-v1",
+    intentId: "bad-waiver",
+    expectedRevision: 0,
+    type: "waive-soak",
+    at: "2026-09-22T02:00:01.000Z",
+    payload: { reason: "" },
+  } as never), /reason is malformed/u);
+});

@@ -9,6 +9,11 @@ manual release lane.
 The controller polls at minute 17 every six hours. Together with the two
 unchanged observations required by the policy, this preserves the 24-hour soak
 while bounding the normal discovery delay after that soak to about six hours.
+An explicitly dispatched run may expedite an already observed release after a
+fresh unchanged observation. That one-release override waives only the remaining
+clock time, is recorded as advisory evidence in durable state, and does not
+waive identity, compatibility, qualification, publication, or verification
+gates. Scheduled runs cannot use the override.
 
 ## Upstream admission policy
 
