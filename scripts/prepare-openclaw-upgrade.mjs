@@ -140,9 +140,9 @@ async function alreadyPrepared(root, preflight) {
   return { status: "already-prepared", pluginVersion: plugin.version, qualification, verification };
 }
 
-export async function prepareOpenClawUpgrade({ root, baseline, preflight, lockfileMode = "update", generatedLockfileContents, preparedDate = preflight.observedAt.slice(0, 10) }) {
+export async function prepareOpenClawUpgrade({ root, baseline, preflight, lockfileMode = "update", generatedLockfileContents, preparedDate = preflight.observedAt.slice(0, 10), soakWaived = false }) {
   const assessment = assessUpgradeEvidence({ baseline, current: preflight });
-  if (assessment.decision !== "ready") throw new Error(`OpenClaw upgrade is not ready: ${[...assessment.blockers, assessment.decision === "waiting" ? `soak completes at ${assessment.soakCompletesAt}` : ""].filter(Boolean).join("; ")}`);
+  if (assessment.decision === "blocked" || (assessment.decision === "waiting" && soakWaived !== true)) throw new Error(`OpenClaw upgrade is not ready: ${[...assessment.blockers, assessment.decision === "waiting" ? `soak completes at ${assessment.soakCompletesAt}` : ""].filter(Boolean).join("; ")}`);
   const repeat = await alreadyPrepared(root, preflight);
   if (repeat) return { ...repeat, assessment };
   const originals = await readPreparationFiles(root);
@@ -194,7 +194,7 @@ function parseArguments(args) {
     values.set(args[index], args[index + 1]);
   }
   if (!values.has("--preflight") || !values.has("--baseline")) {
-    throw new Error("Usage: prepare-openclaw-upgrade.mjs --preflight <json> --baseline <json> [--root <path>] [--lockfile-mode update|verify] [--generated-lockfile <path>] [--date YYYY-MM-DD]");
+    throw new Error("Usage: prepare-openclaw-upgrade.mjs --preflight <json> --baseline <json> [--root <path>] [--lockfile-mode update|verify] [--generated-lockfile <path>] [--date YYYY-MM-DD] [--soak-waived true|false]");
   }
   return values;
 }
@@ -205,7 +205,9 @@ if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === imp
     const root = path.resolve(args.get("--root") ?? path.join(path.dirname(fileURLToPath(import.meta.url)), ".."));
     const [baseline, preflight] = await Promise.all([args.get("--baseline"), args.get("--preflight")].map(async (file) => JSON.parse(await readFile(file, "utf8"))));
     const generatedLockfileContents = args.get("--generated-lockfile") ? await readFile(args.get("--generated-lockfile"), "utf8") : undefined;
-    const result = await prepareOpenClawUpgrade({ root, baseline, preflight, lockfileMode: args.get("--lockfile-mode") ?? "update", generatedLockfileContents, preparedDate: args.get("--date") });
+    const soakWaived = args.get("--soak-waived") === undefined ? false : args.get("--soak-waived") === "true";
+    if (args.get("--soak-waived") !== undefined && !["true", "false"].includes(args.get("--soak-waived"))) throw new Error("--soak-waived must be true or false");
+    const result = await prepareOpenClawUpgrade({ root, baseline, preflight, lockfileMode: args.get("--lockfile-mode") ?? "update", generatedLockfileContents, preparedDate: args.get("--date"), soakWaived });
     process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
   } catch (error) {
     process.stderr.write(`${error.message}\n`);

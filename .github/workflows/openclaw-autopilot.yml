@@ -285,8 +285,10 @@ jobs:
           jq .baseline "$work/state.json" > "$work/baseline.json"
           preflight="$RUNNER_TEMP/openclaw-observation/preflight.json"
           prepared_date=$(jq -r .proposed.upstream.publishedAt "$preflight" | cut -c1-10)
+          soak_waived=$(jq -r 'any(.history[]; .type == "waive-soak" and .to == "ready")' "$work/state.json")
           mise exec -- node scripts/prepare-openclaw-upgrade.mjs --baseline "$work/baseline.json" \
-            --preflight "$preflight" --root "$GITHUB_WORKSPACE" --date "$prepared_date" > "$work/prepared.json"
+            --preflight "$preflight" --root "$GITHUB_WORKSPACE" --date "$prepared_date" \
+            --soak-waived "$soak_waived" > "$work/prepared.json"
           mise exec -- node scripts/classify-openclaw-upgrade.mjs --preflight "$preflight" \
             --root "$GITHUB_WORKSPACE" --date "$prepared_date" > "$work/classification.json"
           test "$(jq -r .decision "$work/classification.json")" = compatibility-only

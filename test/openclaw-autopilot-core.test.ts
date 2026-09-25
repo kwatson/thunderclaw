@@ -125,6 +125,30 @@ test("preparation reports already-prepared and rejects a conflicting partial can
   await assert.rejects(prepareOpenClawUpgrade({ root: temporary, baseline: preflight(), preflight: preflight("2026-09-23T01:00:00.000Z"), lockfileMode: "verify" }), /package metadata disagrees/u);
 });
 
+test("preparation accepts a durable soak waiver but never waives policy blockers", async (context) => {
+  const files = await repositoryFiles();
+  const temporary = await mkdtemp(path.join(os.tmpdir(), "thunderclaw-autopilot-waiver-"));
+  context.after(async () => rm(temporary, { recursive: true, force: true }));
+  const verifierFiles = [
+    ...PREPARATION_FILES,
+    "scripts/run-openclaw-ci.sh", "scripts/bootstrap-spike.sh", "scripts/stage-openclaw-provider.mjs", "scripts/qualify-pairing.ts",
+    "e2e/qualification/real-agent/run.mjs", "packages/openclaw-plugin/src/compatibility-fingerprint.ts",
+    "packages/openclaw-plugin/src/openclaw-agent-sessions.d.ts", ".github/workflows/ci.yml",
+  ];
+  for (const file of new Set(verifierFiles)) {
+    await mkdir(path.dirname(path.join(temporary, file)), { recursive: true });
+    await writeFile(path.join(temporary, file), files[file] ?? await readFile(path.join(root, file), "utf8"));
+  }
+  const generated = generatedLockfile(files["package-lock.json"]);
+  const waiting = preflight("2026-09-22T02:00:00.000Z");
+  await assert.rejects(prepareOpenClawUpgrade({ root: temporary, baseline: preflight(), preflight: waiting, lockfileMode: "verify", generatedLockfileContents: generated, preparedDate: "2026-09-23" }), /not ready/u);
+  const accepted = await prepareOpenClawUpgrade({ root: temporary, baseline: preflight(), preflight: waiting, lockfileMode: "verify", generatedLockfileContents: generated, preparedDate: "2026-09-23", soakWaived: true });
+  assert.equal(accepted.status, "prepared");
+  const blocked = structuredClone(waiting);
+  blocked.sdk.missingEntrypoints.push("./plugin-sdk/plugin-entry");
+  await assert.rejects(prepareOpenClawUpgrade({ root: temporary, baseline: preflight(), preflight: blocked, lockfileMode: "verify", generatedLockfileContents: generated, preparedDate: "2026-09-23", soakWaived: true }), /missing required export/u);
+});
+
 test("classifier ignores a forged manifest allowlist and rejects scripts, unrelated dependencies, modes, and paths", async () => {
   const before = await repositoryFiles();
   const built = buildPreparedFiles({ files: before, preflight: preflight(), generatedLockfile: generatedLockfile(before["package-lock.json"]), preparedDate: "2026-09-23" });

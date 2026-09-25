@@ -70,6 +70,8 @@ test("autopilot controller is a short trusted-main state machine with isolated m
   assert.match(workflow, /expedite_soak:[\s\S]*type: boolean/u);
   assert.match(workflow, /EXPEDITE_SOAK: \$\{\{ github\.event_name == 'workflow_dispatch' && inputs\.expedite_soak \|\| false \}\}/u);
   assert.match(workflow, /"\$EXPEDITE_SOAK" == true[\s\S]*-n "\$old_state_commit"[\s\S]*\.phase "\$work\/next\.json"\)" == observed/u);
+  assert.match(workflow, /soak_waived=\$\(jq -r 'any\(\.history\[\]; \.type == "waive-soak" and \.to == "ready"\)'/u);
+  assert.match(workflow, /--soak-waived "\$soak_waived"/u);
   assert.match(workflow, /workflow_run:[\s\S]*Qualify OpenClaw autopilot candidate/u);
   assert.match(workflow, /github\.ref == 'refs\/heads\/main'/u);
   assert.match(workflow, /refs\/heads\/automation\/openclaw-autopilot-state/u);
