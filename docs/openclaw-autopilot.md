@@ -73,8 +73,10 @@ Pre-tag packages are disposable qualification inputs. After the qualified tree
 is merged, an authorized annotated component tag starts the release workflow.
 That workflow builds the authoritative candidate once and passes those exact
 bytes through integration, exact-pair real-agent qualification, secret scan,
-checksums, provenance, GitHub publication, ClawHub publication, and public
-verification. It never rebuilds between gates.
+checksums, provenance, and GitHub publication. For the automatic lane it then
+uses the narrow App to dispatch the dedicated ClawHub publisher at the exact
+protected tag; the dispatched workflow promotes and publicly verifies the same
+GitHub release bytes. Neither workflow rebuilds between gates.
 
 Before tagging, a failure produces no release. A failed tag workflow leaves an
 unpublished immutable tag for the documented recovery procedure; automation
@@ -99,14 +101,17 @@ stage-specific permissions.
 GitHub environments provide reviewer, secret, and ref controls; they do not
 restrict access to a workflow identity. Automatic publication therefore also
 depends on protected App-only release tags, reviewed workflow paths, the
-unprivileged automatic-lane verifier, and exact OIDC or external-broker claims
-for repository, environment, tag ref, and workflow identity.
+unprivileged automatic-lane verifier, and exact OIDC claims for repository,
+environment, and workflow identity. ClawHub does not model a tag-pattern claim,
+so the dispatched publisher independently requires its workflow to run at the
+exact qualified protected tag and commit.
 
-Store the App private key only in the `openclaw-autopilot-mutation` and
-`autopilot-closeout` environments, both restricted to protected `main` and the
+Store the App private key only in the `openclaw-autopilot-mutation` environment,
+restricted to `main`, and the `autopilot-closeout` environment, restricted to
 plugin release tags. The automatic ClawHub environment must contain no static
-publisher token; its broker must accept only the exact repository, workflow,
-environment, and protected tag claims. The `OPENCLAW_AUTOPILOT_ENABLED`
+publisher token; its trusted publisher accepts only the exact repository,
+`publish-clawhub.yml` workflow, and `clawhub-auto` environment claims. The
+`OPENCLAW_AUTOPILOT_ENABLED`
 variable is checked at every mutation boundary; turning it off prevents the
 next mutation rather than interrupting an API call already in flight.
 

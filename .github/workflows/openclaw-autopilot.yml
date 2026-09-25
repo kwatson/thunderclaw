@@ -308,7 +308,7 @@ jobs:
             --arg controller "$(sha256sum .github/workflows/openclaw-autopilot.yml | cut -d ' ' -f1)" \
             --arg qualification "$(sha256sum .github/workflows/qualify-openclaw-autopilot.yml | cut -d ' ' -f1)" \
             --arg classifier "$({ sha256sum scripts/classify-openclaw-release.mjs scripts/classify-openclaw-upgrade.mjs scripts/prepare-openclaw-upgrade.mjs scripts/openclaw-upgrade-policy.mjs scripts/openclaw-release-state.mjs scripts/verify-openclaw-autopilot-result.mjs scripts/openclaw-qualification.mjs; } | sha256sum | cut -d ' ' -f1)" \
-            --arg release "$(sha256sum .github/workflows/release-openclaw-plugin.yml | cut -d ' ' -f1)" \
+            --arg release "$({ sha256sum .github/workflows/release-openclaw-plugin.yml .github/workflows/publish-clawhub.yml; } | sha256sum | cut -d ' ' -f1)" \
             '{controllerWorkflowSha:$controller,qualificationWorkflowSha:$qualification,classifierSha:$classifier,releaseWorkflowSha:$release}')
           jq -n --arg id "prepare-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
             --argjson revision "$(jq -r .revision "$work/state.json")" --arg at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \

@@ -14,8 +14,8 @@ const automaticPhases = new Set(["tagged", "github-published", "clawhub-verified
 const automationPaths = {
   controllerWorkflowSha: ".github/workflows/openclaw-autopilot.yml",
   qualificationWorkflowSha: ".github/workflows/qualify-openclaw-autopilot.yml",
-  releaseWorkflowSha: ".github/workflows/release-openclaw-plugin.yml",
 };
+const publicationWorkflowPaths = [".github/workflows/release-openclaw-plugin.yml", ".github/workflows/publish-clawhub.yml"];
 const verifierPaths = ["scripts/classify-openclaw-release.mjs", "scripts/classify-openclaw-upgrade.mjs",
   "scripts/prepare-openclaw-upgrade.mjs", "scripts/openclaw-upgrade-policy.mjs", "scripts/openclaw-release-state.mjs",
   "scripts/verify-openclaw-autopilot-result.mjs", "scripts/openclaw-qualification.mjs"];
@@ -179,6 +179,7 @@ async function main(args) {
   if (typeof releaseBaseRef !== "string" || !releaseBaseRef) throw new Error("published plugin release baseline is missing");
   const classification = await classifyRange(root, state, releaseBaseRef, options.commit);
   const automation = Object.fromEntries(Object.entries(automationPaths).map(([name, file]) => [name, digest(readAt(root, options.commit, file))]));
+  automation.releaseWorkflowSha = digest(publicationWorkflowPaths.map((file) => `${digest(readAt(root, options.commit, file))}  ${file}\n`).join(""));
   automation.classifierSha = digest(verifierPaths.map((file) => `${digest(readAt(root, options.commit, file))}  ${file}\n`).join(""));
   const counterpart = { repository: options.repository, ...baselines["thunderbird-extension"] };
   const plugin = JSON.parse(readAt(root, options.commit, "packages/openclaw-plugin/package.json"));

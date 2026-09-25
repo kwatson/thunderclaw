@@ -64,8 +64,9 @@ jobs:
             exit 0
           }
           expected_workflow=$(jq -er '.outputs.preparation.automation.releaseWorkflowSha' "$evidence_root/state.json") || exit 0
-          test "$(sha256sum .github/workflows/release-openclaw-plugin.yml | cut -d ' ' -f1)" = "$expected_workflow" || {
-            echo "The tagged release workflow is not the exact reserved workflow; retaining the human-approved lane."
+          actual_workflow=$({ sha256sum .github/workflows/release-openclaw-plugin.yml .github/workflows/publish-clawhub.yml; } | sha256sum | cut -d ' ' -f1)
+          test "$actual_workflow" = "$expected_workflow" || {
+            echo "The tagged release and publisher workflows are not the exact reserved workflows; retaining the human-approved lane."
             exit 0
           }
           request_id=$(jq -er '.outputs.qualification.requestId' "$evidence_root/state.json") || exit 0
@@ -342,7 +343,8 @@ jobs:
             --notes-file release/release-notes.md
 
   clawhub:
-    name: Promote qualified plugin to ClawHub
+    name: Promote manually qualified plugin to ClawHub
+    if: needs.classify.outputs.release_lane == 'manual'
     needs: [classify, release]
     permissions:
       contents: read
@@ -353,10 +355,76 @@ jobs:
       release_lane: ${{ needs.classify.outputs.release_lane }}
     secrets: inherit
 
+  clawhub-auto:
+    name: Dispatch and verify tokenless ClawHub promotion
+    if: needs.classify.outputs.release_lane == 'automatic'
+    needs: [classify, release]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    environment:
+      name: autopilot-closeout
+    permissions:
+      contents: read
+    steps:
+      - name: Mint the narrow workflow-dispatch token
+        id: app-token
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2.2.2
+        with:
+          app-id: ${{ vars.OPENCLAW_AUTOPILOT_APP_ID }}
+          private-key: ${{ secrets.OPENCLAW_AUTOPILOT_APP_PRIVATE_KEY }}
+          permission-actions: write
+          permission-contents: read
+      - name: Dispatch and await the exact protected-tag publisher
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          KILL_SWITCH: ${{ vars.OPENCLAW_AUTOPILOT_ENABLED }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_COMMIT: ${{ github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          title="Publish ClawHub $RELEASE_TAG (automatic)"
+          find_run() {
+            gh run list --workflow .github/workflows/publish-clawhub.yml --event workflow_dispatch --limit 50 \
+              --json databaseId,displayTitle,headBranch,headSha,status,conclusion,createdAt \
+              | jq -c --arg title "$title" --arg tag "$RELEASE_TAG" --arg commit "$RELEASE_COMMIT" \
+                '[.[] | select(.displayTitle == $title and .headBranch == $tag and .headSha == $commit)] | first // empty'
+          }
+          run=$(find_run)
+          if [[ -z "$run" ]] || { [[ "$(jq -r .status <<<"$run")" == completed ]] && [[ "$(jq -r .conclusion <<<"$run")" != success ]]; }; then
+            test "$KILL_SWITCH" = true
+            set +e
+            gh workflow run .github/workflows/publish-clawhub.yml --ref "$RELEASE_TAG" \
+              -f tag="$RELEASE_TAG" -f release_lane=automatic
+            dispatch_status=$?
+            set -e
+            if [[ "$dispatch_status" -ne 0 ]]; then
+              echo "::warning::Publisher dispatch was not acknowledged; probing for the exact run before deciding the outcome."
+            fi
+            run=""
+          fi
+          for _ in $(seq 1 240); do
+            if [[ -z "$run" ]]; then run=$(find_run); fi
+            if [[ -n "$run" && "$(jq -r .status <<<"$run")" == completed ]]; then
+              test "$(jq -r .conclusion <<<"$run")" = success
+              run_id=$(jq -r .databaseId <<<"$run")
+              run_details=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id")
+              test "$(jq -r .event <<<"$run_details")" = workflow_dispatch
+              run_path=$(jq -r .path <<<"$run_details")
+              test "${run_path%@*}" = .github/workflows/publish-clawhub.yml
+              test "$(jq -r .head_sha <<<"$run_details")" = "$RELEASE_COMMIT"
+              exit 0
+            fi
+            sleep 10
+            run=""
+          done
+          echo "Timed out waiting for the exact ClawHub publication workflow" >&2
+          exit 1
+
   counterpart-closeout:
     name: Open exact counterpart baseline closeout
     if: needs.classify.outputs.release_lane == 'automatic'
-    needs: [classify, build, clawhub]
+    needs: [classify, build, clawhub-auto]
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     environment:

@@ -40,20 +40,23 @@ external controls; missing or ambiguous configuration blocks tagging:
   immutable-ledger legacy audit/retry workflow;
 - configure `release-qualification` with protected `DEEPSEEK_API_KEY` and
   `OPENCLAW_GATEWAY_TOKEN` secrets; and
-- update the ClawHub OIDC trusted publisher for manual retries from
-  `@thunderclaw/openclaw-plugin` from the combined tag scheme to repository
-  `kwatson/thunderclaw`, the exact publishing workflow and `clawhub`
-  environment, and an `openclaw-plugin-v*` tag-ref binding. Configure a
-  separate exact-workflow, `clawhub-auto` environment, and protected
-  `openclaw-plugin-v*` tag-ref binding for tokenless automatic publication;
-  and
+- configure the ClawHub OIDC trusted publisher for
+  `@thunderclaw/openclaw-plugin` with repository `kwatson/thunderclaw`, exact
+  workflow filename `publish-clawhub.yml`, and environment `clawhub-auto`.
+  ClawHub accepts tokenless package publication only from a
+  `workflow_dispatch` identity; the protected tag workflow therefore uses the
+  GitHub App to dispatch that exact publisher at the qualified
+  `openclaw-plugin-v*` tag. Manual retries continue to use the separately
+  scoped token in `clawhub`; and
 - confirm ATN credentials cannot run from plugin tags or untrusted pull
   requests and remain scoped to `thunderbird-addons`.
 
-Test the OIDC claim/ref binding with a dry run from the intended workflow before
-tagging. Do not broaden branch/ref trust to unblock publication. Record this
-settings review in the release issue because it is not represented by a
-repository diff.
+Test the OIDC repository, workflow, and environment binding from the intended
+dispatched workflow before enabling automation. GitHub's protected tag rules
+and the publisher's exact ref checks supply the tag binding that ClawHub's
+trusted-publisher configuration does not model. Do not broaden branch/ref trust
+to unblock publication. Record this settings review in the release issue
+because it is not represented by a repository diff.
 
 ## Candidate construction and exact-byte qualification
 
@@ -143,8 +146,10 @@ exact release tag; it must not relabel an old artifact with the dispatch commit
 or publish the counterpart.
 
 ClawHub publishes the qualified TGZ through its protected environment. The
-automatic tag path requires exact tokenless OIDC or broker claims and rejects
-a static `CLAWHUB_TOKEN`; the manual lane may use its separately scoped token.
+automatic tag path dispatches the exact `publish-clawhub.yml` workflow at the
+qualified tag and requires its tokenless repository, workflow, and
+`clawhub-auto` OIDC claims; it rejects a static `CLAWHUB_TOKEN`. The manual lane
+uses its separately scoped token.
 Wait for definitive catalog visibility, then query the public package
 record/API and verify exact name, version, source tag/commit, scan state, and
 artifact digest against the GitHub release.

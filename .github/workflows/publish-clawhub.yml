@@ -1,4 +1,5 @@
 name: Publish OpenClaw plugin to ClawHub
+run-name: Publish ClawHub ${{ inputs.tag }} (${{ inputs.release_lane || 'manual' }})
 
 on:
   workflow_call:
@@ -20,6 +21,14 @@ on:
         description: Existing qualified openclaw-plugin-vX.Y.Z GitHub release
         required: true
         type: string
+      release_lane:
+        description: Human-approved manual retry or verified compatibility autopilot dispatch
+        required: true
+        default: manual
+        type: choice
+        options:
+          - manual
+          - automatic
 
 permissions:
   contents: read
@@ -106,6 +115,7 @@ jobs:
 
       - name: Verify publication lane and protected ref
         env:
+          KILL_SWITCH: ${{ vars.OPENCLAW_AUTOPILOT_ENABLED }}
           RELEASE_LANE: ${{ inputs.release_lane || 'manual' }}
           RELEASE_COMMIT: ${{ steps.release.outputs.commit }}
           RELEASE_TAG: ${{ inputs.tag }}
@@ -114,14 +124,15 @@ jobs:
           set -euo pipefail
           case "$RELEASE_LANE" in manual|automatic) ;; *) echo "Unknown publication lane" >&2; exit 1 ;; esac
           if [[ "$RELEASE_LANE" == automatic ]]; then
-            [[ "$GITHUB_EVENT_NAME" == push && "$GITHUB_REF" == "refs/tags/$RELEASE_TAG" && "$GITHUB_SHA" == "$RELEASE_COMMIT" ]] || {
-              echo "Automatic ClawHub publication requires the exact tag-push run" >&2
+            [[ "$GITHUB_EVENT_NAME" == workflow_dispatch && "$GITHUB_REF" == "refs/tags/$RELEASE_TAG" && "$GITHUB_SHA" == "$RELEASE_COMMIT" ]] || {
+              echo "Automatic ClawHub publication requires an exact protected-tag workflow dispatch" >&2
               exit 1
             }
-            [[ "$GITHUB_WORKFLOW_REF" == "$GITHUB_REPOSITORY/.github/workflows/release-openclaw-plugin.yml@refs/tags/$RELEASE_TAG" ]] || {
-              echo "Automatic ClawHub publication requires the protected plugin release workflow" >&2
+            [[ "$GITHUB_WORKFLOW_REF" == "$GITHUB_REPOSITORY/.github/workflows/publish-clawhub.yml@refs/tags/$RELEASE_TAG" ]] || {
+              echo "Automatic ClawHub publication requires the dedicated protected publisher workflow" >&2
               exit 1
             }
+            test "$KILL_SWITCH" = true
           fi
 
       - name: Install pinned Bun runtime

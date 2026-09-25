@@ -107,6 +107,7 @@ test("OpenClaw automatic release is selected only by the read-only durable-state
   const release = await readFile(new URL("../.github/workflows/release-openclaw-plugin.yml", import.meta.url), "utf8");
   const qualification = await readFile(new URL("../.github/workflows/qualify-release-pair.yml", import.meta.url), "utf8");
   const publisher = await readFile(new URL("../.github/workflows/publish-clawhub.yml", import.meta.url), "utf8");
+  const releaseClassifier = await readFile(new URL("../scripts/classify-openclaw-release.mjs", import.meta.url), "utf8");
   const classifier = release.slice(release.indexOf("  classify:"), release.indexOf("  build:"));
   assert.match(classifier, /permissions:\n\s+actions: read\n\s+contents: read/u);
   assert.doesNotMatch(classifier, /contents: write|id-token: write|secrets\./u);
@@ -131,7 +132,18 @@ test("OpenClaw automatic release is selected only by the read-only durable-state
   assert.match(publisher, /clawhub-auto' \|\| 'clawhub/u);
   assert.match(publisher, /clawhub-auto and clawhub own independent values/u);
   assert.doesNotMatch(publisher, /automatic.*&& secrets\./u);
+  assert.match(publisher, /workflow_dispatch:[\s\S]*release_lane:[\s\S]*options:[\s\S]*- automatic/u);
+  assert.match(publisher, /GITHUB_EVENT_NAME" == workflow_dispatch/u);
+  assert.match(publisher, /\.github\/workflows\/publish-clawhub\.yml@refs\/tags\/\$RELEASE_TAG/u);
+  assert.match(publisher, /test "\$KILL_SWITCH" = true/u);
   assert.match(publisher, /GITHUB_WORKFLOW_REF/u);
+  assert.match(release, /clawhub-auto:[\s\S]*permission-actions: write[\s\S]*gh workflow run \.github\/workflows\/publish-clawhub\.yml --ref "\$RELEASE_TAG"/u);
+  assert.match(release, /displayTitle == \$title and \.headBranch == \$tag and \.headSha == \$commit/u);
+  assert.match(release, /dispatch_status=\$\?[\s\S]*Publisher dispatch was not acknowledged[\s\S]*for _ in \$\(seq 1 240\)/u);
+  assert.match(release, /test "\$\{run_path%@\*\}" = \.github\/workflows\/publish-clawhub\.yml/u);
+  assert.match(release, /actual_workflow=\$\(\{ sha256sum \.github\/workflows\/release-openclaw-plugin\.yml \.github\/workflows\/publish-clawhub\.yml;/u);
+  assert.match(releaseClassifier, /publicationWorkflowPaths = \["\.github\/workflows\/release-openclaw-plugin\.yml", "\.github\/workflows\/publish-clawhub\.yml"\]/u);
+  assert.match(releaseClassifier, /automation\.releaseWorkflowSha = digest\(publicationWorkflowPaths\.map/u);
 });
 
 test("automatic publication probes external state and isolates App-powered one-file closeout", async () => {
@@ -151,7 +163,8 @@ test("automatic publication probes external state and isolates App-powered one-f
   assert.match(closeout, /automation\/counterpart-\$\{RELEASE_TAG\}/u);
   assert.match(closeout, /gh pr list --head/u);
   assert.match(closeout, /gh pr merge "\$pr_number" --auto --squash --match-head-commit/u);
-  assert.doesNotMatch(release.slice(0, release.indexOf("  counterpart-closeout:")), /OPENCLAW_AUTOPILOT_APP_PRIVATE_KEY/u);
+  assert.doesNotMatch(release.slice(0, release.indexOf("  clawhub-auto:")), /OPENCLAW_AUTOPILOT_APP_PRIVATE_KEY/u);
+  assert.equal((release.match(/OPENCLAW_AUTOPILOT_APP_PRIVATE_KEY/gu) ?? []).length, 2);
   verifyWorkflow(release, "release-openclaw-plugin.yml");
 });
 
