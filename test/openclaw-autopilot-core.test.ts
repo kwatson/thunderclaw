@@ -9,7 +9,7 @@ import { classifyQualificationFailure } from "../scripts/classify-openclaw-quali
 import { applyReleaseStateIntent, createReleaseState, decideReleaseResume, validateReleaseState } from "../scripts/openclaw-release-state.mjs";
 import { assessUpgradeEvidence, compareOpenClawVersions, validateUpgradePreflight } from "../scripts/openclaw-upgrade-policy.mjs";
 import { buildPreparedFiles, nextPatchVersion, PREPARATION_FILES, prepareOpenClawUpgrade } from "../scripts/prepare-openclaw-upgrade.mjs";
-import { sanitizedRehearsalEnvironment } from "../scripts/rehearse-openclaw-autopilot.mjs";
+import { parseIndependentClassification, sanitizedRehearsalEnvironment } from "../scripts/rehearse-openclaw-autopilot.mjs";
 
 const root = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
 const hex = (character: string, length: number) => character.repeat(length);
@@ -126,6 +126,13 @@ test("autopilot rehearsal strips every mutation and model credential and forces 
     OPENCLAW_AUTOPILOT_ENABLED: "false",
   });
   assert.equal(source.OPENCLAW_AUTOPILOT_ENABLED, "true");
+});
+
+test("autopilot rehearsal distinguishes policy blocks from classifier execution failures", () => {
+  const blocked = { decision: "blocked", findings: ["lifecycle behavior changed"] };
+  assert.deepEqual(parseIndependentClassification({ status: 1, stdout: JSON.stringify(blocked) }), blocked);
+  assert.throws(() => parseIndependentClassification({ status: 1, stderr: "worktree failed" }), /worktree failed/u);
+  assert.throws(() => parseIndependentClassification({ status: 0, stdout: "not json" }), /malformed evidence/u);
 });
 
 test("preparation reports already-prepared and rejects a conflicting partial candidate", async (context) => {

@@ -29,6 +29,18 @@ export function sanitizedRehearsalEnvironment(source = process.env) {
   return environment;
 }
 
+export function parseIndependentClassification({ status, stdout = "", stderr = "" }) {
+  const output = stdout.trim();
+  if (![0, 1].includes(status) || !output) {
+    throw new Error(`independent classification failed to execute: ${stderr.trim() || "no structured result"}`);
+  }
+  try {
+    return JSON.parse(output);
+  } catch {
+    throw new Error(`independent classification returned malformed evidence: ${stderr.trim() || "invalid JSON"}`);
+  }
+}
+
 async function overlayWorkingTree(root, worktree) {
   const patch = spawnSync("git", ["diff", "--binary", "--no-ext-diff", "HEAD"], { cwd: root, encoding: null, maxBuffer: 64 * 1024 * 1024 });
   if (patch.status !== 0) throw new Error("could not snapshot the working tree for rehearsal");
@@ -83,8 +95,7 @@ export async function rehearseOpenClawAutopilot({ root, baselineFile, preflightF
     const classificationRun = spawnSync("mise", ["exec", "--", "node", "scripts/classify-openclaw-upgrade.mjs",
       "--preflight", preflight, "--root", worktree, "--date", preparedDate],
     { cwd: worktree, env: environment, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
-    if (![0, 1].includes(classificationRun.status)) throw new Error(`independent classification failed to execute: ${classificationRun.stderr.trim()}`);
-    const classification = JSON.parse(classificationRun.stdout);
+    const classification = parseIndependentClassification(classificationRun);
     if (!new Set(["compatibility-only", "blocked"]).has(classification.decision)
         || (classification.decision === "compatibility-only") !== (classification.findings.length === 0)) {
       throw new Error("independent candidate classification returned an inconsistent decision");
