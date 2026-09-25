@@ -22,7 +22,8 @@ function dependencyClosure(lock) {
     const key = queue.shift();
     if (seen.has(key) || !packages[key]) continue;
     seen.add(key);
-    for (const dependency of Object.keys(packages[key].dependencies ?? {})) {
+    const dependencies = { ...(packages[key].dependencies ?? {}), ...(packages[key].optionalDependencies ?? {}) };
+    for (const dependency of Object.keys(dependencies)) {
       let owner = key;
       let found;
       while (owner.startsWith("node_modules/")) {
@@ -65,7 +66,7 @@ export function classifyLockfileChange(beforeText, afterText) {
   }
   for (const key of changedKeys(oldPackages, newPackages)) {
     if (!allowedPackageKeys.has(key)) continue;
-    const fields = ["hasInstall", "hasInstallScript", "scripts", ...(oldPackages[key] && newPackages[key] ? ["bin"] : [])];
+    const fields = oldPackages[key] && newPackages[key] ? ["hasInstall", "hasInstallScript", "scripts", "bin"] : [];
     for (const field of fields) {
       if (!same(oldPackages[key]?.[field], newPackages[key]?.[field])) findings.push(`lockfile package changed lifecycle behavior: ${key}.${field}`);
     }
@@ -191,7 +192,7 @@ export async function regenerateLockfile(root, snapshots, preflight, preparedDat
     for (const file of PREPARATION_FILES.filter((entry) => entry !== "package-lock.json")) {
       await writeFile(path.join(worktree, file), prepared.files[file]);
     }
-    const result = spawnSync("npm", ["install", "--package-lock-only", "--ignore-scripts", "--no-audit", "--no-fund", "--no-save", `openclaw@${preflight.proposed.version}`],
+    const result = spawnSync("npm", ["install", "--package-lock-only", "--ignore-scripts", "--no-audit", "--no-fund"],
       { cwd: worktree, encoding: "utf8", maxBuffer: 32 * 1024 * 1024 });
     if (result.status !== 0) throw new Error(`independent lockfile regeneration failed: ${result.stderr.trim()}`);
     return await readFile(path.join(worktree, "package-lock.json"), "utf8");

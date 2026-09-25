@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { classifyPreparedUpgrade } from "../scripts/classify-openclaw-upgrade.mjs";
+import { classifyLockfileChange, classifyPreparedUpgrade } from "../scripts/classify-openclaw-upgrade.mjs";
 import { applyReleaseStateIntent, createReleaseState, decideReleaseResume, validateReleaseState } from "../scripts/openclaw-release-state.mjs";
 import { assessUpgradeEvidence, compareOpenClawVersions, validateUpgradePreflight } from "../scripts/openclaw-upgrade-policy.mjs";
 import { buildPreparedFiles, nextPatchVersion, PREPARATION_FILES, prepareOpenClawUpgrade } from "../scripts/prepare-openclaw-upgrade.mjs";
@@ -205,6 +205,22 @@ test("classifier ignores a forged manifest allowlist and rejects scripts, unrela
   const descriptors = Object.fromEntries(Object.entries(built.files).map(([file, content]) => [file, { type: "file", mode: "100644", content }]));
   descriptors["package.json"] = { ...descriptors["package.json"], mode: "100755" };
   assert.match(classify(descriptors).findings.join("\n"), /mode changed/u);
+});
+
+test("lockfile classification follows optional dependency closure and permits dependency removal", () => {
+  const lock = (packages: Record<string, unknown>) => JSON.stringify({ lockfileVersion: 3, packages: { "": {}, "packages/openclaw-plugin": {}, ...packages } });
+  const before = lock({
+    "node_modules/openclaw": { version: "1", dependencies: { removed: "1" }, optionalDependencies: { helper: "1" } },
+    "node_modules/helper": { version: "1", optionalDependencies: { "helper-linux": "1" } },
+    "node_modules/helper-linux": { version: "1" },
+    "node_modules/removed": { version: "1", hasInstallScript: true },
+  });
+  const after = lock({
+    "node_modules/openclaw": { version: "2", optionalDependencies: { helper: "2" } },
+    "node_modules/helper": { version: "2", optionalDependencies: { "helper-linux": "2" } },
+    "node_modules/helper-linux": { version: "2" },
+  });
+  assert.deepEqual(classifyLockfileChange(before, after), []);
 });
 
 test("release state provides strict CAS, replay, and safe resume through qualification", () => {
