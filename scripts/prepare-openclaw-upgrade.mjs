@@ -57,13 +57,14 @@ function updateLockfile(contents, previous, next, pluginVersion) {
   const plugin = lock.packages["packages/openclaw-plugin"];
   const openclaw = lock.packages["node_modules/openclaw"];
   if (!root || !plugin || !openclaw) throw new Error("package-lock.json is missing required package records");
-  if (root.devDependencies?.openclaw !== `^${next.stableVersion}`
-      || plugin.version !== pluginVersion
-      || plugin.peerDependencies?.openclaw !== next.supportedRange
-      || openclaw.version !== next.stableVersion
-      || openclaw.integrity !== next.npm.integrity) {
-    throw new Error("generated package-lock.json does not contain the exact prepared OpenClaw and plugin identities");
-  }
+  const mismatches = [
+    root.devDependencies?.openclaw !== `^${next.stableVersion}` && "root OpenClaw dependency",
+    plugin.version !== pluginVersion && "plugin version",
+    plugin.peerDependencies?.openclaw !== next.supportedRange && "plugin OpenClaw peer range",
+    openclaw.version !== next.stableVersion && "OpenClaw version",
+    openclaw.integrity !== next.npm.integrity && "OpenClaw integrity",
+  ].filter(Boolean);
+  if (mismatches.length > 0) throw new Error(`generated package-lock.json does not contain the exact prepared OpenClaw and plugin identities: ${mismatches.join(", ")}`);
   if (openclaw.resolved !== `https://registry.npmjs.org/openclaw/-/openclaw-${next.stableVersion}.tgz`) {
     throw new Error("generated package-lock.json has an unexpected OpenClaw archive URL");
   }
@@ -165,7 +166,7 @@ export async function prepareOpenClawUpgrade({ root, baseline, preflight, lockfi
     try {
       prepared = buildPreparedFiles({ files: withoutLock, preflight, generatedLockfile: json(oldLock), preparedDate });
       for (const file of PREPARATION_FILES.filter((file) => file !== "package-lock.json")) await writeFile(path.join(root, file), prepared.files[file]);
-      const result = spawnSync("mise", ["exec", "--", "npm", "install", "--package-lock-only", "--ignore-scripts", "--no-audit", "--no-fund", "--no-save", `openclaw@${preflight.proposed.version}`], { cwd: root, encoding: "utf8", maxBuffer: 32 * 1024 * 1024 });
+      const result = spawnSync("mise", ["exec", "--", "npm", "install", "--package-lock-only", "--ignore-scripts", "--no-audit", "--no-fund"], { cwd: root, encoding: "utf8", maxBuffer: 32 * 1024 * 1024 });
       if (result.status !== 0) throw new Error(`managed npm lockfile regeneration failed: ${result.stderr.trim()}`);
       generatedLockfile = await readFile(path.join(root, "package-lock.json"), "utf8");
       prepared = buildPreparedFiles({ files: originals, preflight, generatedLockfile, preparedDate });

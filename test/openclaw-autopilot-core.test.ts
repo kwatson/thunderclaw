@@ -101,6 +101,12 @@ test("preparation generates only canonical compatibility surfaces and detects pa
   assert.throws(() => buildPreparedFiles({ files: partial, preflight: preflight(), generatedLockfile: generatedLockfile(files["package-lock.json"]), preparedDate: "2026-09-23" }), /partial or drifted/u);
 });
 
+test("lockfile regeneration follows the prepared workspace manifests", async () => {
+  const source = await readFile(path.join(root, "scripts/prepare-openclaw-upgrade.mjs"), "utf8");
+  assert.match(source, /npm", "install", "--package-lock-only", "--ignore-scripts", "--no-audit", "--no-fund"/u);
+  assert.doesNotMatch(source, /"--no-save"/u);
+});
+
 test("preparation reports already-prepared and rejects a conflicting partial candidate", async (context) => {
   const files = await repositoryFiles();
   const built = buildPreparedFiles({ files, preflight: preflight(), generatedLockfile: generatedLockfile(files["package-lock.json"]), preparedDate: "2026-09-23" });
