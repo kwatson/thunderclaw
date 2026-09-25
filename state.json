@@ -1,9 +1,9 @@
 {
   "format": "thunderclaw-openclaw-autopilot-state-v1",
-  "revision": 0,
-  "phase": "observed",
+  "revision": 2,
+  "phase": "ready",
   "reservationId": "b8bf891862feec89763b270a3588c465",
-  "baseSha": "25395ca288c8c6b83f42009e2fe01e32b09099d4",
+  "baseSha": "c7713735dc1b93042e835cddb0e79a285a9ec9d3",
   "baseline": {
     "format": "thunderclaw-openclaw-upgrade-preflight-v2",
     "observedAt": "2026-09-25T18:03:55.562Z",
@@ -129,15 +129,35 @@
   },
   "identitySha256": "0b9abbf859f1adbdfed240e338a347d4cf9630534fb1ee0152053ee482b06070",
   "firstObservedAt": "2026-09-25T18:03:55.562Z",
-  "lastObservedAt": "2026-09-25T18:03:55.562Z",
+  "lastObservedAt": "2026-09-25T18:17:05.154Z",
   "soakCompletesAt": "2026-09-26T18:03:55.562Z",
   "advisories": [
     "upstream release tag is unsigned or unverified",
     "upstream release commit is unsigned or unverified",
     "upstream CI waivers are recorded in the official release evidence",
-    "upstream CI was waived"
+    "upstream CI was waived",
+    "24-hour soak waived: explicit manual expedite for OpenClaw 2026.9.6"
   ],
   "blockers": [],
   "outputs": {},
-  "history": []
+  "history": [
+    {
+      "intentId": "reobserve-36172366868-1",
+      "type": "reobserve",
+      "at": "2026-09-25T18:17:22Z",
+      "payloadSha256": "a3b5b23a41844a9625a718216ae50139651150eedeeb004b0b5f4c80c5cf9547",
+      "from": "observed",
+      "to": "observed",
+      "revision": 1
+    },
+    {
+      "intentId": "waive-soak-36172366868-1",
+      "type": "waive-soak",
+      "at": "2026-09-25T18:17:22Z",
+      "payloadSha256": "31cc540bf735504b261682ef72d4553b56489e008d009732510c7e336cc46af1",
+      "from": "observed",
+      "to": "ready",
+      "revision": 2
+    }
+  ]
 }
