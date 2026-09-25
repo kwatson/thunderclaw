@@ -1,9 +1,9 @@
 {
   "format": "thunderclaw-openclaw-autopilot-state-v1",
-  "revision": 4,
+  "revision": 6,
   "phase": "ready",
   "reservationId": "b8bf891862feec89763b270a3588c465",
-  "baseSha": "54331491de8aff132abde72f44987c9455417dc4",
+  "baseSha": "da1afda6731fa4efdc25015c11ec835f6e82be84",
   "baseline": {
     "format": "thunderclaw-openclaw-upgrade-preflight-v2",
     "observedAt": "2026-09-25T18:03:55.562Z",
@@ -129,7 +129,7 @@
   },
   "identitySha256": "0b9abbf859f1adbdfed240e338a347d4cf9630534fb1ee0152053ee482b06070",
   "firstObservedAt": "2026-09-25T18:03:55.562Z",
-  "lastObservedAt": "2026-09-25T18:20:19.440Z",
+  "lastObservedAt": "2026-09-25T18:23:54.103Z",
   "soakCompletesAt": "2026-09-26T18:03:55.562Z",
   "advisories": [
     "upstream release tag is unsigned or unverified",
@@ -176,6 +176,24 @@
       "from": "observed",
       "to": "ready",
       "revision": 4
+    },
+    {
+      "intentId": "reobserve-36173089368-1",
+      "type": "reobserve",
+      "at": "2026-09-25T18:24:13Z",
+      "payloadSha256": "92355b9cf1958bb373f6a804e3f6bdc97f933ee174c08c62c852b08a6e4ac6e5",
+      "from": "ready",
+      "to": "observed",
+      "revision": 5
+    },
+    {
+      "intentId": "waive-soak-36173089368-1",
+      "type": "waive-soak",
+      "at": "2026-09-25T18:24:13Z",
+      "payloadSha256": "31cc540bf735504b261682ef72d4553b56489e008d009732510c7e336cc46af1",
+      "from": "observed",
+      "to": "ready",
+      "revision": 6
     }
   ]
 }
