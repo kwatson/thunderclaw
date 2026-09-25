@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -16,6 +16,8 @@ function validate(kind: "xpi" | "plugin-tgz", artifact: string) {
 test("candidate artifact validator accepts current ThunderClaw archives and reports their digest", async () => {
   const temporary = await mkdtemp(path.join(os.tmpdir(), "thunderclaw-artifact-build-"));
   try {
+    const extensionPackage = JSON.parse(await readFile(path.join(root, "packages/thunderbird-extension/package.json"), "utf8"));
+    const pluginPackage = JSON.parse(await readFile(path.join(root, "packages/openclaw-plugin/package.json"), "utf8"));
     const xpi = execFileSync(process.execPath, [path.join(root, "scripts/build-extension.mjs"), "--isolated-parent", temporary], {
       cwd: root, encoding: "utf8",
     }).trim();
@@ -23,8 +25,8 @@ test("candidate artifact validator accepts current ThunderClaw archives and repo
       cwd: root, encoding: "utf8",
     }).trim().split("\n").at(-1)!;
     for (const [kind, component, version, artifact] of [
-      ["xpi", "thunderbird-extension", "0.1.2", xpi],
-      ["plugin-tgz", "openclaw-plugin", "0.1.10", plugin],
+      ["xpi", "thunderbird-extension", extensionPackage.version, xpi],
+      ["plugin-tgz", "openclaw-plugin", pluginPackage.version, plugin],
     ] as const) {
       const result = validate(kind, artifact);
       assert.equal(result.status, 0, result.stderr);
@@ -58,8 +60,9 @@ test("candidate artifact validator rejects wrong suffixes, versions, and identit
 
     const pluginSource = path.join(temporary, "plugin-source", "package");
     execFileSync("mkdir", ["-p", pluginSource]);
+    const pluginPackage = JSON.parse(await readFile(path.join(root, "packages/openclaw-plugin/package.json"), "utf8"));
     await writeFile(path.join(pluginSource, "package.json"), JSON.stringify({
-      name: "@someone/other-plugin", version: "0.1.10",
+      name: "@someone/other-plugin", version: pluginPackage.version,
     }));
     await writeFile(path.join(pluginSource, "openclaw.plugin.json"), JSON.stringify({
       id: "thunderclaw", name: "ThunderClaw",

@@ -25,11 +25,13 @@ test("ClawHub catalog metadata presents the ThunderClaw brand", async () => {
 test("Thunderbird extension declares compose and message-view boundaries", async () => {
   const manifest = JSON.parse(await readFile(new URL("../packages/thunderbird-extension/src/manifest.json", import.meta.url), "utf8"));
   const repositoryPackage = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
+  const repositoryLock = JSON.parse(await readFile(new URL("../package-lock.json", import.meta.url), "utf8"));
   const pluginPackage = JSON.parse(await readFile(new URL("../packages/openclaw-plugin/package.json", import.meta.url), "utf8"));
   const extensionPackage = JSON.parse(await readFile(new URL("../packages/thunderbird-extension/package.json", import.meta.url), "utf8"));
   assert.equal(manifest.version, "0.1.2");
   assert.equal(repositoryPackage.version, undefined);
-  assert.equal(pluginPackage.version, "0.1.10");
+  assert.equal(pluginPackage.version, repositoryLock.packages["packages/openclaw-plugin"].version);
+  assert.match(pluginPackage.version, /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/u);
   assert.equal(extensionPackage.version, manifest.version);
   assert.equal(manifest.browser_specific_settings.gecko.id, "thunderclaw@addons.thunderbird.net");
   assert.deepEqual(manifest.permissions.sort(), ["compose", "messagesRead", "scripting", "sensitiveDataUpload", "storage"]);

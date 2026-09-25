@@ -5,9 +5,11 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { classifyLockfileChange, classifyPreparedUpgrade } from "../scripts/classify-openclaw-upgrade.mjs";
+import { classifyQualificationFailure } from "../scripts/classify-openclaw-qualification-failure.mjs";
 import { applyReleaseStateIntent, createReleaseState, decideReleaseResume, validateReleaseState } from "../scripts/openclaw-release-state.mjs";
 import { assessUpgradeEvidence, compareOpenClawVersions, validateUpgradePreflight } from "../scripts/openclaw-upgrade-policy.mjs";
 import { buildPreparedFiles, nextPatchVersion, PREPARATION_FILES, prepareOpenClawUpgrade } from "../scripts/prepare-openclaw-upgrade.mjs";
+import { sanitizedRehearsalEnvironment } from "../scripts/rehearse-openclaw-autopilot.mjs";
 
 const root = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
 const hex = (character: string, length: number) => character.repeat(length);
@@ -105,6 +107,25 @@ test("lockfile regeneration follows the prepared workspace manifests", async () 
   const source = await readFile(path.join(root, "scripts/prepare-openclaw-upgrade.mjs"), "utf8");
   assert.match(source, /npm", "install", "--package-lock-only", "--ignore-scripts", "--no-audit", "--no-fund"/u);
   assert.doesNotMatch(source, /"--no-save"/u);
+});
+
+test("autopilot rehearsal strips every mutation and model credential and forces the kill switch off", () => {
+  const source = {
+    PATH: "/usr/bin",
+    GH_TOKEN: "github",
+    GITHUB_TOKEN: "github-actions",
+    OPENCLAW_AUTOPILOT_APP_PRIVATE_KEY: "app",
+    CLAWHUB_TOKEN: "clawhub",
+    DEEPSEEK_API_KEY: "model",
+    OPENCLAW_GATEWAY_TOKEN: "gateway",
+    OPENCLAW_AUTOPILOT_ENABLED: "true",
+  };
+  assert.deepEqual(sanitizedRehearsalEnvironment(source), {
+    PATH: "/usr/bin",
+    CI: "true",
+    OPENCLAW_AUTOPILOT_ENABLED: "false",
+  });
+  assert.equal(source.OPENCLAW_AUTOPILOT_ENABLED, "true");
 });
 
 test("preparation reports already-prepared and rejects a conflicting partial candidate", async (context) => {
@@ -223,10 +244,28 @@ test("lockfile classification follows optional dependency closure and permits de
   assert.deepEqual(classifyLockfileChange(before, after), []);
 });
 
+test("lockfile classification rejects lifecycle behavior on newly admitted dependency packages", () => {
+  const lock = (packages: Record<string, unknown>) => JSON.stringify({ lockfileVersion: 3, packages: { "": {}, "packages/openclaw-plugin": {}, ...packages } });
+  const before = lock({ "node_modules/openclaw": { version: "1" } });
+  for (const lifecycle of [
+    { hasInstall: true },
+    { hasInstallScript: true },
+    { scripts: { install: "node install.js" } },
+    { bin: { helper: "bin/helper.js" } },
+  ]) {
+    const after = lock({
+      "node_modules/openclaw": { version: "2", dependencies: { helper: "1" } },
+      "node_modules/helper": { version: "1", ...lifecycle },
+    });
+    assert.match(classifyLockfileChange(before, after).join("\n"), /lifecycle behavior/u);
+  }
+});
+
 test("release state provides strict CAS, replay, and safe resume through qualification", () => {
   const baseline = preflight();
   const state = createReleaseState(baseline, { reservationId: hex("1", 32), baseSha: hex("2", 40) });
-  assert.deepEqual(decideReleaseResume(state), { action: "reobserve", revision: 0, notBefore: "2026-09-23T01:00:00.000Z" });
+  assert.deepEqual(decideReleaseResume(state), { action: "reobserve", revision: 0,
+    pause: { reason: "soak", until: "2026-09-23T01:00:00.000Z" } });
   const intent = (intentId: string, expectedRevision: number, type: string, payload: object, at = "2026-09-23T01:00:00.000Z") => ({ format: "thunderclaw-openclaw-autopilot-intent-v1" as const, intentId, expectedRevision, type, at, payload });
   const readyResult = applyReleaseStateIntent(state, intent("observe-2", 0, "reobserve", { preflight: preflight("2026-09-23T01:00:00.000Z"), baseSha: hex("2", 40) }, "2026-09-23T01:00:00Z") as never);
   assert.equal(readyResult.state.phase, "ready");
@@ -240,13 +279,52 @@ test("release state provides strict CAS, replay, and safe resume through qualifi
   assert.equal(decideReleaseResume(prepared).action, "dispatch-qualification");
   const dispatch = { requestId: "request-1", workflow: "qualify-openclaw-autopilot.yml", workflowCommit: hex("b", 40), workflowSha256: automation.qualificationWorkflowSha, dispatchedAt: "2026-09-23T01:01:00.000Z" };
   const qualifying = applyReleaseStateIntent(prepared, intent("dispatch", 2, "record-qualification-dispatch", dispatch, dispatch.dispatchedAt) as never).state;
-  const failed = applyReleaseStateIntent(qualifying, intent("failed", 3, "block", { reason: "ThunderClaw qualification run 123 attempt 1 failed; no gate was skipped or waived" }) as never).state;
-  const recovered = applyReleaseStateIntent(failed, intent("recover", 4, "recover-qualification-automation", { failedRunId: 123, failedRunAttempt: 1, reason: "trusted workflow fingerprint verifier corrected", reservationId: hex("f", 32), baseSha: hex("e", 40) }) as never).state;
+  const run = { id: 123, run_attempt: 1, event: "workflow_dispatch", conclusion: "failure", head_sha: dispatch.workflowCommit,
+    head_branch: "main", path: ".github/workflows/qualify-openclaw-autopilot.yml@refs/heads/main" };
+  const jobs = { jobs: [
+    ["Bind immutable source and trusted workflow", "failure"],
+    ["Deterministic tests, types, and packages", "skipped"], ["Pinned OpenClaw integration", "skipped"],
+    ["Thunderbird Linux qualification", "skipped"], ["Native Windows qualification", "skipped"],
+    ["Native macOS qualification", "skipped"], ["Protected exact-pair real-agent qualification", "skipped"],
+    ["Bind successful qualification result", "failure"],
+  ].map(([name, conclusion]) => ({ name, conclusion, status: "completed" })) };
+  const failure = classifyQualificationFailure({ state: qualifying, run, jobs });
+  const failed = applyReleaseStateIntent(qualifying, intent("failed", 3, "record-qualification-failure", failure) as never).state;
+  assert.equal(failed.phase, "retryable");
+  assert.equal(decideReleaseResume(failed).action, "retry-qualification");
+  const recovered = applyReleaseStateIntent(failed, intent("recover", 4, "recover-qualification-automation", { failedRunId: 123, failedRunAttempt: 1,
+    failureEvidenceSha256: failure.evidenceSha256, identitySha256: failed.identitySha256,
+    preflight: preflight("2026-09-23T02:00:00.000Z"), reason: "trusted workflow fingerprint verifier corrected",
+    reservationId: hex("f", 32), baseSha: hex("e", 40) }) as never).state;
   assert.equal(recovered.phase, "ready");
   assert.deepEqual(recovered.outputs, {});
   assert.deepEqual(recovered.blockers, []);
   assert.equal(recovered.reservationId, hex("f", 32));
-  assert.throws(() => applyReleaseStateIntent(failed, intent("bad-recover", 4, "recover-qualification-automation", { failedRunId: 999, failedRunAttempt: 1, reason: "wrong run", reservationId: hex("f", 32), baseSha: hex("e", 40) }) as never), /only an exact/u);
+  assert.throws(() => applyReleaseStateIntent(failed, intent("bad-recover", 4, "recover-qualification-automation", { failedRunId: 999, failedRunAttempt: 1,
+    failureEvidenceSha256: failure.evidenceSha256, identitySha256: failed.identitySha256,
+    preflight: preflight("2026-09-23T02:00:00.000Z"), reason: "wrong run", reservationId: hex("f", 32), baseSha: hex("e", 40) }) as never), /structured pre-gate/u);
+
+  const gateJobs = structuredClone(jobs);
+  gateJobs.jobs[0].conclusion = "success";
+  gateJobs.jobs[1].conclusion = "failure";
+  const gateFailure = classifyQualificationFailure({ state: qualifying, run, jobs: gateJobs });
+  const gateBlocked = applyReleaseStateIntent(qualifying, intent("gate-failed", 3, "record-qualification-failure", gateFailure) as never).state;
+  assert.equal(gateBlocked.phase, "blocked");
+  assert.equal(gateFailure.classification.recoverable, false);
+  assert.equal(applyReleaseStateIntent(gateBlocked, intent("cannot-recover", 4, "recover-qualification-automation", {
+    failedRunId: 123, failedRunAttempt: 1, failureEvidenceSha256: gateFailure.evidenceSha256,
+    identitySha256: gateBlocked.identitySha256, preflight: preflight("2026-09-23T02:00:00.000Z"),
+    reason: "test failed", reservationId: hex("f", 32), baseSha: hex("e", 40),
+  }) as never).decision, "terminal");
+  const cancelledRun = { ...run, conclusion: "cancelled" };
+  const cancelledJobs = structuredClone(jobs);
+  cancelledJobs.jobs[0].conclusion = "success";
+  cancelledJobs.jobs.at(-1)!.conclusion = "cancelled";
+  const cancellation = classifyQualificationFailure({ state: qualifying, run: cancelledRun, jobs: cancelledJobs });
+  const cancelled = applyReleaseStateIntent(qualifying, intent("cancelled", 3, "record-qualification-failure", cancellation) as never).state;
+  assert.equal(cancelled.phase, "cancelled");
+  assert.equal(decideReleaseResume(cancelled).action, "cancelled");
+  assert.equal(cancellation.classification.recoverable, false);
   const qualification = { ...dispatch, runId: 123, runAttempt: 1, headSha: preparation.candidateSha, headBranch: preparation.branch, event: "workflow_dispatch", conclusion: "success", evidenceSha256: hex("c", 64), classificationEvidenceSha256: preparation.classificationEvidenceSha256, candidateArtifactSha256: hex("d", 64), counterpart };
   delete (qualification as Partial<typeof qualification>).dispatchedAt;
   const qualified = applyReleaseStateIntent(qualifying, intent("qualify", 3, "record-qualification", qualification, "2026-09-23T02:00:00.000Z") as never).state;
@@ -285,7 +363,9 @@ test("a manual expedite records an auditable one-release soak waiver", () => {
     expectedRevision: 1,
     type: "waive-soak",
     at: "2026-09-22T02:00:01.000Z",
-    payload: { reason: `explicit manual expedite for OpenClaw ${proposedVersion}` },
+    payload: { reason: `explicit manual expedite for OpenClaw ${proposedVersion}`,
+      identitySha256: reobserved.identitySha256, firstObservedAt: reobserved.firstObservedAt,
+      secondObservedAt: reobserved.lastObservedAt },
   } as never).state;
   assert.equal(expedited.phase, "ready");
   assert.equal(decideReleaseResume(expedited).action, "prepare");
@@ -296,6 +376,25 @@ test("a manual expedite records an auditable one-release soak waiver", () => {
     expectedRevision: 0,
     type: "waive-soak",
     at: "2026-09-22T02:00:01.000Z",
-    payload: { reason: "" },
+    payload: { reason: "", identitySha256: state.identitySha256,
+      firstObservedAt: state.firstObservedAt, secondObservedAt: state.lastObservedAt },
   } as never), /reason is malformed/u);
+  assert.throws(() => applyReleaseStateIntent(state, {
+    format: "thunderclaw-openclaw-autopilot-intent-v1",
+    intentId: "one-observation-only",
+    expectedRevision: 0,
+    type: "waive-soak",
+    at: "2026-09-22T02:00:01.000Z",
+    payload: { reason: "not enough evidence", identitySha256: state.identitySha256,
+      firstObservedAt: state.firstObservedAt, secondObservedAt: state.lastObservedAt },
+  } as never), /two distinct observations/u);
+  assert.throws(() => applyReleaseStateIntent(reobserved, {
+    format: "thunderclaw-openclaw-autopilot-intent-v1",
+    intentId: "wrong-identity",
+    expectedRevision: 1,
+    type: "waive-soak",
+    at: "2026-09-22T02:00:01.000Z",
+    payload: { reason: "wrong identity", identitySha256: hex("f", 64),
+      firstObservedAt: reobserved.firstObservedAt, secondObservedAt: reobserved.lastObservedAt },
+  } as never), /exact same release identity/u);
 });

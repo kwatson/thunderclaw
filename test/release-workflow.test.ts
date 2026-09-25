@@ -112,6 +112,7 @@ test("OpenClaw automatic release is selected only by the read-only durable-state
   assert.match(classifier, /permissions:\n\s+actions: read\n\s+contents: read/u);
   assert.doesNotMatch(classifier, /contents: write|id-token: write|secrets\./u);
   assert.match(classifier, /release_lane=manual/u);
+  assert.match(classifier, /verify-openclaw-foundation\.mjs[\s\S]*release_lane=foundation/u);
   assert.match(classifier, /refs\/heads\/automation\/openclaw-autopilot-state/u);
   assert.match(classifier, /contents\/state\.json\?ref=\$state_commit/u);
   assert.match(classifier, /openclaw-autopilot-result-\$\{request_id\}-\$\{run_attempt\}/u);
@@ -135,7 +136,7 @@ test("OpenClaw automatic release is selected only by the read-only durable-state
   assert.match(publisher, /workflow_dispatch:[\s\S]*release_lane:[\s\S]*options:[\s\S]*- automatic/u);
   assert.match(publisher, /GITHUB_EVENT_NAME" == workflow_dispatch/u);
   assert.match(publisher, /\.github\/workflows\/publish-clawhub\.yml@refs\/tags\/\$RELEASE_TAG/u);
-  assert.match(publisher, /test "\$KILL_SWITCH" = true/u);
+  assert.match(publisher, /assert-openclaw-autopilot-enabled\.mjs/u);
   assert.match(publisher, /GITHUB_WORKFLOW_REF/u);
   assert.match(release, /clawhub-auto:[\s\S]*permission-actions: write[\s\S]*gh workflow run \.github\/workflows\/publish-clawhub\.yml --ref "\$RELEASE_TAG"/u);
   assert.match(release, /displayTitle == \$title and \.headBranch == \$tag and \.headSha == \$commit/u);
@@ -144,6 +145,11 @@ test("OpenClaw automatic release is selected only by the read-only durable-state
   assert.match(release, /actual_workflow=\$\(\{ sha256sum \.github\/workflows\/release-openclaw-plugin\.yml \.github\/workflows\/publish-clawhub\.yml;/u);
   assert.match(releaseClassifier, /publicationWorkflowPaths = \["\.github\/workflows\/release-openclaw-plugin\.yml", "\.github\/workflows\/publish-clawhub\.yml"\]/u);
   assert.match(releaseClassifier, /automation\.releaseWorkflowSha = digest\(publicationWorkflowPaths\.map/u);
+  assert.match(release, /Re-read the live autopilot guard before provenance[\s\S]*attest-build-provenance/u);
+  assert.match(release, /release:\n[\s\S]*?permissions:\n\s+actions: read[\s\S]*?Install managed runtimes/u);
+  assert.match(release, /RELEASE_LANE[\s\S]*assert-openclaw-autopilot-enabled\.mjs[\s\S]*gh release create/u);
+  assert.match(publisher, /publish-clawhub:\n[\s\S]*?permissions:\n\s+actions: read/u);
+  assert.match(publisher, /RELEASE_LANE" == automatic[\s\S]*assert-openclaw-autopilot-enabled\.mjs[\s\S]*bun "\$cli" package publish/u);
 });
 
 test("automatic publication probes external state and isolates App-powered one-file closeout", async () => {
@@ -163,6 +169,8 @@ test("automatic publication probes external state and isolates App-powered one-f
   assert.match(closeout, /automation\/counterpart-\$\{RELEASE_TAG\}/u);
   assert.match(closeout, /gh pr list --head/u);
   assert.match(closeout, /gh pr merge "\$pr_number" --auto --squash --match-head-commit/u);
+  assert.ok((closeout.match(/assert-openclaw-autopilot-enabled\.mjs/gu) ?? []).length >= 4,
+    "closeout branch, PR, state, and auto-merge mutations must each re-read the live guard");
   assert.doesNotMatch(release.slice(0, release.indexOf("  clawhub-auto:")), /OPENCLAW_AUTOPILOT_APP_PRIVATE_KEY/u);
   assert.equal((release.match(/OPENCLAW_AUTOPILOT_APP_PRIVATE_KEY/gu) ?? []).length, 2);
   verifyWorkflow(release, "release-openclaw-plugin.yml");

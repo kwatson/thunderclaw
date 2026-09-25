@@ -22,6 +22,7 @@
     "preflight:openclaw-upgrade": "node scripts/preflight-openclaw-upgrade.mjs",
     "prepare:openclaw-upgrade": "node scripts/prepare-openclaw-upgrade.mjs",
     "classify:openclaw-upgrade": "node scripts/classify-openclaw-upgrade.mjs",
+    "rehearse:openclaw-autopilot": "node scripts/rehearse-openclaw-autopilot.mjs",
     "state:openclaw-upgrade": "node scripts/openclaw-release-state.mjs",
     "verify:openclaw-qualification": "node scripts/verify-openclaw-qualification.mjs",
     "update:counterpart": "node scripts/update-counterpart-baseline.mjs",

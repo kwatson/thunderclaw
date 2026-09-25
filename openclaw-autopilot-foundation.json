@@ -1,0 +1,27 @@
+{
+  "format": "thunderclaw-openclaw-autopilot-foundation-v1",
+  "from": {
+    "tag": "openclaw-plugin-v0.1.10",
+    "pluginVersion": "0.1.10",
+    "commit": "b2928d9abfb03f0314cea576bed49bcd8dedfb91",
+    "artifactName": "thunderclaw-openclaw-plugin-0.1.10.tgz",
+    "artifactSha256": "6fdcadf6a68657fba8995f96e7104f28245799c6b99c1505453698d1444c706b",
+    "artifactSize": 108496
+  },
+  "foundation": {
+    "tag": "openclaw-plugin-v0.1.11",
+    "pluginVersion": "0.1.11",
+    "openclawVersion": "2026.9.6"
+  },
+  "retireState": {
+    "revision": 16,
+    "phase": "ready",
+    "reservationId": "b56e887895d0e87388dd1c8c01dbd92e",
+    "identitySha256": "0b9abbf859f1adbdfed240e338a347d4cf9630534fb1ee0152053ee482b06070"
+  },
+  "policy": {
+    "releaseLane": "foundation",
+    "humanReviewRequired": true,
+    "counterpartCloseoutRequired": true
+  }
+}

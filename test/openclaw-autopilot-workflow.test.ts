@@ -80,12 +80,22 @@ test("autopilot controller is a short trusted-main state machine with isolated m
   assert.match(workflow, /git (?:update-ref|[^\n]* push origin)/u);
   assert.match(workflow, /--force-with-lease/u);
   assert.match(workflow, /OPENCLAW_AUTOPILOT_ENABLED/u);
+  assert.match(workflow, /assert-openclaw-autopilot-enabled\.mjs/u);
+  assert.match(workflow, /find_run\(\)[\s\S]*Exact qualification dispatch already exists[\s\S]*dispatch_status=\$\?/u);
+  assert.match(workflow, /classify-openclaw-qualification-failure\.mjs[\s\S]*record-qualification-failure/u);
+  assert.match(workflow, /retry_pre_gate_failure:[\s\S]*recover-qualification-automation/u);
+  assert.match(workflow, /verify-openclaw-foundation\.mjs[\s\S]*--closeout-state[\s\S]*Roll over reviewed OpenClaw foundation state/u);
   assert.match(workflow, /== qualifying \|\|[\s\S]*== qualified \|\|[\s\S]*== merged/u);
   assert.match(workflow, /gh run rerun[\s\S]*--failed/u);
   assert.match(workflow, /gh pr merge[\s\S]*--auto --squash --match-head-commit/u);
   assert.match(workflow, /actions\/create-github-app-token@[a-f0-9]{40}/u);
+  assert.equal((workflow.match(/uses: actions\/create-github-app-token@/gu) ?? []).length,
+    (workflow.match(/permission-actions: (?:read|write)/gu) ?? []).length,
+    "every App token that can mutate must also be able to re-read the live guard");
   assert.match(workflow, /repos\/\$GITHUB_REPOSITORY\/git\/tags/u);
   assert.match(workflow, /ref="refs\/tags\/\$tag"/u);
+  assert.ok((workflow.match(/assert-openclaw-autopilot-enabled\.mjs/gu) ?? []).length >= 16,
+    "each controller mutation must re-read the live repository variable");
   assert.doesNotMatch(workflow, /sleep\s+(?:[6-9]\d|[1-9]\d{2,})/u);
 
   const mutationJobs = [...workflow.matchAll(/^  (prepare|merge-and-tag):\n([\s\S]*?)(?=^  [a-z][a-z-]+:\n|(?![\s\S]))/gmu)];
@@ -108,5 +118,8 @@ test("merged counterpart closeout completes only the exact durable reservation",
   assert.match(workflow, /complete-closeout/u);
   assert.match(workflow, /--force-with-lease/u);
   assert.match(workflow, /openclaw-autopilot-mutation/u);
+  assert.match(workflow, /vars\.OPENCLAW_AUTOPILOT_ENABLED == 'true'/u);
+  assert.match(workflow, /assert-openclaw-autopilot-enabled\.mjs/u);
+  assert.match(workflow, /permission-actions: read/u);
   verifyPinnedActionsAndShell(workflow, "complete-openclaw-autopilot-closeout.yml");
 });

@@ -28,6 +28,7 @@ on:
         type: choice
         options:
           - manual
+          - foundation
           - automatic
 
 permissions:
@@ -45,6 +46,7 @@ jobs:
     environment:
       name: ${{ inputs.release_lane == 'automatic' && 'clawhub-auto' || 'clawhub' }}
     permissions:
+      actions: read
       contents: read
       id-token: write
     steps:
@@ -115,14 +117,14 @@ jobs:
 
       - name: Verify publication lane and protected ref
         env:
-          KILL_SWITCH: ${{ vars.OPENCLAW_AUTOPILOT_ENABLED }}
+          GH_TOKEN: ${{ github.token }}
           RELEASE_LANE: ${{ inputs.release_lane || 'manual' }}
           RELEASE_COMMIT: ${{ steps.release.outputs.commit }}
           RELEASE_TAG: ${{ inputs.tag }}
         shell: bash
         run: |
           set -euo pipefail
-          case "$RELEASE_LANE" in manual|automatic) ;; *) echo "Unknown publication lane" >&2; exit 1 ;; esac
+          case "$RELEASE_LANE" in manual|foundation|automatic) ;; *) echo "Unknown publication lane" >&2; exit 1 ;; esac
           if [[ "$RELEASE_LANE" == automatic ]]; then
             [[ "$GITHUB_EVENT_NAME" == workflow_dispatch && "$GITHUB_REF" == "refs/tags/$RELEASE_TAG" && "$GITHUB_SHA" == "$RELEASE_COMMIT" ]] || {
               echo "Automatic ClawHub publication requires an exact protected-tag workflow dispatch" >&2
@@ -132,7 +134,7 @@ jobs:
               echo "Automatic ClawHub publication requires the dedicated protected publisher workflow" >&2
               exit 1
             }
-            test "$KILL_SWITCH" = true
+            mise exec -- node scripts/assert-openclaw-autopilot-enabled.mjs >/dev/null
           fi
 
       - name: Install pinned Bun runtime
@@ -183,8 +185,10 @@ jobs:
 
       - name: Publish exact archive with canonical changelog
         env:
+          GH_TOKEN: ${{ github.token }}
           CLAWHUB_TOKEN: ${{ secrets.CLAWHUB_TOKEN }}
           PLUGIN_ARCHIVE: ${{ github.workspace }}/release/assets/thunderclaw-openclaw-plugin-${{ steps.release.outputs.version }}.tgz
+          RELEASE_LANE: ${{ inputs.release_lane || 'manual' }}
           RELEASE_COMMIT: ${{ steps.release.outputs.commit }}
           RELEASE_TAG: ${{ inputs.tag }}
         shell: bash
@@ -197,6 +201,7 @@ jobs:
           if [[ -n "$CLAWHUB_TOKEN" ]]; then
             publish_auth_args=(--owner thunderclaw --manual-override-reason "GitHub Actions publication of qualified ${RELEASE_TAG}")
           fi
+          if [[ "$RELEASE_LANE" == automatic ]]; then mise exec -- node scripts/assert-openclaw-autopilot-enabled.mjs >/dev/null; fi
           set +e
           bun "$cli" package publish "$PLUGIN_ARCHIVE" \
             --family code-plugin \

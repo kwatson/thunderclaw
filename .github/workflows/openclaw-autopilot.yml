@@ -14,6 +14,11 @@ on:
         required: false
         default: false
         type: boolean
+      retry_pre_gate_failure:
+        description: Retry only a recorded structured pre-gate automation failure
+        required: false
+        default: false
+        type: boolean
   workflow_run:
     workflows: ["Qualify OpenClaw autopilot candidate"]
     types: [completed]
@@ -36,7 +41,7 @@ env:
 jobs:
   inspect:
     name: Collect exact official release evidence
-    if: github.event_name != 'workflow_run' && github.ref == 'refs/heads/main'
+    if: github.event_name != 'workflow_run' && github.ref == 'refs/heads/main' && (github.event_name != 'schedule' || vars.OPENCLAW_AUTOPILOT_ENABLED == 'true')
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     outputs:
@@ -57,6 +62,7 @@ jobs:
         id: version
         env:
           REQUESTED_VERSION: ${{ inputs.version }}
+          RETRY_PRE_GATE_FAILURE: ${{ github.event_name == 'workflow_dispatch' && inputs.retry_pre_gate_failure || false }}
         shell: bash
         run: |
           set -euo pipefail
@@ -64,18 +70,27 @@ jobs:
             state_commit=$(git rev-parse refs/remotes/origin/openclaw-autopilot-state)
             git show "$state_commit:state.json" > "$RUNNER_TEMP/openclaw-active-state.json"
             phase=$(jq -r .phase "$RUNNER_TEMP/openclaw-active-state.json")
-            if [[ "$phase" != complete && "$phase" != blocked ]]; then
-              version=$(jq -r .identity.version "$RUNNER_TEMP/openclaw-active-state.json")
-              if [[ "$phase" == observed || "$phase" == ready ]]; then echo "reuse_baseline=false" >> "$GITHUB_OUTPUT"; else echo "reuse_baseline=true" >> "$GITHUB_OUTPUT"; fi
-              echo "eligible=true" >> "$GITHUB_OUTPUT"
-              echo "version=$version" >> "$GITHUB_OUTPUT"
-              exit 0
-            fi
-            if [[ "$phase" == blocked ]]; then
-              echo "eligible=false" >> "$GITHUB_OUTPUT"
-              echo "reuse_baseline=true" >> "$GITHUB_OUTPUT"
-              echo "version=$(jq -r .identity.version "$RUNNER_TEMP/openclaw-active-state.json")" >> "$GITHUB_OUTPUT"
-              exit 0
+            if ! mise exec -- node scripts/verify-openclaw-foundation.mjs --root "$GITHUB_WORKSPACE" \
+                --closeout-state "$RUNNER_TEMP/openclaw-active-state.json" >/dev/null 2>&1; then
+              if [[ "$phase" == retryable ]]; then
+                echo "version=$(jq -r .identity.version "$RUNNER_TEMP/openclaw-active-state.json")" >> "$GITHUB_OUTPUT"
+                echo "reuse_baseline=false" >> "$GITHUB_OUTPUT"
+                if [[ "$GITHUB_EVENT_NAME" == workflow_dispatch && "$RETRY_PRE_GATE_FAILURE" == true ]]; then echo "eligible=true" >> "$GITHUB_OUTPUT"; else echo "eligible=false" >> "$GITHUB_OUTPUT"; fi
+                exit 0
+              fi
+              if [[ "$phase" != complete && "$phase" != blocked && "$phase" != cancelled ]]; then
+                version=$(jq -r .identity.version "$RUNNER_TEMP/openclaw-active-state.json")
+                if [[ "$phase" == observed || "$phase" == ready ]]; then echo "reuse_baseline=false" >> "$GITHUB_OUTPUT"; else echo "reuse_baseline=true" >> "$GITHUB_OUTPUT"; fi
+                echo "eligible=true" >> "$GITHUB_OUTPUT"
+                echo "version=$version" >> "$GITHUB_OUTPUT"
+                exit 0
+              fi
+              if [[ "$phase" == blocked || "$phase" == cancelled ]]; then
+                echo "eligible=false" >> "$GITHUB_OUTPUT"
+                echo "reuse_baseline=true" >> "$GITHUB_OUTPUT"
+                echo "version=$(jq -r .identity.version "$RUNNER_TEMP/openclaw-active-state.json")" >> "$GITHUB_OUTPUT"
+                exit 0
+              fi
             fi
           fi
           echo "reuse_baseline=false" >> "$GITHUB_OUTPUT"
@@ -144,6 +159,7 @@ jobs:
         with:
           app-id: ${{ vars.OPENCLAW_AUTOPILOT_APP_ID }}
           private-key: ${{ secrets.OPENCLAW_AUTOPILOT_APP_PRIVATE_KEY }}
+          permission-actions: read
           permission-contents: write
           permission-issues: write
       - name: Check out trusted main without credentials
@@ -163,29 +179,45 @@ jobs:
         id: state
         env:
           GH_TOKEN: ${{ steps.app.outputs.token }}
-          KILL_SWITCH: ${{ vars.OPENCLAW_AUTOPILOT_ENABLED }}
           VERSION: ${{ needs.inspect.outputs.version }}
           EXPEDITE_SOAK: ${{ github.event_name == 'workflow_dispatch' && inputs.expedite_soak || false }}
+          RETRY_PRE_GATE_FAILURE: ${{ github.event_name == 'workflow_dispatch' && inputs.retry_pre_gate_failure || false }}
         shell: bash
         run: |
           set -euo pipefail
           work=$(mktemp -d "$RUNNER_TEMP/openclaw-state.XXXXXX")
           trap 'find "$work" -depth -delete' EXIT
           old_state_commit=""
+          foundation_rollover=false
           if git fetch --no-tags origin "+$STATE_REF:refs/remotes/origin/openclaw-autopilot-state" 2>/dev/null; then
             old_state_commit=$(git rev-parse refs/remotes/origin/openclaw-autopilot-state)
             git show "$old_state_commit:state.json" > "$work/state.json"
             mise exec -- node scripts/openclaw-release-state.mjs validate --state "$work/state.json" >/dev/null
+            if mise exec -- node scripts/verify-openclaw-foundation.mjs --root "$GITHUB_WORKSPACE" \
+                --closeout-state "$work/state.json" >/dev/null 2>&1; then foundation_rollover=true; fi
           fi
           base_sha=$(git rev-parse HEAD)
-          if [[ -z "$old_state_commit" ]] || { [[ "$(jq -r .phase "$work/state.json")" == complete ]] && [[ "$(jq -r .identity.version "$work/state.json")" != "$VERSION" ]]; }; then
+          if [[ -z "$old_state_commit" ]] \
+              || { [[ "$(jq -r .phase "$work/state.json")" == complete ]] && [[ "$(jq -r .identity.version "$work/state.json")" != "$VERSION" ]]; } \
+              || { [[ "$foundation_rollover" == true ]] && [[ "$(jq -r .identity.version "$work/state.json")" != "$VERSION" ]]; }; then
             reservation_id=$(openssl rand -hex 16)
             mise exec -- node scripts/openclaw-release-state.mjs init \
               --preflight evidence/preflight.json --reservation-id "$reservation_id" --base-sha "$base_sha" > "$work/next.json"
           else
             test "$(jq -r .identity.version "$work/state.json")" = "$VERSION"
             phase=$(jq -r .phase "$work/state.json")
-            if [[ "$phase" == observed || "$phase" == ready ]]; then
+            if [[ "$phase" == retryable && "$RETRY_PRE_GATE_FAILURE" == true ]]; then
+              failure=$(jq -c .outputs.failure "$work/state.json")
+              reservation_id=$(openssl rand -hex 16)
+              jq -n --arg id "recover-$(jq -r .run.id <<<"$failure")-$(jq -r .run.attempt <<<"$failure")-$GITHUB_RUN_ATTEMPT" \
+                --argjson revision "$(jq -r .revision "$work/state.json")" --arg at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+                --argjson failedRunId "$(jq -r .run.id <<<"$failure")" --argjson failedRunAttempt "$(jq -r .run.attempt <<<"$failure")" \
+                --arg failureEvidenceSha256 "$(jq -r .evidenceSha256 <<<"$failure")" --arg identitySha256 "$(jq -r .identitySha256 "$work/state.json")" \
+                --arg reason "explicit retry after independently classified pre-gate failure" --arg reservationId "$reservation_id" --arg baseSha "$base_sha" \
+                --slurpfile preflight evidence/preflight.json \
+                '{format:"thunderclaw-openclaw-autopilot-intent-v1",intentId:$id,expectedRevision:$revision,type:"recover-qualification-automation",at:$at,payload:{failedRunId:$failedRunId,failedRunAttempt:$failedRunAttempt,failureEvidenceSha256:$failureEvidenceSha256,identitySha256:$identitySha256,preflight:$preflight[0],reason:$reason,reservationId:$reservationId,baseSha:$baseSha}}' > "$work/intent.json"
+              mise exec -- node scripts/openclaw-release-state.mjs apply --state "$work/state.json" --intent "$work/intent.json" | jq .state > "$work/next.json"
+            elif [[ "$phase" == observed || "$phase" == ready ]]; then
               jq -n --arg id "reobserve-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
                 --argjson revision "$(jq -r .revision "$work/state.json")" \
                 --arg at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg baseSha "$base_sha" --slurpfile preflight evidence/preflight.json \
@@ -201,17 +233,21 @@ jobs:
               --argjson revision "$(jq -r .revision "$work/next.json")" \
               --arg at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
               --arg reason "explicit manual expedite for OpenClaw $VERSION" \
-              '{format:"thunderclaw-openclaw-autopilot-intent-v1",intentId:$id,expectedRevision:$revision,type:"waive-soak",at:$at,payload:{reason:$reason}}' > "$work/intent.json"
+              --arg identitySha256 "$(jq -r .identitySha256 "$work/next.json")" \
+              --arg firstObservedAt "$(jq -r .firstObservedAt "$work/next.json")" --arg secondObservedAt "$(jq -r .lastObservedAt "$work/next.json")" \
+              '{format:"thunderclaw-openclaw-autopilot-intent-v1",intentId:$id,expectedRevision:$revision,type:"waive-soak",at:$at,payload:{reason:$reason,identitySha256:$identitySha256,firstObservedAt:$firstObservedAt,secondObservedAt:$secondObservedAt}}' > "$work/intent.json"
             mise exec -- node scripts/openclaw-release-state.mjs apply --state "$work/next.json" --intent "$work/intent.json" \
               | jq .state > "$work/expedited.json"
             mv "$work/expedited.json" "$work/next.json"
           fi
           action=$(mise exec -- node scripts/openclaw-release-state.mjs resume --state "$work/next.json" | jq -r .action)
           if ! cmp -s "$work/state.json" "$work/next.json" 2>/dev/null; then
-            test "$KILL_SWITCH" = true
+            mise exec -- node scripts/assert-openclaw-autopilot-enabled.mjs >/dev/null
             blob=$(git hash-object -w "$work/next.json")
             tree=$(printf '100644 blob %s\tstate.json\n' "$blob" | git mktree)
-            if [[ -n "$old_state_commit" ]]; then state_commit=$(printf 'OpenClaw autopilot state\n' | git commit-tree "$tree" -p "$old_state_commit"); else state_commit=$(printf 'OpenClaw autopilot state\n' | git commit-tree "$tree"); fi
+            state_message="OpenClaw autopilot state"
+            if [[ "$foundation_rollover" == true ]]; then state_message="Roll over reviewed OpenClaw foundation state"; fi
+            if [[ -n "$old_state_commit" ]]; then state_commit=$(printf '%s\n' "$state_message" | git commit-tree "$tree" -p "$old_state_commit"); else state_commit=$(printf '%s\n' "$state_message" | git commit-tree "$tree"); fi
             auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
             git -c "http.extraheader=AUTHORIZATION: basic $auth" push origin \
               --force-with-lease="$STATE_REF:$old_state_commit" "$state_commit:$STATE_REF"
@@ -222,7 +258,7 @@ jobs:
             title="[OpenClaw autopilot] $VERSION blocked"
             body=$(jq -r '"Policy blockers:\n\n" + (.blockers | map("- " + .) | join("\n")) + "\n\nAdvisory evidence:\n\n" + (.advisories | map("- " + .) | join("\n"))' "$work/next.json")
             number=$(gh issue list --state open --search "in:title $title" --json number,title --jq ".[] | select(.title == \"$title\") | .number" | head -1)
-            test "$KILL_SWITCH" = true
+            mise exec -- node scripts/assert-openclaw-autopilot-enabled.mjs >/dev/null
             if [[ -n "$number" ]]; then gh issue edit "$number" --body "$body"; else gh issue create --title "$title" --body "$body"; fi
           fi
           echo "action=$action" >> "$GITHUB_OUTPUT"
@@ -247,6 +283,7 @@ jobs:
         with:
           app-id: ${{ vars.OPENCLAW_AUTOPILOT_APP_ID }}
           private-key: ${{ secrets.OPENCLAW_AUTOPILOT_APP_PRIVATE_KEY }}
+          permission-actions: read
           permission-contents: write
           permission-pull-requests: write
       - name: Check out trusted main without credentials
@@ -266,7 +303,6 @@ jobs:
         id: prepare
         env:
           GH_TOKEN: ${{ steps.app.outputs.token }}
-          KILL_SWITCH: ${{ vars.OPENCLAW_AUTOPILOT_ENABLED }}
           EXPECTED_STATE_COMMIT: ${{ needs.reserve.outputs.state_commit }}
           VERSION: ${{ needs.inspect.outputs.version }}
         shell: bash
@@ -308,7 +344,7 @@ jobs:
             echo "Existing candidate branch has a different identity; refusing to overwrite it" >&2
             exit 1
           fi
-          test "$KILL_SWITCH" = true
+          mise exec -- node scripts/assert-openclaw-autopilot-enabled.mjs >/dev/null
           auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
           if [[ -z "$remote_sha" ]]; then
             git -c "http.extraheader=AUTHORIZATION: basic $auth" push origin \
@@ -316,7 +352,7 @@ jobs:
           fi
           pr_number=$(gh pr list --state open --head "$branch" --json number --jq '.[0].number // empty')
           if [[ -z "$pr_number" ]]; then
-            test "$KILL_SWITCH" = true
+            mise exec -- node scripts/assert-openclaw-autopilot-enabled.mjs >/dev/null
             pr_url=$(gh pr create --base main --head "$branch" --title "Qualify OpenClaw $VERSION" \
               --body "Automated compatibility-only qualification for exact OpenClaw $VERSION identities. Unsigned upstream tags and upstream CI waivers are retained as advisory evidence; no ThunderClaw gate may be waived.")
             pr_number=${pr_url##*/}
@@ -326,7 +362,7 @@ jobs:
           automation=$(jq -n \
             --arg controller "$(sha256sum .github/workflows/openclaw-autopilot.yml | cut -d ' ' -f1)" \
             --arg qualification "$(sha256sum .github/workflows/qualify-openclaw-autopilot.yml | cut -d ' ' -f1)" \
-            --arg classifier "$({ sha256sum scripts/classify-openclaw-release.mjs scripts/classify-openclaw-upgrade.mjs scripts/prepare-openclaw-upgrade.mjs scripts/openclaw-upgrade-policy.mjs scripts/openclaw-release-state.mjs scripts/verify-openclaw-autopilot-result.mjs scripts/openclaw-qualification.mjs; } | sha256sum | cut -d ' ' -f1)" \
+            --arg classifier "$({ sha256sum scripts/classify-openclaw-release.mjs scripts/classify-openclaw-upgrade.mjs scripts/prepare-openclaw-upgrade.mjs scripts/openclaw-upgrade-policy.mjs scripts/openclaw-release-state.mjs scripts/verify-openclaw-autopilot-result.mjs scripts/openclaw-qualification.mjs scripts/assert-openclaw-autopilot-enabled.mjs scripts/classify-openclaw-qualification-failure.mjs scripts/verify-openclaw-foundation.mjs; } | sha256sum | cut -d ' ' -f1)" \
             --arg release "$({ sha256sum .github/workflows/release-openclaw-plugin.yml .github/workflows/publish-clawhub.yml; } | sha256sum | cut -d ' ' -f1)" \
             '{controllerWorkflowSha:$controller,qualificationWorkflowSha:$qualification,classifierSha:$classifier,releaseWorkflowSha:$release}')
           jq -n --arg id "prepare-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
@@ -340,7 +376,7 @@ jobs:
           mise exec -- node scripts/openclaw-release-state.mjs apply --state "$work/state.json" --intent "$work/intent.json" | jq .state > "$work/next.json"
           blob=$(git hash-object -w "$work/next.json"); tree=$(printf '100644 blob %s\tstate.json\n' "$blob" | git mktree)
           state_commit=$(printf 'Reserve OpenClaw candidate\n' | git commit-tree "$tree" -p "$old_state_commit")
-          test "$KILL_SWITCH" = true
+          mise exec -- node scripts/assert-openclaw-autopilot-enabled.mjs >/dev/null
           git -c "http.extraheader=AUTHORIZATION: basic $auth" push origin \
             --force-with-lease="$STATE_REF:$old_state_commit" "$state_commit:$STATE_REF"
           echo "state_commit=$state_commit" >> "$GITHUB_OUTPUT"
@@ -376,7 +412,6 @@ jobs:
       - name: Record and dispatch one exact qualification request
         env:
           GH_TOKEN: ${{ steps.app.outputs.token }}
-          KILL_SWITCH: ${{ vars.OPENCLAW_AUTOPILOT_ENABLED }}
           EXPECTED_STATE_COMMIT: ${{ needs.prepare.outputs.state_commit || needs.reserve.outputs.state_commit }}
         shell: bash
         run: |
@@ -398,7 +433,7 @@ jobs:
             mise exec -- node scripts/openclaw-release-state.mjs apply --state "$work/state.json" --intent "$work/intent.json" | jq .state > "$work/next.json"
             blob=$(git hash-object -w "$work/next.json"); tree=$(printf '100644 blob %s\tstate.json\n' "$blob" | git mktree)
             state_commit=$(printf 'Dispatch OpenClaw qualification\n' | git commit-tree "$tree" -p "$old_state_commit")
-            test "$KILL_SWITCH" = true
+            mise exec -- node scripts/assert-openclaw-autopilot-enabled.mjs >/dev/null
             auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
             git -c "http.extraheader=AUTHORIZATION: basic $auth" push origin --force-with-lease="$STATE_REF:$old_state_commit" "$state_commit:$STATE_REF"
           else
@@ -407,19 +442,42 @@ jobs:
             test "$(jq -r .outputs.qualificationDispatch.workflowCommit "$work/next.json")" = "$workflow_commit"
           fi
           preparation=$(jq -c .outputs.preparation "$work/next.json")
-          test "$KILL_SWITCH" = true
+          title="Qualify OpenClaw $(jq -r .identity.version "$work/next.json") ($request_id)"
+          find_run() {
+            gh run list --workflow "$QUALIFICATION_WORKFLOW" --event workflow_dispatch --limit 100 \
+              --json databaseId,displayTitle,headBranch,headSha,status,conclusion \
+              | jq -c --arg title "$title" --arg commit "$workflow_commit" \
+                '[.[] | select(.displayTitle == $title and .headBranch == "main" and .headSha == $commit)] | first // empty'
+          }
+          run=$(find_run)
+          if [[ -n "$run" ]]; then
+            echo "Exact qualification dispatch already exists as run $(jq -r .databaseId <<<"$run"); no redispatch."
+            exit 0
+          fi
+          mise exec -- node scripts/assert-openclaw-autopilot-enabled.mjs >/dev/null
+          set +e
           gh workflow run "$QUALIFICATION_WORKFLOW" --ref main \
-            -f request_id="$request_id" -f reservation_id="$(jq -r .reservationId "$work/next.json")" \
-            -f version="$(jq -r .identity.version "$work/next.json")" -f identity_sha256="$(jq -r .identitySha256 "$work/next.json")" \
-            -f source_ref="$(jq -r .branch <<<"$preparation")" -f source_sha="$(jq -r .candidateSha <<<"$preparation")" \
-            -f source_tree="$(jq -r .candidateTree <<<"$preparation")" -f base_sha="$(jq -r .baseSha <<<"$preparation")" \
-            -f release_tag="$(jq -r .tag <<<"$preparation")" -f classification_sha256="$(jq -r .classificationEvidenceSha256 <<<"$preparation")" \
-            -f counterpart_tag="$(jq -r .counterpart.tag <<<"$preparation")" -f counterpart_name="$(jq -r .counterpart.name <<<"$preparation")" \
-            -f counterpart_sha256="$(jq -r .counterpart.sha256 <<<"$preparation")" -f counterpart_size="$(jq -r .counterpart.size <<<"$preparation")" \
-            -f controller_workflow_sha256="$(jq -r .automation.controllerWorkflowSha <<<"$preparation")" \
-            -f qualification_workflow_sha256="$(jq -r .automation.qualificationWorkflowSha <<<"$preparation")" \
-            -f release_workflow_sha256="$(jq -r .automation.releaseWorkflowSha <<<"$preparation")" \
-            -f classifier_sha256="$(jq -r .automation.classifierSha <<<"$preparation")"
+              -f request_id="$request_id" -f reservation_id="$(jq -r .reservationId "$work/next.json")" \
+              -f version="$(jq -r .identity.version "$work/next.json")" -f identity_sha256="$(jq -r .identitySha256 "$work/next.json")" \
+              -f source_ref="$(jq -r .branch <<<"$preparation")" -f source_sha="$(jq -r .candidateSha <<<"$preparation")" \
+              -f source_tree="$(jq -r .candidateTree <<<"$preparation")" -f base_sha="$(jq -r .baseSha <<<"$preparation")" \
+              -f release_tag="$(jq -r .tag <<<"$preparation")" -f classification_sha256="$(jq -r .classificationEvidenceSha256 <<<"$preparation")" \
+              -f counterpart_tag="$(jq -r .counterpart.tag <<<"$preparation")" -f counterpart_name="$(jq -r .counterpart.name <<<"$preparation")" \
+              -f counterpart_sha256="$(jq -r .counterpart.sha256 <<<"$preparation")" -f counterpart_size="$(jq -r .counterpart.size <<<"$preparation")" \
+              -f controller_workflow_sha256="$(jq -r .automation.controllerWorkflowSha <<<"$preparation")" \
+              -f qualification_workflow_sha256="$(jq -r .automation.qualificationWorkflowSha <<<"$preparation")" \
+              -f release_workflow_sha256="$(jq -r .automation.releaseWorkflowSha <<<"$preparation")" \
+              -f classifier_sha256="$(jq -r .automation.classifierSha <<<"$preparation")"
+          dispatch_status=$?
+          set -e
+          for _ in $(seq 1 6); do
+            run=$(find_run)
+            [[ -n "$run" ]] && exit 0
+            sleep 5
+          done
+          test "$dispatch_status" -eq 0 || echo "Qualification dispatch was not acknowledged and no exact run appeared" >&2
+          echo "Qualification dispatch did not produce one exact observable run" >&2
+          exit 1
 
   recover-closeout:
     name: Recover a merged counterpart closeout
@@ -446,12 +504,12 @@ jobs:
         with:
           app-id: ${{ vars.OPENCLAW_AUTOPILOT_APP_ID }}
           private-key: ${{ secrets.OPENCLAW_AUTOPILOT_APP_PRIVATE_KEY }}
+          permission-actions: read
           permission-contents: write
           permission-pull-requests: write
       - name: Probe and complete the exact merged closeout
         env:
           GH_TOKEN: ${{ steps.app.outputs.token }}
-          KILL_SWITCH: ${{ vars.OPENCLAW_AUTOPILOT_ENABLED }}
           EXPECTED_STATE_COMMIT: ${{ needs.reserve.outputs.state_commit }}
         shell: bash
         run: |
@@ -470,7 +528,7 @@ jobs:
           test "$(jq -r .head.sha <<<"$pr")" = "$(jq -r .headSha <<<"$closeout")"
           if [[ "$(jq -r .merged <<<"$pr")" != true ]]; then
             test "$(jq -r .state <<<"$pr")" = open
-            test "$KILL_SWITCH" = true
+            mise exec -- node scripts/assert-openclaw-autopilot-enabled.mjs >/dev/null
             gh pr merge "$(jq -r .prNumber <<<"$closeout")" --auto --squash --match-head-commit "$(jq -r .headSha <<<"$closeout")"
             exit 0
           fi
@@ -486,7 +544,7 @@ jobs:
           mise exec -- node scripts/openclaw-release-state.mjs apply --state "$work/state.json" --intent "$work/intent.json" | jq .state > "$work/next.json"
           blob=$(git hash-object -w "$work/next.json"); tree=$(printf '100644 blob %s\tstate.json\n' "$blob" | git mktree)
           next_commit=$(printf 'Complete recovered OpenClaw closeout\n' | git commit-tree "$tree" -p "$state_commit")
-          test "$KILL_SWITCH" = true
+          mise exec -- node scripts/assert-openclaw-autopilot-enabled.mjs >/dev/null
           auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
           git -c "http.extraheader=AUTHORIZATION: basic $auth" push origin --force-with-lease="$STATE_REF:$state_commit" "$next_commit:$STATE_REF"
 
@@ -512,7 +570,6 @@ jobs:
       - name: Re-run the exact idempotent tag workflow when it is idle
         env:
           GH_TOKEN: ${{ steps.app.outputs.token }}
-          KILL_SWITCH: ${{ vars.OPENCLAW_AUTOPILOT_ENABLED }}
           EXPECTED_STATE_COMMIT: ${{ needs.reserve.outputs.state_commit }}
         shell: bash
         run: |
@@ -524,7 +581,7 @@ jobs:
           run=$(jq -c --arg tag "$tag" --arg commit "$commit" '[.[] | select(.event == "push" and .headBranch == $tag and .headSha == $commit)] | first // empty' <<<"$runs")
           test -n "$run" || exit 0
           [[ "$(jq -r .status <<<"$run")" == completed ]] || exit 0
-          test "$KILL_SWITCH" = true
+          mise exec -- node scripts/assert-openclaw-autopilot-enabled.mjs >/dev/null
           gh run rerun "$(jq -r .databaseId <<<"$run")" --failed
 
   verify-result:
@@ -597,8 +654,8 @@ jobs:
           retention-days: 7
 
   report-qualification-failure:
-    name: Record a policy qualification failure once
-    if: github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'failure'
+    name: Classify and record a qualification failure once
+    if: github.event_name == 'workflow_run' && contains(fromJSON('["failure","cancelled","timed_out","action_required"]'), github.event.workflow_run.conclusion) && vars.OPENCLAW_AUTOPILOT_ENABLED == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     environment:
@@ -612,6 +669,7 @@ jobs:
         with:
           app-id: ${{ vars.OPENCLAW_AUTOPILOT_APP_ID }}
           private-key: ${{ secrets.OPENCLAW_AUTOPILOT_APP_PRIVATE_KEY }}
+          permission-actions: read
           permission-contents: write
           permission-issues: write
       - name: Check out the trusted workflow commit
@@ -622,10 +680,9 @@ jobs:
           persist-credentials: false
       - name: Install managed runtimes
         uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4
-      - name: Bind the failed run, block the reservation, and deduplicate its issue
+      - name: Bind structured run evidence, record its disposition, and deduplicate its issue
         env:
           GH_TOKEN: ${{ steps.app.outputs.token }}
-          KILL_SWITCH: ${{ vars.OPENCLAW_AUTOPILOT_ENABLED }}
           RUN_ID: ${{ github.event.workflow_run.id }}
           RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
           RUN_TITLE: ${{ github.event.workflow_run.display_title }}
@@ -636,25 +693,39 @@ jobs:
           work=$(mktemp -d "$RUNNER_TEMP/openclaw-failure.XXXXXX"); trap 'find "$work" -depth -delete' EXIT
           git fetch --no-tags origin "+$STATE_REF:refs/remotes/origin/openclaw-autopilot-state"
           old_state_commit=$(git rev-parse refs/remotes/origin/openclaw-autopilot-state)
-          git show "$old_state_commit:state.json" > "$work/state.json"; test "$(jq -r .phase "$work/state.json")" = qualifying
+          git show "$old_state_commit:state.json" > "$work/state.json"
+          phase=$(jq -r .phase "$work/state.json")
+          if [[ "$phase" != qualifying ]]; then
+            recorded_run=$(jq -r '.outputs.failure.run.id // empty' "$work/state.json")
+            recorded_attempt=$(jq -r '.outputs.failure.run.attempt // empty' "$work/state.json")
+            [[ "$recorded_run" == "$RUN_ID" && "$recorded_attempt" == "$RUN_ATTEMPT" ]] && exit 0
+            echo "Failure event does not match the active qualification" >&2
+            exit 1
+          fi
           request_id=$(jq -r .outputs.qualificationDispatch.requestId "$work/state.json")
           version=$(jq -r .identity.version "$work/state.json")
           test "$RUN_TITLE" = "Qualify OpenClaw $version ($request_id)"
           test "$RUN_HEAD_SHA" = "$(jq -r .outputs.qualificationDispatch.workflowCommit "$work/state.json")"
-          reason="ThunderClaw qualification run $RUN_ID attempt $RUN_ATTEMPT failed; no gate was skipped or waived"
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID" > "$work/run.json"
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/jobs?filter=latest&per_page=100" > "$work/jobs.json"
+          mise exec -- node scripts/classify-openclaw-qualification-failure.mjs \
+            --state "$work/state.json" --run "$work/run.json" --jobs "$work/jobs.json" > "$work/failure.json"
           jq -n --arg id "qualification-failed-$RUN_ID-$RUN_ATTEMPT" --argjson revision "$(jq -r .revision "$work/state.json")" \
-            --arg at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg reason "$reason" \
-            '{format:"thunderclaw-openclaw-autopilot-intent-v1",intentId:$id,expectedRevision:$revision,type:"block",at:$at,payload:{reason:$reason}}' > "$work/intent.json"
+            --arg at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --slurpfile failure "$work/failure.json" \
+            '{format:"thunderclaw-openclaw-autopilot-intent-v1",intentId:$id,expectedRevision:$revision,type:"record-qualification-failure",at:$at,payload:$failure[0]}' > "$work/intent.json"
           mise exec -- node scripts/openclaw-release-state.mjs apply --state "$work/state.json" --intent "$work/intent.json" | jq .state > "$work/next.json"
           blob=$(git hash-object -w "$work/next.json"); tree=$(printf '100644 blob %s\tstate.json\n' "$blob" | git mktree)
-          state_commit=$(printf 'Block failed OpenClaw qualification\n' | git commit-tree "$tree" -p "$old_state_commit")
-          test "$KILL_SWITCH" = true
+          disposition=$(jq -r .classification.disposition "$work/failure.json")
+          state_commit=$(printf 'Record %s OpenClaw qualification\n' "$disposition" | git commit-tree "$tree" -p "$old_state_commit")
+          mise exec -- node scripts/assert-openclaw-autopilot-enabled.mjs >/dev/null
           auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
           git -c "http.extraheader=AUTHORIZATION: basic $auth" push origin --force-with-lease="$STATE_REF:$old_state_commit" "$state_commit:$STATE_REF"
-          title="[OpenClaw autopilot] $version blocked"
-          body=$(printf '%s\n\nRun: %s/%s/actions/runs/%s/attempts/%s\n' "$reason" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$RUN_ID" "$RUN_ATTEMPT")
+          title="[OpenClaw autopilot] $version $disposition"
+          body=$(printf 'Structured qualification disposition: %s\nStage: %s\nRecoverable: %s\nEvidence SHA-256: %s\n\nRun: %s/%s/actions/runs/%s/attempts/%s\n' \
+            "$disposition" "$(jq -r .classification.stage "$work/failure.json")" "$(jq -r .classification.recoverable "$work/failure.json")" \
+            "$(jq -r .evidenceSha256 "$work/failure.json")" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$RUN_ID" "$RUN_ATTEMPT")
           number=$(gh issue list --state open --search "in:title $title" --json number,title --jq ".[] | select(.title == \"$title\") | .number" | head -1)
-          test "$KILL_SWITCH" = true
+          mise exec -- node scripts/assert-openclaw-autopilot-enabled.mjs >/dev/null
           if [[ -n "$number" ]]; then gh issue edit "$number" --body "$body"; else gh issue create --title "$title" --body "$body"; fi
 
   revalidate-upstream:
@@ -696,7 +767,7 @@ jobs:
   merge-and-tag:
     name: Merge verified tree and create authorized annotated tag
     needs: [verify-result, reserve, revalidate-upstream]
-    if: always() && needs.revalidate-upstream.result == 'success'
+    if: always() && needs.revalidate-upstream.result == 'success' && vars.OPENCLAW_AUTOPILOT_ENABLED == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     environment:
@@ -710,6 +781,7 @@ jobs:
         with:
           app-id: ${{ vars.OPENCLAW_AUTOPILOT_APP_ID }}
           private-key: ${{ secrets.OPENCLAW_AUTOPILOT_APP_PRIVATE_KEY }}
+          permission-actions: read
           permission-contents: write
           permission-pull-requests: write
       - name: Check out trusted main automation without credentials
@@ -729,7 +801,6 @@ jobs:
       - name: Record qualification, merge, authorize, and create tag
         env:
           GH_TOKEN: ${{ steps.app.outputs.token }}
-          KILL_SWITCH: ${{ vars.OPENCLAW_AUTOPILOT_ENABLED }}
           EXPECTED_STATE_COMMIT: ${{ needs.verify-result.outputs.state_commit }}
         shell: bash
         run: |
@@ -749,7 +820,7 @@ jobs:
             mise exec -- node scripts/openclaw-release-state.mjs apply --state "$work/state.json" --intent "$intent" | jq .state > "$work/next.json"
             blob=$(git hash-object -w "$work/next.json"); tree=$(printf '100644 blob %s\tstate.json\n' "$blob" | git mktree)
             new_commit=$(printf '%s\n' "$message" | git commit-tree "$tree" -p "$EXPECTED_STATE_COMMIT")
-            test "$KILL_SWITCH" = true
+            mise exec -- node scripts/assert-openclaw-autopilot-enabled.mjs >/dev/null
             auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
             git -c "http.extraheader=AUTHORIZATION: basic $auth" push origin --force-with-lease="$STATE_REF:$EXPECTED_STATE_COMMIT" "$new_commit:$STATE_REF"
             EXPECTED_STATE_COMMIT=$new_commit; mv "$work/next.json" "$work/state.json"
@@ -787,11 +858,11 @@ jobs:
                 update_state "$work/intent.json" "Block stale OpenClaw candidate"
                 title="[OpenClaw autopilot] $(jq -r .identity.version "$work/state.json") blocked"
                 number=$(gh issue list --state open --search "in:title $title" --json number,title --jq ".[] | select(.title == \"$title\") | .number" | head -1)
-                test "$KILL_SWITCH" = true
+                mise exec -- node scripts/assert-openclaw-autopilot-enabled.mjs >/dev/null
                 if [[ -n "$number" ]]; then gh issue edit "$number" --body "$reason"; else gh issue create --title "$title" --body "$reason"; fi
                 exit 0
               fi
-              test "$KILL_SWITCH" = true
+              mise exec -- node scripts/assert-openclaw-autopilot-enabled.mjs >/dev/null
               merge=$(gh api --method PUT "repos/$GITHUB_REPOSITORY/pulls/$(jq -r .prNumber <<<"$preparation")/merge" \
                 -f merge_method=squash -f sha="$(jq -r .candidateSha <<<"$preparation")")
               test "$(jq -r .merged <<<"$merge")" = true
@@ -812,7 +883,7 @@ jobs:
             update_state "$work/intent.json" "Authorize OpenClaw component tag"
           fi
           test "$(jq -r .phase "$work/state.json")" = tagged
-          test "$KILL_SWITCH" = true
+          mise exec -- node scripts/assert-openclaw-autopilot-enabled.mjs >/dev/null
           tag_message="ThunderClaw OpenClaw plugin $(jq -r .pluginVersion <<<"$preparation")"
           if existing=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$tag" 2>/dev/null); then
             test "$(jq -r .object.type <<<"$existing")" = tag
@@ -822,9 +893,9 @@ jobs:
             test "$(jq -r .object.type <<<"$existing_tag")" = commit
             test "$(jq -r .object.sha <<<"$existing_tag")" = "$merge_sha"
           else
-            test "$KILL_SWITCH" = true
+            mise exec -- node scripts/assert-openclaw-autopilot-enabled.mjs >/dev/null
             tag_object=$(gh api --method POST "repos/$GITHUB_REPOSITORY/git/tags" \
               -f tag="$tag" -f message="$tag_message" -f object="$merge_sha" -f type=commit --jq .sha)
-            test "$KILL_SWITCH" = true
+            mise exec -- node scripts/assert-openclaw-autopilot-enabled.mjs >/dev/null
             gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" -f ref="refs/tags/$tag" -f sha="$tag_object" >/dev/null
           fi

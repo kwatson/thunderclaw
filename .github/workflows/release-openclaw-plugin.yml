@@ -33,6 +33,8 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+      - name: Install managed runtimes
+        uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4
       - name: Verify active reservation and authenticated qualification evidence
         id: classifier
         env:
@@ -44,6 +46,15 @@ jobs:
         run: |
           set -euo pipefail
           echo "release_lane=manual" >> "$GITHUB_OUTPUT"
+          foundation_tag=$(jq -r .foundation.tag openclaw-autopilot-foundation.json)
+          if [[ "$RELEASE_TAG" == "$foundation_tag" ]]; then
+            foundation=$(mise exec -- node scripts/verify-openclaw-foundation.mjs --root "$GITHUB_WORKSPACE" \
+              --tag "$RELEASE_TAG" --commit "$RELEASE_SHA")
+            test "$(jq -r .releaseLane <<<"$foundation")" = foundation
+            test "$(jq -r .humanReviewRequired <<<"$foundation")" = true
+            echo "release_lane=foundation" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           evidence_root=$(mktemp -d "$RUNNER_TEMP/thunderclaw-release-classifier.XXXXXX")
           trap 'git worktree remove --force "$evidence_root/trusted" 2>/dev/null || true; find "$evidence_root" -depth -delete' EXIT
           if ! state_commit=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/${STATE_REF#refs/}" --jq .object.sha 2>/dev/null); then
@@ -58,7 +69,7 @@ jobs:
           base_sha=$(jq -er .baseSha "$evidence_root/state.json") || exit 0
           git worktree add --detach "$evidence_root/trusted" "$base_sha"
           expected_classifier=$(jq -er '.outputs.preparation.automation.classifierSha' "$evidence_root/state.json") || exit 0
-          actual_classifier=$(cd "$evidence_root/trusted" && { sha256sum scripts/classify-openclaw-release.mjs scripts/classify-openclaw-upgrade.mjs scripts/prepare-openclaw-upgrade.mjs scripts/openclaw-upgrade-policy.mjs scripts/openclaw-release-state.mjs scripts/verify-openclaw-autopilot-result.mjs scripts/openclaw-qualification.mjs; } | sha256sum | cut -d ' ' -f1)
+          actual_classifier=$(cd "$evidence_root/trusted" && { sha256sum scripts/classify-openclaw-release.mjs scripts/classify-openclaw-upgrade.mjs scripts/prepare-openclaw-upgrade.mjs scripts/openclaw-upgrade-policy.mjs scripts/openclaw-release-state.mjs scripts/verify-openclaw-autopilot-result.mjs scripts/openclaw-qualification.mjs scripts/assert-openclaw-autopilot-enabled.mjs scripts/classify-openclaw-qualification-failure.mjs scripts/verify-openclaw-foundation.mjs; } | sha256sum | cut -d ' ' -f1)
           test "$actual_classifier" = "$expected_classifier" || {
             echo "The tagged classifier is not the exact reserved verifier; retaining the human-approved lane."
             exit 0
@@ -82,7 +93,7 @@ jobs:
             exit 0
           fi
           candidate_tree=$(git show -s --format=%T "$RELEASE_SHA")
-          if ! result=$(node "$evidence_root/trusted/scripts/classify-openclaw-release.mjs" \
+          if ! result=$(mise exec -- node "$evidence_root/trusted/scripts/classify-openclaw-release.mjs" \
               --root "$GITHUB_WORKSPACE" \
               --state "$evidence_root/state.json" \
               --state-commit "$state_commit" \
@@ -278,6 +289,7 @@ jobs:
     environment:
       name: ${{ needs.classify.outputs.release_lane == 'automatic' && 'release-auto' || 'release' }}
     permissions:
+      actions: read
       attestations: write
       contents: write
       id-token: write
@@ -286,6 +298,8 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
+      - name: Install managed runtimes
+        uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4
       - name: Download qualified plugin candidate
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
@@ -322,6 +336,11 @@ jobs:
             --source-ref "refs/tags/$GITHUB_REF_NAME" \
             --source-digest "$GITHUB_SHA"
           echo "exists=true" >> "$GITHUB_OUTPUT"
+      - name: Re-read the live autopilot guard before provenance
+        if: steps.existing.outputs.exists != 'true' && needs.classify.outputs.release_lane == 'automatic'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: mise exec -- node scripts/assert-openclaw-autopilot-enabled.mjs >/dev/null
       - name: Attest plugin provenance
         if: steps.existing.outputs.exists != 'true'
         uses: actions/attest-build-provenance@96278af6caaf10aea03fd8d33a09a777ca52d62f # v3.2.0
@@ -331,8 +350,11 @@ jobs:
         if: steps.existing.outputs.exists != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_LANE: ${{ needs.classify.outputs.release_lane }}
         shell: bash
         run: |
+          set -euo pipefail
+          if [[ "$RELEASE_LANE" == automatic ]]; then mise exec -- node scripts/assert-openclaw-autopilot-enabled.mjs >/dev/null; fi
           gh release create "$GITHUB_REF_NAME" \
             "release/thunderclaw-openclaw-plugin-${{ needs.build.outputs.version }}.tgz" \
             release/release-notes.md \
@@ -344,7 +366,7 @@ jobs:
 
   clawhub:
     name: Promote manually qualified plugin to ClawHub
-    if: needs.classify.outputs.release_lane == 'manual'
+    if: needs.classify.outputs.release_lane != 'automatic'
     needs: [classify, release]
     permissions:
       contents: read
@@ -377,7 +399,6 @@ jobs:
       - name: Dispatch and await the exact protected-tag publisher
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
-          KILL_SWITCH: ${{ vars.OPENCLAW_AUTOPILOT_ENABLED }}
           RELEASE_TAG: ${{ github.ref_name }}
           RELEASE_COMMIT: ${{ github.sha }}
         shell: bash
@@ -391,8 +412,16 @@ jobs:
                 '[.[] | select(.displayTitle == $title and .headBranch == $tag and .headSha == $commit)] | first // empty'
           }
           run=$(find_run)
-          if [[ -z "$run" ]] || { [[ "$(jq -r .status <<<"$run")" == completed ]] && [[ "$(jq -r .conclusion <<<"$run")" != success ]]; }; then
-            test "$KILL_SWITCH" = true
+          if [[ -n "$run" && "$(jq -r .status <<<"$run")" == completed && "$(jq -r .conclusion <<<"$run")" == cancelled ]]; then
+            echo "The exact publisher run was cancelled; an explicit operator retry is required" >&2
+            exit 1
+          fi
+          if [[ -n "$run" && "$(jq -r .status <<<"$run")" == completed && "$(jq -r .conclusion <<<"$run")" != success ]]; then
+            mise exec -- node scripts/assert-openclaw-autopilot-enabled.mjs >/dev/null
+            gh run rerun "$(jq -r .databaseId <<<"$run")" --failed
+            run=""
+          elif [[ -z "$run" ]]; then
+            mise exec -- node scripts/assert-openclaw-autopilot-enabled.mjs >/dev/null
             set +e
             gh workflow run .github/workflows/publish-clawhub.yml --ref "$RELEASE_TAG" \
               -f tag="$RELEASE_TAG" -f release_lane=automatic
@@ -406,14 +435,15 @@ jobs:
           for _ in $(seq 1 240); do
             if [[ -z "$run" ]]; then run=$(find_run); fi
             if [[ -n "$run" && "$(jq -r .status <<<"$run")" == completed ]]; then
-              test "$(jq -r .conclusion <<<"$run")" = success
-              run_id=$(jq -r .databaseId <<<"$run")
-              run_details=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id")
-              test "$(jq -r .event <<<"$run_details")" = workflow_dispatch
-              run_path=$(jq -r .path <<<"$run_details")
-              test "${run_path%@*}" = .github/workflows/publish-clawhub.yml
-              test "$(jq -r .head_sha <<<"$run_details")" = "$RELEASE_COMMIT"
-              exit 0
+              if [[ "$(jq -r .conclusion <<<"$run")" == success ]]; then
+                run_id=$(jq -r .databaseId <<<"$run")
+                run_details=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id")
+                test "$(jq -r .event <<<"$run_details")" = workflow_dispatch
+                run_path=$(jq -r .path <<<"$run_details")
+                test "${run_path%@*}" = .github/workflows/publish-clawhub.yml
+                test "$(jq -r .head_sha <<<"$run_details")" = "$RELEASE_COMMIT"
+                exit 0
+              fi
             fi
             sleep 10
             run=""
@@ -438,6 +468,7 @@ jobs:
         with:
           app-id: ${{ vars.OPENCLAW_AUTOPILOT_APP_ID }}
           private-key: ${{ secrets.OPENCLAW_AUTOPILOT_APP_PRIVATE_KEY }}
+          permission-actions: read
           permission-contents: write
           permission-pull-requests: write
       - name: Check out current protected main
@@ -503,12 +534,14 @@ jobs:
             if ! git diff --quiet -- e2e/qualification/counterpart-baselines.json; then
               git add e2e/qualification/counterpart-baselines.json
               git commit -m "chore(release): record ${RELEASE_TAG} counterpart"
+              mise exec -- node scripts/assert-openclaw-autopilot-enabled.mjs >/dev/null
               git -c http.extraheader="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)" \
                 push origin "HEAD:refs/heads/$branch"
             fi
           fi
           pr=$(gh pr list --head "$branch" --state all --json number,state,mergedAt --jq '.[0] // empty')
           if [[ -z "$pr" ]]; then
+            mise exec -- node scripts/assert-openclaw-autopilot-enabled.mjs >/dev/null
             gh pr create --head "$branch" --base main \
               --title "Record ${RELEASE_TAG} counterpart" \
               --body "Records the exact publicly verified ${RELEASE_TAG} artifact for future pair qualification."
@@ -562,6 +595,7 @@ jobs:
             tree=$(printf '100644 blob %s\tstate.json\n' "$blob" | git mktree)
             next_commit=$(printf '%s\n' "$message" | git commit-tree "$tree" -p "$state_commit")
             auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+            mise exec -- node scripts/assert-openclaw-autopilot-enabled.mjs >/dev/null
             git -c "http.extraheader=AUTHORIZATION: basic $auth" push origin \
               --force-with-lease="$STATE_REF:$state_commit" "$next_commit:$STATE_REF"
             state_commit=$next_commit
@@ -607,4 +641,5 @@ jobs:
           CLOSEOUT_HEAD_SHA: ${{ steps.closeout.outputs.head_sha }}
         run: |
           pr_number="$CLOSEOUT_PR"
+          mise exec -- node scripts/assert-openclaw-autopilot-enabled.mjs >/dev/null
           gh pr merge "$pr_number" --auto --squash --match-head-commit "$CLOSEOUT_HEAD_SHA"

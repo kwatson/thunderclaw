@@ -30,12 +30,14 @@ test("OpenClaw qualification manifest agrees with every active repository pin", 
 
 test("OpenClaw qualification validation rejects range and identity drift", async () => {
   const manifest = JSON.parse(await readFile(new URL("../openclaw-qualification.json", import.meta.url), "utf8"));
+  const stableParts = manifest.stableVersion.split(".").map(Number);
+  const invalidNextReleaseFloor = `${stableParts[0]}.${stableParts[1]}.${stableParts[2] + 2}-0`;
   assert.throws(() => validateOpenClawQualification({ ...manifest, supportedRange: ">=2026.7.2-beta.7" }),
     /supported range must be/u);
   assert.throws(() => validateOpenClawQualification({
     ...manifest,
-    supportedRange: `${manifest.supportedRange.replace(manifest.nextReleaseFloor, "2026.9.7-0")}`,
-    nextReleaseFloor: "2026.9.7-0",
+    supportedRange: `${manifest.supportedRange.replace(manifest.nextReleaseFloor, invalidNextReleaseFloor)}`,
+    nextReleaseFloor: invalidNextReleaseFloor,
   }), /next release floor must be/u);
   assert.throws(() => validateOpenClawQualification({ ...manifest, upstream: { ...manifest.upstream, releaseTag: "vwrong" } }),
     /upstream qualification is malformed/u);

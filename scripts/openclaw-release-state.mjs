@@ -3,12 +3,13 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { isDeepStrictEqual } from "node:util";
+import { validateQualificationFailureEvidence } from "./classify-openclaw-qualification-failure.mjs";
 import { assessUpgradeEvidence, immutableReleaseIdentity, validateUpgradePreflight } from "./openclaw-upgrade-policy.mjs";
 
 export const RELEASE_STATE_FORMAT = "thunderclaw-openclaw-autopilot-state-v1";
 export const RELEASE_INTENT_FORMAT = "thunderclaw-openclaw-autopilot-intent-v1";
-const phases = ["observed", "ready", "prepared", "qualifying", "qualified", "merged", "tagged", "github-published", "clawhub-verified", "closeout-open", "complete", "blocked"];
-const intentTypes = ["reobserve", "waive-soak", "recover-qualification-automation", "record-preparation", "record-qualification-dispatch", "record-qualification", "record-merge", "record-tag", "record-github-publication", "record-clawhub-verification", "open-closeout", "complete-closeout", "block"];
+const phases = ["observed", "ready", "prepared", "qualifying", "retryable", "cancelled", "qualified", "merged", "tagged", "github-published", "clawhub-verified", "closeout-open", "complete", "blocked"];
+const intentTypes = ["reobserve", "waive-soak", "record-qualification-failure", "recover-qualification-automation", "record-preparation", "record-qualification-dispatch", "record-qualification", "record-merge", "record-tag", "record-github-publication", "record-clawhub-verification", "open-closeout", "complete-closeout", "block"];
 const sha40 = /^[a-f0-9]{40}$/u;
 const sha256 = /^[a-f0-9]{64}$/u;
 const hash = (value) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
@@ -37,9 +38,10 @@ export function validateReleaseState(value) {
   if (hash(value.identity) !== value.identitySha256 || !exactKeys(value.identity, Object.keys(immutableReleaseIdentity(value.baseline)))) throw new Error("release state identity hash is invalid");
   for (const [name, instant] of [["firstObservedAt", value.firstObservedAt], ["lastObservedAt", value.lastObservedAt], ["soakCompletesAt", value.soakCompletesAt]]) timestamp(instant, name);
   if (!Array.isArray(value.advisories) || !value.advisories.every((item) => typeof item === "string") || !Array.isArray(value.blockers) || !value.blockers.every((item) => typeof item === "string") || !object(value.outputs) || !Array.isArray(value.history)) throw new Error("release state collections are malformed");
-  const outputKeys = { observed: [], ready: [], prepared: ["preparation"], qualifying: ["preparation", "qualificationDispatch"], qualified: ["preparation", "qualificationDispatch", "qualification"], merged: ["preparation", "qualificationDispatch", "qualification", "merge"], tagged: ["preparation", "qualificationDispatch", "qualification", "merge", "tagged"], "github-published": ["preparation", "qualificationDispatch", "qualification", "merge", "tagged", "githubPublication"], "clawhub-verified": ["preparation", "qualificationDispatch", "qualification", "merge", "tagged", "githubPublication", "clawhubVerification"], "closeout-open": ["preparation", "qualificationDispatch", "qualification", "merge", "tagged", "githubPublication", "clawhubVerification", "closeout"], complete: ["preparation", "qualificationDispatch", "qualification", "merge", "tagged", "githubPublication", "clawhubVerification", "closeout", "completion"] };
+  const outputKeys = { observed: [], ready: [], prepared: ["preparation"], qualifying: ["preparation", "qualificationDispatch"], retryable: ["preparation", "qualificationDispatch", "failure"], cancelled: ["preparation", "qualificationDispatch", "failure"], qualified: ["preparation", "qualificationDispatch", "qualification"], merged: ["preparation", "qualificationDispatch", "qualification", "merge"], tagged: ["preparation", "qualificationDispatch", "qualification", "merge", "tagged"], "github-published": ["preparation", "qualificationDispatch", "qualification", "merge", "tagged", "githubPublication"], "clawhub-verified": ["preparation", "qualificationDispatch", "qualification", "merge", "tagged", "githubPublication", "clawhubVerification"], "closeout-open": ["preparation", "qualificationDispatch", "qualification", "merge", "tagged", "githubPublication", "clawhubVerification", "closeout"], complete: ["preparation", "qualificationDispatch", "qualification", "merge", "tagged", "githubPublication", "clawhubVerification", "closeout", "completion"] };
   if (value.phase !== "blocked" && !exactKeys(value.outputs, outputKeys[value.phase])) throw new Error("release state outputs do not match its phase");
-  if (value.phase === "blocked" && !Object.values(outputKeys).some((keys) => exactKeys(value.outputs, keys))) throw new Error("blocked release state has a noncanonical output prefix");
+  if (value.phase === "blocked" && !Object.values(outputKeys).some((keys) => exactKeys(value.outputs, keys))
+      && !exactKeys(value.outputs, ["preparation", "qualificationDispatch", "failure"])) throw new Error("blocked release state has a noncanonical output prefix");
   const outputs = value.outputs;
   if (outputs.preparation) {
     const p = exact(outputs.preparation, ["reservationId", "pluginVersion", "preparedDate", "baseSha", "branch", "prNumber", "candidateSha", "candidateTree", "tag", "classificationEvidenceSha256", "counterpart", "automation"], "persisted preparation");
@@ -56,6 +58,20 @@ export function validateReleaseState(value) {
     pattern(q.workflowCommit, sha40, "persisted qualification workflowCommit"); pattern(q.workflowSha256, sha256, "persisted qualification workflowSha256"); pattern(q.headSha, sha40, "persisted qualification headSha");
     for (const key of ["evidenceSha256", "classificationEvidenceSha256", "candidateArtifactSha256"]) pattern(q[key], sha256, `persisted qualification ${key}`); counterpart(q.counterpart);
     if (q.conclusion !== "success" || !Number.isSafeInteger(q.runId) || q.runId < 1 || !Number.isSafeInteger(q.runAttempt) || q.runAttempt < 1 || q.requestId !== outputs.qualificationDispatch.requestId || q.workflow !== outputs.qualificationDispatch.workflow || q.workflowCommit !== outputs.qualificationDispatch.workflowCommit || q.workflowSha256 !== outputs.qualificationDispatch.workflowSha256 || q.headSha !== outputs.preparation.candidateSha || q.headBranch !== outputs.preparation.branch || q.classificationEvidenceSha256 !== outputs.preparation.classificationEvidenceSha256 || !same(q.counterpart, outputs.preparation.counterpart)) throw new Error("persisted qualification is inconsistent");
+  }
+  if (outputs.failure) {
+    const failure = validateQualificationFailureEvidence(outputs.failure);
+    if (!outputs.preparation || !outputs.qualificationDispatch
+        || failure.reservation.reservationId !== value.reservationId
+        || failure.reservation.identitySha256 !== value.identitySha256
+        || failure.reservation.requestId !== outputs.qualificationDispatch.requestId
+        || failure.reservation.candidateSha !== outputs.preparation.candidateSha
+        || failure.run.workflowCommit !== outputs.qualificationDispatch.workflowCommit
+        || (value.phase === "retryable") !== (failure.classification.disposition === "retryable")
+        || (value.phase === "cancelled") !== (failure.classification.disposition === "cancelled")
+        || (value.phase === "blocked") !== (failure.classification.disposition === "blocked")) {
+      throw new Error("persisted qualification failure is inconsistent");
+    }
   }
   if (outputs.merge) {
     const m = exact(outputs.merge, ["mergeSha", "mergeTree", "tag"], "persisted merge"); pattern(m.mergeSha, sha40, "persisted mergeSha"); pattern(m.mergeTree, sha40, "persisted mergeTree");
@@ -95,17 +111,26 @@ export function applyReleaseStateIntent(stateValue, intentValue) {
   const replay = state.history.find((event) => event.intentId === intent.intentId);
   if (replay) { if (replay.type !== intent.type || replay.payloadSha256 !== payloadSha256) throw new Error("intent id was reused with different content"); return { decision: "already-applied", expectedRevision: state.revision, state }; }
   if (intent.expectedRevision !== state.revision) return { decision: "compare-and-swap-mismatch", expectedRevision: state.revision, state };
-  if (state.phase === "complete" || (state.phase === "blocked" && intent.type !== "recover-qualification-automation")) return { decision: "terminal", expectedRevision: state.revision, state };
+  if (["complete", "cancelled", "blocked"].includes(state.phase)
+      || (state.phase === "retryable" && intent.type !== "recover-qualification-automation")) return { decision: "terminal", expectedRevision: state.revision, state };
   const from = state.phase; const payload = intent.payload;
   if (intent.type === "recover-qualification-automation") {
-    phase(state, "blocked", "qualification automation recovery");
-    exact(payload, ["failedRunId", "failedRunAttempt", "reason", "reservationId", "baseSha"], "qualification automation recovery payload");
+    phase(state, "retryable", "qualification automation recovery");
+    exact(payload, ["failedRunId", "failedRunAttempt", "failureEvidenceSha256", "identitySha256", "preflight", "reason", "reservationId", "baseSha"], "qualification automation recovery payload");
     if (!Number.isSafeInteger(payload.failedRunId) || payload.failedRunId < 1 || !Number.isSafeInteger(payload.failedRunAttempt) || payload.failedRunAttempt < 1) throw new Error("qualification automation recovery run identity is malformed");
     if (typeof payload.reason !== "string" || !payload.reason) throw new Error("qualification automation recovery reason is malformed");
+    pattern(payload.failureEvidenceSha256, sha256, "qualification automation recovery evidence"); pattern(payload.identitySha256, sha256, "qualification automation recovery identity");
     pattern(payload.reservationId, /^[a-f0-9]{32}$/u, "qualification automation recovery reservationId"); pattern(payload.baseSha, sha40, "qualification automation recovery baseSha");
-    const expected = `ThunderClaw qualification run ${payload.failedRunId} attempt ${payload.failedRunAttempt} failed; no gate was skipped or waived`;
-    if (state.blockers.length !== 1 || state.blockers[0] !== expected || !state.outputs.preparation || !state.outputs.qualificationDispatch || state.outputs.qualification) throw new Error("only an exact pre-gate qualification automation failure may be recovered");
+    const failure = validateQualificationFailureEvidence(state.outputs.failure);
+    const current = validateUpgradePreflight(payload.preflight); const reassessment = assessUpgradeEvidence({ baseline: state.baseline, current, now: intent.at });
+    if (!failure.classification.recoverable || failure.classification.disposition !== "retryable"
+        || failure.run.id !== payload.failedRunId || failure.run.attempt !== payload.failedRunAttempt
+        || failure.evidenceSha256 !== payload.failureEvidenceSha256 || payload.identitySha256 !== state.identitySha256
+        || reassessment.identitySha256 !== state.identitySha256 || reassessment.blockers.length > 0
+        || failure.reservation.identitySha256 !== state.identitySha256 || !state.outputs.preparation
+        || !state.outputs.qualificationDispatch || state.outputs.qualification) throw new Error("only exact structured pre-gate qualification evidence may be recovered");
     state.reservationId = payload.reservationId; state.baseSha = payload.baseSha; state.outputs = {}; state.blockers = [];
+    state.lastObservedAt = current.observedAt; state.advisories = reassessment.advisories;
     state.advisories = [...new Set([...state.advisories, `qualification automation failure recovered: ${payload.reason}`])]; state.phase = "ready";
   } else if (intent.type === "reobserve") {
     if (!["observed", "ready"].includes(state.phase)) throw new Error("reobservation may be recorded only from observed or ready");
@@ -113,9 +138,25 @@ export function applyReleaseStateIntent(stateValue, intentValue) {
     const assessment = assessUpgradeEvidence({ baseline: state.baseline, current, now: intent.at }); state.lastObservedAt = current.observedAt; state.advisories = assessment.advisories; state.blockers = assessment.blockers;
     if (assessment.identitySha256 !== state.identitySha256) state.blockers = [...new Set([...state.blockers, "immutable release identity changed during soak"])]; state.baseSha = payload.baseSha; state.phase = state.blockers.length ? "blocked" : assessment.decision === "ready" ? "ready" : "observed";
   } else if (intent.type === "waive-soak") {
-    phase(state, "observed", "soak waiver"); exact(payload, ["reason"], "soak waiver payload");
+    phase(state, "observed", "soak waiver"); exact(payload, ["reason", "identitySha256", "firstObservedAt", "secondObservedAt"], "soak waiver payload");
     if (typeof payload.reason !== "string" || !payload.reason) throw new Error("soak waiver reason is malformed");
+    pattern(payload.identitySha256, sha256, "soak waiver identitySha256"); timestamp(payload.firstObservedAt, "soak waiver firstObservedAt"); timestamp(payload.secondObservedAt, "soak waiver secondObservedAt");
+    const observedTwice = state.history.some((event) => event.type === "reobserve" && event.to === "observed");
+    if (!observedTwice || payload.identitySha256 !== state.identitySha256 || payload.firstObservedAt !== state.firstObservedAt
+        || payload.secondObservedAt !== state.lastObservedAt || Date.parse(payload.secondObservedAt) <= Date.parse(payload.firstObservedAt)) {
+      throw new Error("soak waiver requires two distinct observations of the exact same release identity");
+    }
     state.advisories = [...new Set([...state.advisories, `24-hour soak waived: ${payload.reason}`])]; state.phase = "ready";
+  } else if (intent.type === "record-qualification-failure") {
+    phase(state, "qualifying", "qualification failure");
+    const failure = validateQualificationFailureEvidence(payload);
+    const preparation = state.outputs.preparation; const dispatch = state.outputs.qualificationDispatch;
+    if (failure.reservation.reservationId !== state.reservationId || failure.reservation.identitySha256 !== state.identitySha256
+        || failure.reservation.requestId !== dispatch.requestId || failure.reservation.candidateSha !== preparation.candidateSha
+        || failure.run.workflowCommit !== dispatch.workflowCommit) throw new Error("qualification failure differs from the active reservation");
+    state.outputs.failure = failure;
+    state.phase = failure.classification.disposition;
+    state.blockers = [`ThunderClaw qualification run ${failure.run.id} attempt ${failure.run.attempt} ended as ${failure.classification.disposition} at ${failure.classification.stage}`];
   } else if (intent.type === "record-preparation") {
     phase(state, "ready", "preparation"); exact(payload, ["reservationId", "pluginVersion", "preparedDate", "baseSha", "branch", "prNumber", "candidateSha", "candidateTree", "tag", "classificationEvidenceSha256", "counterpart", "automation"], "preparation payload");
     if (payload.reservationId !== state.reservationId || payload.baseSha !== state.baseSha) throw new Error("preparation does not match its reservation");
@@ -154,8 +195,9 @@ export function applyReleaseStateIntent(stateValue, intentValue) {
 }
 
 export function decideReleaseResume(stateValue) {
-  const state = validateReleaseState(stateValue); const actions = { observed: "reobserve", ready: "prepare", prepared: "dispatch-qualification", qualifying: "await-qualification", qualified: "merge", merged: "tag", tagged: "publish-github", "github-published": "verify-clawhub", "clawhub-verified": "open-closeout", "closeout-open": "complete-closeout", complete: "complete", blocked: "blocked" };
-  return { action: actions[state.phase], revision: state.revision, ...(state.phase === "observed" ? { notBefore: state.soakCompletesAt } : {}), ...(state.phase === "blocked" ? { blockers: state.blockers } : {}) };
+  const state = validateReleaseState(stateValue); const actions = { observed: "reobserve", ready: "prepare", prepared: "dispatch-qualification", qualifying: "await-qualification", retryable: "retry-qualification", cancelled: "cancelled", qualified: "merge", merged: "tag", tagged: "publish-github", "github-published": "verify-clawhub", "clawhub-verified": "open-closeout", "closeout-open": "complete-closeout", complete: "complete", blocked: "blocked" };
+  const pauses = { observed: { reason: "soak", until: state.soakCompletesAt }, qualifying: { reason: "qualification" }, "closeout-open": { reason: "closeout" } };
+  return { action: actions[state.phase], revision: state.revision, ...(pauses[state.phase] ? { pause: pauses[state.phase] } : {}), ...(["blocked", "cancelled", "retryable"].includes(state.phase) ? { blockers: state.blockers } : {}) };
 }
 async function readJson(file) { return JSON.parse(file === "-" ? await new Promise((resolve, reject) => { let contents = ""; process.stdin.setEncoding("utf8"); process.stdin.on("data", (chunk) => { contents += chunk; }); process.stdin.on("end", () => resolve(contents)); process.stdin.on("error", reject); }) : await readFile(file, "utf8")); }
 function option(args, name) { const index = args.indexOf(name); return index < 0 ? undefined : args[index + 1]; }

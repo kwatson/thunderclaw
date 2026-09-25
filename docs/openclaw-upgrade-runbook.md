@@ -89,6 +89,23 @@ This local archive is not the immutable release candidate and has no release
 provenance. The component-tag workflow builds the authoritative candidate once
 from the tagged commit and passes those exact bytes through every release gate.
 
+For an autopilot candidate or foundation migration, also run the isolated,
+credential-free cross-stage rehearsal with the original and fresh observations:
+
+```text
+mise exec -- npm run rehearse:openclaw-autopilot -- \
+  --baseline build/openclaw-upgrade-first-observation.json \
+  --preflight build/openclaw-upgrade-preflight.json
+```
+
+The report must name the expected OpenClaw/plugin pair, report
+`externalMutations: 0`, record independent automatic classification, and
+identify release admission before any merge or tag. A foundation rehearsal may
+show a blocked automatic classification; its findings are part of the required
+human review and must not be suppressed. Do not supply GitHub App, GitHub write,
+provider, Gateway, or marketplace credentials. A rehearsal-only
+`--soak-waived true` is not durable authorization.
+
 If an upstream behavior change requires a material plugin runtime change, stop
 the compatibility-only release and review that change independently. If the
 new OpenClaw version requires a new Thunderbird extension, stop and plan the
@@ -104,6 +121,33 @@ all expensive lanes.
 
 Do not tag a commit that failed this run. Correct it on `main`, repeat local
 checks as appropriate, and dispatch a new pre-release run.
+
+### One-time 0.1.11 foundation migration
+
+The automation changes after `openclaw-plugin-v0.1.10` are intentionally too
+broad for recurring automatic admission. Keep the live repository variable
+`OPENCLAW_AUTOPILOT_ENABLED=false`. Review the strict
+`openclaw-autopilot-foundation.json` source anchor and exact `0.1.11` /
+OpenClaw `2026.9.6` target, the full candidate diff, the rehearsal report, and
+the complete pre-release CI run. The tag workflow must classify the tag as
+`foundation`, never `automatic`; both publication environments require the
+normal human approvals.
+
+Before any later sandbox enablement, confirm that the narrowly installed
+autopilot App and the automatic publication jobs can read the live repository
+Actions-variable endpoint. An unreadable variable is intentionally equivalent
+to a disabled switch, so this permission check must succeed before mutation
+credentials are introduced to a test run.
+
+After publication and public verification, use the manual command in section 6
+to open a one-file counterpart-baseline change for `0.1.11`. Merge that closeout
+and verify CI before considering any automatic release. Because the committed
+baseline then no longer equals the manifest's `0.1.10` source anchor, the
+foundation authorization cannot be replayed for another release. Do not edit
+or delete the existing revision-16 durable state. At the first strictly later
+OpenClaw discovery, the controller may roll it over only after independently
+verifying its manifest-pinned identity and the completed `0.1.11` source and
+counterpart closeout.
 
 ## 5. Tag and promote the exact candidate
 
@@ -149,3 +193,10 @@ Finally run the ordinary checks, push the baseline commit, and wait for its CI
 run to pass. Confirm that `main` is synchronized and clean. Retain links to the
 pre-release run, release run, GitHub release, and ClawHub record in the release
 handoff.
+
+For an automatic-lane failure, inspect its structured durable disposition.
+Only `retryable` pre-gate evidence may use the explicit
+`retry_pre_gate_failure` dispatch option, which collects a fresh upstream
+identity before creating a new reservation. `blocked` gate failures and
+`cancelled` runs require operator review and a new reviewed course of action;
+do not edit the state branch or convert their reason text into recovery proof.

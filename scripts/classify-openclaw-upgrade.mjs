@@ -66,7 +66,10 @@ export function classifyLockfileChange(beforeText, afterText) {
   }
   for (const key of changedKeys(oldPackages, newPackages)) {
     if (!allowedPackageKeys.has(key)) continue;
-    const fields = oldPackages[key] && newPackages[key] ? ["hasInstall", "hasInstallScript", "scripts", "bin"] : [];
+    // Package removal removes lifecycle capability and is safe. A newly
+    // admitted package must not introduce lifecycle behavior merely because
+    // it has no old record to compare field-by-field.
+    const fields = newPackages[key] ? ["hasInstall", "hasInstallScript", "scripts", "bin"] : [];
     for (const field of fields) {
       if (!same(oldPackages[key]?.[field], newPackages[key]?.[field])) findings.push(`lockfile package changed lifecycle behavior: ${key}.${field}`);
     }

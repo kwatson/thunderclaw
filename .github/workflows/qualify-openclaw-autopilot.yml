@@ -178,7 +178,7 @@ jobs:
           echo "$QUALIFICATION_WORKFLOW_SHA256  .github/workflows/qualify-openclaw-autopilot.yml" | sha256sum --check -
           actual_release=$({ sha256sum .github/workflows/release-openclaw-plugin.yml .github/workflows/publish-clawhub.yml; } | sha256sum | cut -d ' ' -f1)
           test "$actual_release" = "$RELEASE_WORKFLOW_SHA256"
-          actual_classifier=$({ sha256sum scripts/classify-openclaw-release.mjs scripts/classify-openclaw-upgrade.mjs scripts/prepare-openclaw-upgrade.mjs scripts/openclaw-upgrade-policy.mjs scripts/openclaw-release-state.mjs scripts/verify-openclaw-autopilot-result.mjs scripts/openclaw-qualification.mjs; } | sha256sum | cut -d ' ' -f1)
+          actual_classifier=$({ sha256sum scripts/classify-openclaw-release.mjs scripts/classify-openclaw-upgrade.mjs scripts/prepare-openclaw-upgrade.mjs scripts/openclaw-upgrade-policy.mjs scripts/openclaw-release-state.mjs scripts/verify-openclaw-autopilot-result.mjs scripts/openclaw-qualification.mjs scripts/assert-openclaw-autopilot-enabled.mjs scripts/classify-openclaw-qualification-failure.mjs scripts/verify-openclaw-foundation.mjs; } | sha256sum | cut -d ' ' -f1)
           test "$actual_classifier" = "$CLASSIFIER_SHA256"
           echo "source_tree=$actual_tree" >> "$GITHUB_OUTPUT"
 

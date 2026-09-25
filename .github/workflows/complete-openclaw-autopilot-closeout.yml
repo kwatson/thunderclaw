@@ -16,7 +16,7 @@ env:
 jobs:
   complete:
     name: Verify merged closeout and complete durable state
-    if: github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main' && startsWith(github.event.pull_request.head.ref, 'automation/counterpart-openclaw-plugin-v')
+    if: github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main' && startsWith(github.event.pull_request.head.ref, 'automation/counterpart-openclaw-plugin-v') && vars.OPENCLAW_AUTOPILOT_ENABLED == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     environment:
@@ -36,11 +36,11 @@ jobs:
         with:
           app-id: ${{ vars.OPENCLAW_AUTOPILOT_APP_ID }}
           private-key: ${{ secrets.OPENCLAW_AUTOPILOT_APP_PRIVATE_KEY }}
+          permission-actions: read
           permission-contents: write
       - name: Bind the exact merged pull request and complete state
         env:
           GH_TOKEN: ${{ steps.app.outputs.token }}
-          KILL_SWITCH: ${{ vars.OPENCLAW_AUTOPILOT_ENABLED }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_BRANCH: ${{ github.event.pull_request.head.ref }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
@@ -73,7 +73,7 @@ jobs:
           blob=$(git hash-object -w "$work/next.json")
           tree=$(printf '100644 blob %s\tstate.json\n' "$blob" | git mktree)
           next_commit=$(printf 'Complete OpenClaw counterpart closeout\n' | git commit-tree "$tree" -p "$state_commit")
-          test "$KILL_SWITCH" = true
+          mise exec -- node scripts/assert-openclaw-autopilot-enabled.mjs >/dev/null
           auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
           git -c "http.extraheader=AUTHORIZATION: basic $auth" push origin \
             --force-with-lease="$STATE_REF:$state_commit" "$next_commit:$STATE_REF"

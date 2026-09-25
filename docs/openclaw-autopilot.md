@@ -10,7 +10,9 @@ The controller polls at minute 17 every six hours. Together with the two
 unchanged observations required by the policy, this preserves the 24-hour soak
 while bounding the normal discovery delay after that soak to about six hours.
 An explicitly dispatched run may expedite an already observed release after a
-fresh unchanged observation. That one-release override waives only the remaining
+fresh unchanged observation. The waiver payload and durable history bind the
+first and second observation timestamps and exact immutable identity hash; a
+reason alone is never sufficient. That one-release override waives only the remaining
 clock time, is recorded as advisory evidence in durable state, and does not
 waive identity, compatibility, qualification, publication, or verification
 gates. Scheduled runs cannot use the override.
@@ -53,22 +55,32 @@ scripts, lifecycle hooks, dependencies, overrides, exports, symlinks, file-mode
 changes, Compose behavior, runtime source, workflows, release tooling,
 qualification harnesses, tests, fixtures, or contracts force the manual lane.
 The previous published plugin and the reviewed autopilot implementation are the
-recurring-release trust anchors.
+recurring-release trust anchors. Automation may bridge a published trust anchor
+only through deterministic counterpart closeout. Broader controller or policy
+changes require the explicit one-use foundation manifest, the exact declared
+source and target releases, the normal human-reviewed release environments, and
+a reviewed counterpart closeout. A foundation release is never reclassified as
+automatic.
 
 ## State machine and candidate lifecycle
 
 Short workflow invocations advance a durable, compare-and-swap release record:
 
 ```text
-idle -> reserved -> pr-open -> qualified -> merged -> tagged
-     -> candidate-qualified -> github-published -> clawhub-verified
+observed -> ready -> prepared -> qualifying -> qualified -> merged -> tagged
+     -> github-published -> clawhub-verified
      -> closeout-open -> complete
 ```
 
-Any pre-publication policy failure may enter `exception`. A later invocation
-resumes the recorded version and state before discovering another release. The
-controller never holds a workflow concurrency lock while waiting for a
-tag-triggered workflow.
+An independently classified pre-gate binding or infrastructure failure enters
+`retryable`; an explicit retry first re-collects the upstream identity and must
+match the stored reservation and evidence digest. A cancelled qualification
+enters `cancelled`, and a test or qualification-gate failure enters `blocked`.
+Neither cancelled nor gate-failure state can use automation recovery. Waiting
+for the soak, a qualification result, or closeout is represented as an explicit
+pause with its reason instead of being described as active work. The controller
+never holds a workflow concurrency lock while waiting for a tag-triggered
+workflow.
 
 The record lives on the protected `automation/openclaw-autopilot-state`
 branch. Only the narrowly scoped automation App may update it, and every write
@@ -116,9 +128,18 @@ restricted to `main`, and the `autopilot-closeout` environment, restricted to
 plugin release tags. The automatic ClawHub environment must contain no static
 publisher token; its trusted publisher accepts only the exact repository,
 `publish-clawhub.yml` workflow, and `clawhub-auto` environment claims. The
-`OPENCLAW_AUTOPILOT_ENABLED`
-variable is checked at every mutation boundary; turning it off prevents the
-next mutation rather than interrupting an API call already in flight.
+App installation and automatic publication jobs must be able to read repository
+Actions variables; verify that their token can read the exact repository
+variable endpoint before enabling a rollout stage. The
+`OPENCLAW_AUTOPILOT_ENABLED` variable is fetched from the live repository
+Actions-variable API immediately before every state write, branch or tag write,
+issue or pull-request mutation, workflow dispatch/rerun, merge, provenance
+attestation, GitHub release, ClawHub publish, and closeout mutation in the
+automatic lane. A missing,
+unreadable, malformed, or non-`true` value fails closed. The value captured when
+a job started is used only to skip quiet scheduled work; it never authorizes a
+mutation. Turning the live value off prevents the next boundary rather than
+interrupting an API call already in flight.
 
 ## Closeout and notifications
 
@@ -127,13 +148,38 @@ attestation, public source identity, artifact digest and size, and scan state.
 It then opens or updates a deterministic one-file counterpart-baseline pull
 request. The release is complete only when that change is merged and green.
 
-Every external mutation is probed before retrying. An exact already-recorded
+Every external mutation is probed before retrying. Qualification and publisher
+dispatches use exact request/title, workflow commit, ref, and source identity;
+a lost response is probed before any retry, and cancellation is not silently
+redispatched. An exact already-recorded
 tag, artifact, marketplace version, or counterpart identity is success; the
 same version with different identity is a hard failure. Unchanged transient
 failures remain quiet, policy exceptions update one fingerprinted issue, and a
 completed release emits one concise notification with its evidence links.
 
-## Rollout
+## Credential-free rehearsal
+
+The repository provides a non-mutating rehearsal that creates an isolated
+working tree, strips mutation and publication credentials from child processes,
+prepares the candidate, independently regenerates and classifies the lockfile,
+runs the full deterministic tests and typecheck, packages and validates the
+candidate, calculates the real controller/qualification/release fingerprints,
+and evaluates pre-tag trust-anchor admission:
+
+```text
+mise exec -- npm run rehearse:openclaw-autopilot -- \
+  --baseline /path/to/first-observation.json \
+  --preflight /path/to/fresh-unchanged-observation.json
+```
+
+For a foundation, a blocked automatic classification is retained in the report
+for human review rather than converted to automatic success. `--soak-waived
+true` changes only this disposable rehearsal and is not release
+authorization. The durable controller separately requires two distinct bound
+observations before it records a waiver. The rehearsal performs no push,
+dispatch, issue, pull-request, tag, release, attestation, or marketplace call.
+
+## Foundation release and rollout
 
 The autopilot is enabled in stages: dry-run discovery and classification,
 generated pull requests, automatic qualification and merge, nonpublishing tag
@@ -143,6 +189,19 @@ OIDC claims, merge races, durable-state transitions, collision handling, and
 recovery after lost external responses before the corresponding mutation is
 enabled.
 
-The first release containing this machinery is a manually reviewed foundation
-release. Subsequent automatic classifications compare against that published
-trust anchor; the autopilot cannot authorize its own initial installation.
+The `openclaw-autopilot-foundation.json` record permits exactly the human-reviewed
+`0.1.11` / OpenClaw `2026.9.6` foundation migration from the published `0.1.10`
+anchor. It requires the `foundation` lane, which uses the manual release and
+ClawHub environments. After exact publication, a separately reviewed one-file
+counterpart closeout must advance the baseline to `0.1.11`; the manifest then
+becomes intrinsically unusable because its source-anchor equality no longer
+holds. The same manifest pins the exact pre-foundation durable reservation at
+revision 16. Only after source and counterpart both prove the exact foundation
+target may discovery roll that obsolete record into a new reservation for a
+strictly later OpenClaw release; no state-branch edit or deletion is needed.
+Subsequent automatic classifications compare against the published `0.1.11`
+trust anchor. The autopilot cannot authorize its own foundation.
+
+Keep `OPENCLAW_AUTOPILOT_ENABLED=false` while merging and releasing the
+foundation. Enable later stages only after the credential-free rehearsal and
+the documented sandbox checks succeed.

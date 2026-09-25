@@ -1,6 +1,6 @@
 # ThunderClaw roadmap
 
-Last reconciled: 2026-09-24
+Last reconciled: 2026-09-25
 
 This file contains unfinished work only. Current behavior belongs in the
 product and architecture documents; completed test results belong in release
@@ -8,11 +8,13 @@ provenance and CI artifacts.
 
 ## Now: compatibility release autopilot
 
-1. Land the versioned OpenClaw metadata generator, field-level classifier,
-   durable release state, and adversarial tests.
-2. Rehearse the controller, automatic tag lane, publication, and idempotent
-   closeout in dry-run and nonpublishing modes before enabling each mutation.
-3. Configure protected App-only component tags, automatic environments,
+1. Run and retain the credential-free `0.1.11` / OpenClaw `2026.9.6`
+   foundation rehearsal, then complete the human-reviewed foundation release
+   and one-file counterpart closeout while the live autopilot remains disabled.
+2. Rehearse the controller, automatic tag lane, publication, cancellation,
+   lost-response handling, and idempotent closeout in a sandbox before enabling
+   each mutation stage.
+3. Verify protected App-only component tags, automatic environments,
    stage-specific credentials, and exact ClawHub OIDC or broker claims.
 4. Re-enable hosted macOS real-Thunderbird automation after Thunderbird 154.
 5. Add ATN reviewer-source automation if Thunderbird exposes a supported API.

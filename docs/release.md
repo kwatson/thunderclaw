@@ -185,7 +185,12 @@ The automatic lane independently regenerates and verifies the permitted
 field-level change, qualifies the exact source tree with the last published
 extension counterpart, and builds the authoritative tagged candidate once.
 Runtime, workflow, release-tooling, test, fixture, contract, or other
-non-generated changes require the existing human-reviewed release lane. See the
+non-generated changes require the existing human-reviewed release lane. The
+one-use `0.1.11` foundation manifest binds the published `0.1.10` anchor to the
+exact `0.1.11` / OpenClaw `2026.9.6` target and can select only the
+human-approved `foundation` lane. It cannot authorize an automatic release and
+becomes unusable after the required counterpart closeout advances the baseline.
+See the
 [`OpenClaw compatibility autopilot`](openclaw-autopilot.md) for its admission,
 state, credential, recovery, and rollout requirements.
 
