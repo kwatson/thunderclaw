@@ -240,6 +240,13 @@ test("release state provides strict CAS, replay, and safe resume through qualifi
   assert.equal(decideReleaseResume(prepared).action, "dispatch-qualification");
   const dispatch = { requestId: "request-1", workflow: "qualify-openclaw-autopilot.yml", workflowCommit: hex("b", 40), workflowSha256: automation.qualificationWorkflowSha, dispatchedAt: "2026-09-23T01:01:00.000Z" };
   const qualifying = applyReleaseStateIntent(prepared, intent("dispatch", 2, "record-qualification-dispatch", dispatch, dispatch.dispatchedAt) as never).state;
+  const failed = applyReleaseStateIntent(qualifying, intent("failed", 3, "block", { reason: "ThunderClaw qualification run 123 attempt 1 failed; no gate was skipped or waived" }) as never).state;
+  const recovered = applyReleaseStateIntent(failed, intent("recover", 4, "recover-qualification-automation", { failedRunId: 123, failedRunAttempt: 1, reason: "trusted workflow fingerprint verifier corrected", reservationId: hex("f", 32), baseSha: hex("e", 40) }) as never).state;
+  assert.equal(recovered.phase, "ready");
+  assert.deepEqual(recovered.outputs, {});
+  assert.deepEqual(recovered.blockers, []);
+  assert.equal(recovered.reservationId, hex("f", 32));
+  assert.throws(() => applyReleaseStateIntent(failed, intent("bad-recover", 4, "recover-qualification-automation", { failedRunId: 999, failedRunAttempt: 1, reason: "wrong run", reservationId: hex("f", 32), baseSha: hex("e", 40) }) as never), /only an exact/u);
   const qualification = { ...dispatch, runId: 123, runAttempt: 1, headSha: preparation.candidateSha, headBranch: preparation.branch, event: "workflow_dispatch", conclusion: "success", evidenceSha256: hex("c", 64), classificationEvidenceSha256: preparation.classificationEvidenceSha256, candidateArtifactSha256: hex("d", 64), counterpart };
   delete (qualification as Partial<typeof qualification>).dispatchedAt;
   const qualified = applyReleaseStateIntent(qualifying, intent("qualify", 3, "record-qualification", qualification, "2026-09-23T02:00:00.000Z") as never).state;

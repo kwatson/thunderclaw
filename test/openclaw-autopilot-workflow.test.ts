@@ -59,6 +59,7 @@ test("autopilot qualification result binds exact run, attempt, tree, counterpart
   ]) assert.match(workflow, new RegExp(`\\$${binding}`, "u"));
   assert.match(workflow, /for result in "\$BIND_SOURCE"[\s\S]*test "\$result" = success/u);
   assert.match(workflow, /"native-windows":"success","native-macos":"success"/u);
+  assert.match(workflow, /sha256sum \.github\/workflows\/release-openclaw-plugin\.yml \.github\/workflows\/publish-clawhub\.yml/u);
   assert.doesNotMatch(workflow, /continue-on-error:|allow-failure/iu);
   assert.match(workflow, /openclaw-autopilot-result-\$\{\{ inputs\.request_id \}\}-\$\{\{ github\.run_attempt \}\}/u);
 });

@@ -128,7 +128,7 @@ jobs:
           set -euo pipefail
           [[ "$GITHUB_EVENT_NAME" == workflow_dispatch ]]
           [[ "$GITHUB_REF" == refs/heads/main ]]
-          [[ "$EXPECTED_REF" =~ ^automation/openclaw-[0-9]{4}\.[0-9]{1,2}\.[0-9]+$ ]]
+          [[ "$EXPECTED_REF" =~ ^automation/openclaw-[0-9]{4}\.[0-9]{1,2}\.[0-9]+-[a-f0-9]{8}$ ]]
           [[ "$EXPECTED_SHA" =~ ^[a-f0-9]{40}$ ]]
           [[ "$EXPECTED_TREE" =~ ^[a-f0-9]{40}$ ]]
           [[ "$BASE_SHA" =~ ^[a-f0-9]{40}$ ]]
@@ -176,7 +176,8 @@ jobs:
             "$RUNNER_TEMP/openclaw-autopilot-state.json" >/dev/null
           echo "$CONTROLLER_WORKFLOW_SHA256  .github/workflows/openclaw-autopilot.yml" | sha256sum --check -
           echo "$QUALIFICATION_WORKFLOW_SHA256  .github/workflows/qualify-openclaw-autopilot.yml" | sha256sum --check -
-          echo "$RELEASE_WORKFLOW_SHA256  .github/workflows/release-openclaw-plugin.yml" | sha256sum --check -
+          actual_release=$({ sha256sum .github/workflows/release-openclaw-plugin.yml .github/workflows/publish-clawhub.yml; } | sha256sum | cut -d ' ' -f1)
+          test "$actual_release" = "$RELEASE_WORKFLOW_SHA256"
           actual_classifier=$({ sha256sum scripts/classify-openclaw-release.mjs scripts/classify-openclaw-upgrade.mjs scripts/prepare-openclaw-upgrade.mjs scripts/openclaw-upgrade-policy.mjs scripts/openclaw-release-state.mjs scripts/verify-openclaw-autopilot-result.mjs scripts/openclaw-qualification.mjs; } | sha256sum | cut -d ' ' -f1)
           test "$actual_classifier" = "$CLASSIFIER_SHA256"
           echo "source_tree=$actual_tree" >> "$GITHUB_OUTPUT"

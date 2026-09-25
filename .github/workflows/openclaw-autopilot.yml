@@ -293,7 +293,7 @@ jobs:
             --root "$GITHUB_WORKSPACE" --date "$prepared_date" > "$work/classification.json"
           test "$(jq -r .decision "$work/classification.json")" = compatibility-only
           plugin_version=$(jq -r .pluginVersion "$work/prepared.json")
-          branch="automation/openclaw-$VERSION"
+          branch="automation/openclaw-$VERSION-${reservation_id:0:8}"
           tag="openclaw-plugin-v$plugin_version"
           git config user.name thunderclaw-autopilot
           git config user.email thunderclaw-autopilot@users.noreply.github.com
