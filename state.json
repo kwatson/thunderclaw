@@ -1,7 +1,7 @@
 {
   "format": "thunderclaw-openclaw-autopilot-state-v1",
-  "revision": 10,
-  "phase": "qualifying",
+  "revision": 11,
+  "phase": "blocked",
   "reservationId": "b8bf891862feec89763b270a3588c465",
   "baseSha": "6b87bf64478a0df0443612042c035fe2662e5acb",
   "baseline": {
@@ -138,7 +138,9 @@
     "upstream CI was waived",
     "24-hour soak waived: explicit manual expedite for OpenClaw 2026.9.6"
   ],
-  "blockers": [],
+  "blockers": [
+    "ThunderClaw qualification run 36173765366 attempt 1 failed; no gate was skipped or waived"
+  ],
   "outputs": {
     "preparation": {
       "reservationId": "b8bf891862feec89763b270a3588c465",
@@ -263,6 +265,15 @@
       "from": "prepared",
       "to": "qualifying",
       "revision": 10
+    },
+    {
+      "intentId": "qualification-failed-36173765366-1",
+      "type": "block",
+      "at": "2026-09-25T18:30:45Z",
+      "payloadSha256": "a936c623e0bae32139864eeaad5ff2ea2318a4602fce902bee2598be103c73e0",
+      "from": "qualifying",
+      "to": "blocked",
+      "revision": 11
     }
   ]
 }
