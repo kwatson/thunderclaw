@@ -4,6 +4,13 @@ All notable changes to ThunderClaw are documented in this file. The OpenClaw
 plugin and Thunderbird extension release independently, so every entry names
 the component and version it describes.
 
+## OpenClaw plugin [0.1.12] - 2026-09-25
+
+### Changed
+
+- Established the post-foundation trust anchor for automatic compatibility
+  releases and isolated release-ledger tests from the mutable published pin.
+
 ## OpenClaw plugin [0.1.11] - 2026-09-23
 
 ### Changed
