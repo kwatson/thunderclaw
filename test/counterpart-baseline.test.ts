@@ -16,7 +16,14 @@ test("counterpart baseline manifest pins each independently published component"
 });
 
 test("counterpart updater derives exact baseline metadata only from an advancing verified release", async () => {
-  const manifest = JSON.parse(await readFile(new URL("../e2e/qualification/counterpart-baselines.json", import.meta.url), "utf8"));
+  const liveManifest = JSON.parse(await readFile(new URL("../e2e/qualification/counterpart-baselines.json", import.meta.url), "utf8"));
+  const manifest = structuredClone(liveManifest);
+  manifest["openclaw-plugin"] = {
+    tag: "openclaw-plugin-v0.1.10",
+    name: "thunderclaw-openclaw-plugin-0.1.10.tgz",
+    sha256: "c".repeat(64),
+    size: 12344,
+  };
   const updated = updateCounterpartManifest(manifest, {
     component: "openclaw-plugin",
     tag: "openclaw-plugin-v0.1.11",

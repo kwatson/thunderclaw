@@ -4,11 +4,18 @@ import test from "node:test";
 import { assessFoundationCloseout, assessFoundationMigration, validateFoundationManifest } from "../scripts/verify-openclaw-foundation.mjs";
 
 const manifest = JSON.parse(await readFile(new URL("../openclaw-autopilot-foundation.json", import.meta.url), "utf8"));
-const baselines = JSON.parse(await readFile(new URL("../e2e/qualification/counterpart-baselines.json", import.meta.url), "utf8"));
+const liveBaselines = JSON.parse(await readFile(new URL("../e2e/qualification/counterpart-baselines.json", import.meta.url), "utf8"));
+const sourceBaselines = structuredClone(liveBaselines);
+sourceBaselines["openclaw-plugin"] = {
+  tag: manifest.from.tag,
+  name: manifest.from.artifactName,
+  sha256: manifest.from.artifactSha256,
+  size: manifest.from.artifactSize,
+};
 const sha = (value: string) => value.repeat(40);
 
 function fixture() {
-  return { manifest, baselines, plugin: { version: "0.1.11" }, qualification: { stableVersion: "2026.9.6" },
+  return { manifest, baselines: sourceBaselines, plugin: { version: "0.1.11" }, qualification: { stableVersion: "2026.9.6" },
     tag: "openclaw-plugin-v0.1.11", commit: sha("a"), tree: sha("b"), sourceTagCommit: manifest.from.commit,
     manifestAbsentAtSource: true };
 }
@@ -37,7 +44,7 @@ test("foundation migration cannot be reused, retargeted, or admitted from a diff
 });
 
 test("foundation closeout retires only the exact reviewed durable state after the counterpart advances", () => {
-  const closedBaselines = structuredClone(baselines);
+  const closedBaselines = structuredClone(sourceBaselines);
   closedBaselines["openclaw-plugin"] = {
     tag: manifest.foundation.tag,
     name: `thunderclaw-openclaw-plugin-${manifest.foundation.pluginVersion}.tgz`,
@@ -60,6 +67,6 @@ test("foundation closeout retires only the exact reviewed durable state after th
     retiredIdentitySha256: manifest.retireState.identitySha256,
     foundationTag: manifest.foundation.tag,
   });
-  assert.throws(() => assessFoundationCloseout({ ...input, baselines }), /closeout has not advanced/u);
+  assert.throws(() => assessFoundationCloseout({ ...input, baselines: sourceBaselines }), /closeout has not advanced/u);
   assert.throws(() => assessFoundationCloseout({ ...input, state: { ...state, revision: state.revision + 1 } }), /exact reviewed/u);
 });
