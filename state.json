@@ -1,0 +1,143 @@
+{
+  "format": "thunderclaw-openclaw-autopilot-state-v1",
+  "revision": 0,
+  "phase": "observed",
+  "reservationId": "b8bf891862feec89763b270a3588c465",
+  "baseSha": "25395ca288c8c6b83f42009e2fe01e32b09099d4",
+  "baseline": {
+    "format": "thunderclaw-openclaw-upgrade-preflight-v2",
+    "observedAt": "2026-09-25T18:03:55.562Z",
+    "current": {
+      "version": "2026.9.5",
+      "releaseCommit": "ec9c1a13db8938e5a3eaa51fca2e981cde2395a9",
+      "pluginVersion": "0.1.10"
+    },
+    "proposed": {
+      "version": "2026.9.6",
+      "npm": {
+        "package": "openclaw",
+        "version": "2026.9.6",
+        "integrity": "sha512-Ie0kyQSCVfFqixsgVg39vevUDq01Ch5u3+7Yu5Y3qARczmdAe+lzp8bVnO9925rHiW/+CFp70zfORCyPmCH31g==",
+        "tarball": "https://registry.npmjs.org/openclaw/-/openclaw-2026.9.6.tgz"
+      },
+      "providerNpm": {
+        "package": "@openclaw/deepseek-provider",
+        "version": "2026.9.6",
+        "integrity": "sha512-krB49SRz/wl/2VKc0l3hgsL6I9kJKM8vuKHkxPBsJsg3cgCIJ005hjD0D1LViji4uBeRzRwSKPLl2d/9u0YPGg==",
+        "tarball": "https://registry.npmjs.org/@openclaw/deepseek-provider/-/deepseek-provider-2026.9.6.tgz"
+      },
+      "upstream": {
+        "repository": "openclaw/openclaw",
+        "tag": "v2026.9.6",
+        "releaseTag": "v2026.9.6",
+        "commit": "eb377ac59e6c9fd6c7705028034812becf00271b",
+        "verifiedTag": false,
+        "tagKind": "annotated",
+        "verifiedCommit": false,
+        "officialRelease": true,
+        "releaseId": 395067017,
+        "releaseUrl": "https://github.com/openclaw/openclaw/releases/tag/v2026.9.6",
+        "publishedAt": "2026-09-23T23:21:10.000Z",
+        "draft": false,
+        "prerelease": false
+      },
+      "image": {
+        "repository": "ghcr.io/openclaw/openclaw",
+        "tag": "2026.9.6",
+        "indexDigest": "sha256:0a5ff5e682e62afa19149df126aa50063bf65ef885b5c94713ce32dc0eb12e15",
+        "linuxAmd64Digest": "sha256:66ed9d9bf9ecc02e2a2d5d4b7110b766ba535a64c802e9d20b0794ae062f82e5"
+      }
+    },
+    "upstreamCi": {
+      "conclusion": "waived in official release evidence",
+      "waived": true
+    },
+    "sdk": {
+      "requiredEntrypoints": [
+        "./plugin-sdk/agent-runtime",
+        "./plugin-sdk/cli-argv",
+        "./plugin-sdk/gateway-runtime",
+        "./plugin-sdk/plugin-entry"
+      ],
+      "missingEntrypoints": [],
+      "declarationFiles": [
+        "dist/plugin-sdk/agent-runtime.d.ts",
+        "dist/plugin-sdk/cli-argv.d.ts",
+        "dist/plugin-sdk/gateway-runtime.d.ts",
+        "dist/plugin-sdk/plugin-entry.d.ts"
+      ],
+      "changedDeclarations": [
+        "dist/plugin-sdk/agent-runtime.d.ts",
+        "dist/plugin-sdk/cli-argv.d.ts",
+        "dist/plugin-sdk/gateway-runtime.d.ts",
+        "dist/plugin-sdk/plugin-entry.d.ts"
+      ],
+      "currentHashes": {
+        "dist/plugin-sdk/agent-runtime.d.ts": "44e7f2089abdd227180b09de7e0c424b569f03c13c2f671c9e4a0ed14283cb7f",
+        "dist/plugin-sdk/cli-argv.d.ts": "8b0318e491984a549608c502c37798dfedf0dedafa82cf2354e835964527e1b7",
+        "dist/plugin-sdk/gateway-runtime.d.ts": "d1c1fd5866e58aea2b7eb6c0fa7d887b082e1c0f51f24f0be14cce18e3f29ef8",
+        "dist/plugin-sdk/plugin-entry.d.ts": "82fd933aa67b3f6c564e1e9f1e7425a7de1ba9b823f27e6beabdac8421e27b86"
+      },
+      "proposedHashes": {
+        "dist/plugin-sdk/agent-runtime.d.ts": "f08784e7b0edb1732e9326341afe673c3b087b1076cf98986e5184e8cb8d880e",
+        "dist/plugin-sdk/cli-argv.d.ts": "ab8a921b3fd08b69816363131b3524a98d570700758bdafdd5323a0deda1e742",
+        "dist/plugin-sdk/gateway-runtime.d.ts": "137702a33ca23420837c4e48942bc4e459ca348092fdfe8575878f8cf74652db",
+        "dist/plugin-sdk/plugin-entry.d.ts": "b6f1c9413cf443e29892cc9f055459ea72d97df259e08637d40118499732706b"
+      }
+    },
+    "repositoryImpact": [
+      "openclaw-qualification.json",
+      "package.json",
+      "package-lock.json",
+      "packages/openclaw-plugin/package.json",
+      "compose.spike.yaml",
+      ".github/workflows/ci.yml",
+      "scripts/run-openclaw-ci.sh",
+      "scripts/bootstrap-spike.sh",
+      "scripts/stage-openclaw-provider.mjs",
+      "scripts/qualify-pairing.ts",
+      "packages/openclaw-plugin/src/compatibility-fingerprint.ts",
+      "packages/openclaw-plugin/src/openclaw-agent-sessions.d.ts",
+      "e2e/qualification/real-agent/run.mjs",
+      "README.md",
+      "docs/compatibility.md",
+      "docs/installation-and-pairing.md",
+      "docs/testing.md",
+      "site/index.html"
+    ],
+    "blockingFindings": [],
+    "advisoryFindings": [
+      "upstream release tag is unsigned or unverified",
+      "upstream release commit is unsigned or unverified",
+      "upstream CI waivers are recorded in the official release evidence"
+    ],
+    "compatibilityDecision": "not-made"
+  },
+  "identity": {
+    "version": "2026.9.6",
+    "npmIntegrity": "sha512-Ie0kyQSCVfFqixsgVg39vevUDq01Ch5u3+7Yu5Y3qARczmdAe+lzp8bVnO9925rHiW/+CFp70zfORCyPmCH31g==",
+    "providerPackage": "@openclaw/deepseek-provider",
+    "providerIntegrity": "sha512-krB49SRz/wl/2VKc0l3hgsL6I9kJKM8vuKHkxPBsJsg3cgCIJ005hjD0D1LViji4uBeRzRwSKPLl2d/9u0YPGg==",
+    "imageRepository": "ghcr.io/openclaw/openclaw",
+    "imageIndexDigest": "sha256:0a5ff5e682e62afa19149df126aa50063bf65ef885b5c94713ce32dc0eb12e15",
+    "linuxAmd64Digest": "sha256:66ed9d9bf9ecc02e2a2d5d4b7110b766ba535a64c802e9d20b0794ae062f82e5",
+    "upstreamRepository": "openclaw/openclaw",
+    "releaseId": 395067017,
+    "releaseTag": "v2026.9.6",
+    "releaseCommit": "eb377ac59e6c9fd6c7705028034812becf00271b",
+    "publishedAt": "2026-09-23T23:21:10.000Z"
+  },
+  "identitySha256": "0b9abbf859f1adbdfed240e338a347d4cf9630534fb1ee0152053ee482b06070",
+  "firstObservedAt": "2026-09-25T18:03:55.562Z",
+  "lastObservedAt": "2026-09-25T18:03:55.562Z",
+  "soakCompletesAt": "2026-09-26T18:03:55.562Z",
+  "advisories": [
+    "upstream release tag is unsigned or unverified",
+    "upstream release commit is unsigned or unverified",
+    "upstream CI waivers are recorded in the official release evidence",
+    "upstream CI was waived"
+  ],
+  "blockers": [],
+  "outputs": {},
+  "history": []
+}
