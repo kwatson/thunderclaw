@@ -3,6 +3,8 @@ import { createHash } from "node:crypto";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
+export const CLAWHUB_PUBLICATION_TIMEOUT_MS = 25 * 60_000;
+
 export function normalizeMarketplaceNotes(value) {
   if (typeof value !== "string") throw new Error("Marketplace release notes must be a string");
   return value.normalize("NFC").replace(/\r\n?/gu, "\n").replace(/\n+$/u, "");
@@ -18,7 +20,7 @@ export function verifyMarketplaceNotes(expected, actual, marketplace) {
   return normalizedExpected;
 }
 
-export async function verifyClawHubRelease({ packageName, version, notesFile, artifact, repository, tag, commit, apiBase = "https://clawhub.ai", fetchImpl = fetch, pollIntervalMs = 5_000, timeoutMs = 5 * 60_000 }) {
+export async function verifyClawHubRelease({ packageName, version, notesFile, artifact, repository, tag, commit, apiBase = "https://clawhub.ai", fetchImpl = fetch, pollIntervalMs = 5_000, timeoutMs = CLAWHUB_PUBLICATION_TIMEOUT_MS }) {
   const endpoint = `${apiBase.replace(/\/$/u, "")}/api/v1/packages/${encodeURIComponent(packageName)}/versions/${encodeURIComponent(version)}`;
   const expected = notesFile ? await readFile(notesFile, "utf8") : null;
   const deadline = Date.now() + timeoutMs;

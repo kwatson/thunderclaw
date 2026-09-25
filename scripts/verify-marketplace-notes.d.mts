@@ -1,4 +1,6 @@
 export function normalizeMarketplaceNotes(value: unknown): string;
+export const CLAWHUB_PUBLICATION_TIMEOUT_MS: number;
+
 export function verifyMarketplaceNotes(expected: unknown, actual: unknown, marketplace: string): string;
 export function verifyClawHubRelease(options: {
   packageName: string;
