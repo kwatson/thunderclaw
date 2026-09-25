@@ -282,6 +282,7 @@ jobs:
           base_sha=$(jq -r .baseSha "$work/state.json")
           git checkout --detach "$base_sha"
           test "$(git rev-parse HEAD)" = "$base_sha"
+          reservation_id=$(jq -r .reservationId "$work/state.json")
           jq .baseline "$work/state.json" > "$work/baseline.json"
           preflight="$RUNNER_TEMP/openclaw-observation/preflight.json"
           prepared_date=$(jq -r .proposed.upstream.publishedAt "$preflight" | cut -c1-10)
