@@ -13,6 +13,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
+  OPENCLAW_AUTOPILOT_ENABLED: ${{ vars.OPENCLAW_AUTOPILOT_ENABLED }}
   CI: "true"
 
 jobs:

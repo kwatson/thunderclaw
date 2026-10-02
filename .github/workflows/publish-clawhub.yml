@@ -38,6 +38,9 @@ concurrency:
   group: clawhub-${{ inputs.tag }}
   cancel-in-progress: false
 
+env:
+  OPENCLAW_AUTOPILOT_ENABLED: ${{ vars.OPENCLAW_AUTOPILOT_ENABLED }}
+
 jobs:
   publish-clawhub:
     name: Publish and verify exact plugin release
