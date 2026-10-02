@@ -6,6 +6,11 @@ the component and version it describes.
 
 ## OpenClaw plugin [0.1.13] - 2026-10-02
 
+### Changed
+
+- Qualified the stable OpenClaw `2026.9.7` runtime and expanded bounded
+  compatibility through the `2026.9.7` release line.
+
 ### Fixed
 
 - Restored compatibility discovery after a later published trust anchor advances
