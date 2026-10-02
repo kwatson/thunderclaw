@@ -4,6 +4,21 @@ All notable changes to ThunderClaw are documented in this file. The OpenClaw
 plugin and Thunderbird extension release independently, so every entry names
 the component and version it describes.
 
+## OpenClaw plugin [0.1.14] - 2026-10-02
+
+### Changed
+
+- Qualified OpenClaw `2026.9.7` and restored compatibility discovery after the
+  foundation counterpart baseline advances to a later published release.
+
+### Fixed
+
+- Gave protected real-agent qualification a bounded 90-second Gateway startup
+  window after intentional restarts, with per-request deadlines, exact runtime
+  identity checks, and sanitized failure diagnostics.
+- Carried forward the controller and recurring-rehearsal fixes from the
+  unpublished `0.1.13` candidate, whose real-agent restart gate did not pass.
+
 ## OpenClaw plugin [0.1.13] - 2026-10-02
 
 ### Changed

@@ -8,7 +8,7 @@ provenance and CI artifacts.
 
 ## Now: compatibility release autopilot
 
-1. Complete the reviewed `0.1.13` controller repair release and counterpart
+1. Complete the reviewed `0.1.14` controller repair release and counterpart
    closeout, then enable discovery and verify retirement of the original
    foundation reservation. The `0.1.11` foundation and `0.1.12` anchor are
    published; the controller repair preserves their historical closeout proof.

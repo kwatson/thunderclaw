@@ -6,6 +6,7 @@ import { spawn, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { createQualificationArtifacts } from "./artifacts.mjs";
 import { providerRepairObserved } from "./evidence.mjs";
+import { waitForQualifiedGateway } from "./gateway-ready.mjs";
 
 const root = resolve(fileURLToPath(new URL("../../..", import.meta.url)));
 const openClawQualification = JSON.parse(await readFile(join(root, "openclaw-qualification.json"), "utf8"));
@@ -70,25 +71,31 @@ async function atomicWrite(path, data) {
   await rename(temporary, path);
 }
 
-async function gatewayCall(token, path, body) {
+async function gatewayCall(token, path, body, signal) {
   if (!gatewayOrigin) throw new Error("Gateway origin has not been resolved");
   const response = await fetch(`${gatewayOrigin}/thunderclaw/v1${path}`, {
     method: body ? "POST" : "GET",
     headers: { authorization: `Bearer ${token}`, ...(body ? { "content-type": "application/json" } : {}) },
     body: body ? JSON.stringify(body) : undefined,
+    signal,
   });
   const value = await response.json();
-  const errorCode = typeof value?.error?.code === "string" ? value.error.code : "UNKNOWN";
-  if (!response.ok) throw new Error(`Gateway qualification call failed (${response.status}, ${errorCode})`);
+  const errorCode = typeof value?.error?.code === "string" && /^[A-Z][A-Z0-9_]{0,63}$/u.test(value.error.code)
+    ? value.error.code : "UNKNOWN";
+  if (!response.ok) {
+    const error = new Error(`Gateway qualification call failed (${response.status}, ${errorCode})`);
+    error.httpStatus = response.status;
+    error.code = errorCode;
+    throw error;
+  }
   return value;
 }
 
 async function waitForGateway(token) {
-  for (let attempt = 0; attempt < 30; attempt += 1) {
-    try { const status = await gatewayCall(token, "/status"); if (status.plugin === "thunderclaw") return status; } catch {}
-    await new Promise((done) => setTimeout(done, 1000));
-  }
-  throw new Error("Gateway did not become ready");
+  return waitForQualifiedGateway({
+    requestStatus: (signal) => gatewayCall(token, "/status", undefined, signal),
+    expectedVersion: openClawQualification.stableVersion,
+  });
 }
 
 function operatorCall(method, params) {
