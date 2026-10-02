@@ -114,8 +114,22 @@ export async function rehearseOpenClawAutopilot({ root, baselineFile, preflightF
       cwd: worktree, env: { ...environment, GIT_AUTHOR_NAME: "thunderclaw-rehearsal", GIT_AUTHOR_EMAIL: "rehearsal@invalid",
         GIT_COMMITTER_NAME: "thunderclaw-rehearsal", GIT_COMMITTER_EMAIL: "rehearsal@invalid" },
     });
-    const foundation = await verifyFoundationMigration({ root: worktree,
-      tag: `openclaw-plugin-v${prepared.pluginVersion}`, commit: candidateSha });
+    const manifest = JSON.parse(await readFile(path.join(worktree, "openclaw-autopilot-foundation.json"), "utf8"));
+    let releaseAdmission;
+    if (prepared.pluginVersion === manifest.foundation.pluginVersion) {
+      releaseAdmission = await verifyFoundationMigration({ root: worktree,
+        tag: `openclaw-plugin-v${prepared.pluginVersion}`, commit: candidateSha });
+    } else {
+      const baselines = JSON.parse(await readFile(path.join(worktree, "e2e/qualification/counterpart-baselines.json"), "utf8"));
+      const fromTag = baselines["openclaw-plugin"].tag;
+      const intervening = run("git", ["diff", "--name-only", "--no-renames", fromTag, baseSha], { cwd: worktree }).split("\n").filter(Boolean);
+      const findings = [...classification.findings];
+      if (intervening.some((file) => file !== "e2e/qualification/counterpart-baselines.json")) {
+        findings.push("changes since the published trust anchor are not limited to deterministic counterpart closeout");
+      }
+      releaseAdmission = { releaseLane: findings.length ? "manual" : "automatic-candidate", fromTag,
+        findings, qualificationRequired: true };
+    }
     const sourceBinding = await automationFingerprint(worktree);
     if (JSON.stringify(sourceBinding) !== JSON.stringify(expectedBinding)
         || run("git", ["show", "-s", "--format=%T", candidateSha], { cwd: worktree }) !== candidateTree) {
@@ -128,7 +142,7 @@ export async function rehearseOpenClawAutopilot({ root, baselineFile, preflightF
       classification: { decision: classification.decision, findings: classification.findings,
         evidenceSha256: classification.evidenceSha256 },
       sourceBinding,
-      releaseAdmission: foundation,
+      releaseAdmission,
       checks: { lockfileRegeneratedIndependently: true, sourceBindingVerified: true,
         failureCancellationReplayContracts: "success", tests: "success", typecheck: "success",
         artifactValidated: true, externalMutations: 0 },
