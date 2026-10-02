@@ -31,6 +31,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
+  OPENCLAW_AUTOPILOT_ENABLED: ${{ vars.OPENCLAW_AUTOPILOT_ENABLED }}
   STATE_REF: refs/heads/automation/openclaw-autopilot-state
   QUALIFICATION_WORKFLOW: .github/workflows/qualify-openclaw-autopilot.yml
   GIT_AUTHOR_NAME: thunderclaw-autopilot
@@ -44,6 +45,9 @@ jobs:
     if: github.event_name != 'workflow_run' && github.ref == 'refs/heads/main' && (github.event_name != 'schedule' || vars.OPENCLAW_AUTOPILOT_ENABLED == 'true')
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    permissions:
+      actions: read
+      contents: read
     outputs:
       version: ${{ steps.version.outputs.version }}
       eligible: ${{ steps.version.outputs.eligible }}
@@ -57,6 +61,11 @@ jobs:
           persist-credentials: false
       - name: Install managed runtimes
         uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4
+      - name: Verify the live pause control before discovery
+        if: vars.OPENCLAW_AUTOPILOT_ENABLED == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: mise exec -- node scripts/assert-openclaw-autopilot-enabled.mjs >/dev/null
       - name: Install locked dependencies
         run: mise exec -- npm ci
       - name: Resolve the requested stable version

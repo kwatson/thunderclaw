@@ -4,6 +4,17 @@ All notable changes to ThunderClaw are documented in this file. The OpenClaw
 plugin and Thunderbird extension release independently, so every entry names
 the component and version it describes.
 
+## OpenClaw plugin [0.1.15] - 2026-10-02
+
+### Fixed
+
+- Authorized each automatic mutation through the live controller workflow's
+  enabled state, which the narrow App and publication tokens can read. The
+  repository rollout variable still admits new jobs; disabling the controller
+  prevents the next mutation even in jobs already running.
+- Removed the temporary read-only permissions diagnostic after confirming both
+  credential types can read the workflow state without additional privileges.
+
 ## OpenClaw plugin [0.1.14] - 2026-10-02
 
 ### Changed

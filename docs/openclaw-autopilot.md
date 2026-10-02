@@ -128,18 +128,24 @@ restricted to `main`, and the `autopilot-closeout` environment, restricted to
 plugin release tags. The automatic ClawHub environment must contain no static
 publisher token; its trusted publisher accepts only the exact repository,
 `publish-clawhub.yml` workflow, and `clawhub-auto` environment claims. The
-App installation and automatic publication jobs must be able to read repository
-Actions variables; verify that their token can read the exact repository
-variable endpoint before enabling a rollout stage. The
-`OPENCLAW_AUTOPILOT_ENABLED` variable is fetched from the live repository
-Actions-variable API immediately before every state write, branch or tag write,
-issue or pull-request mutation, workflow dispatch/rerun, merge, provenance
-attestation, GitHub release, ClawHub publish, and closeout mutation in the
-automatic lane. A missing,
-unreadable, malformed, or non-`true` value fails closed. The value captured when
-a job started is used only to skip quiet scheduled work; it never authorizes a
-mutation. Turning the live value off prevents the next boundary rather than
-interrupting an API call already in flight.
+App installation and automatic publication jobs need Actions read permission.
+They re-read the exact `.github/workflows/openclaw-autopilot.yml` controller's
+state through the repository workflow API immediately before every state write,
+branch or tag write, issue or pull-request mutation, workflow dispatch/rerun,
+merge, provenance attestation, GitHub release, ClawHub publish, and closeout
+mutation in the automatic lane. Only the exact workflow path and `active` state
+permit a mutation. Missing, unreadable, malformed, or disabled workflows fail
+closed. Disable the controller in GitHub Actions (or `gh workflow disable
+openclaw-autopilot.yml`) to pause running automation at its next mutation
+boundary. This does not interrupt an API call already in flight.
+
+`OPENCLAW_AUTOPILOT_ENABLED=true` is also required when an automatic job starts.
+Set it to `false` to stop admitting new jobs and skip quiet scheduled discovery;
+it is a rollout setting, not the live pause switch for jobs already running.
+Before enabling, verify that both the narrow App token and publication job token
+can read the exact workflow API endpoint. GitHub's repository-variable API needs
+a separate Variables permission that these credentials do not have; do not
+expand privileges or treat an unreadable variable as enabled.
 
 ## Closeout and notifications
 

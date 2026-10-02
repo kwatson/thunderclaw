@@ -8,6 +8,7 @@ permissions:
   contents: read
 
 env:
+  OPENCLAW_AUTOPILOT_ENABLED: ${{ vars.OPENCLAW_AUTOPILOT_ENABLED }}
   GIT_AUTHOR_NAME: thunderclaw-autopilot
   GIT_AUTHOR_EMAIL: thunderclaw-autopilot@users.noreply.github.com
   GIT_COMMITTER_NAME: thunderclaw-autopilot

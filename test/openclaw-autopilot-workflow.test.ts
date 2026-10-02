@@ -95,7 +95,7 @@ test("autopilot controller is a short trusted-main state machine with isolated m
   assert.match(workflow, /repos\/\$GITHUB_REPOSITORY\/git\/tags/u);
   assert.match(workflow, /ref="refs\/tags\/\$tag"/u);
   assert.ok((workflow.match(/assert-openclaw-autopilot-enabled\.mjs/gu) ?? []).length >= 16,
-    "each controller mutation must re-read the live repository variable");
+    "each controller mutation must re-read the live controller workflow");
   assert.doesNotMatch(workflow, /sleep\s+(?:[6-9]\d|[1-9]\d{2,})/u);
 
   const mutationJobs = [...workflow.matchAll(/^  (prepare|merge-and-tag):\n([\s\S]*?)(?=^  [a-z][a-z-]+:\n|(?![\s\S]))/gmu)];
@@ -122,4 +122,11 @@ test("merged counterpart closeout completes only the exact durable reservation",
   assert.match(workflow, /assert-openclaw-autopilot-enabled\.mjs/u);
   assert.match(workflow, /permission-actions: read/u);
   verifyPinnedActionsAndShell(workflow, "complete-openclaw-autopilot-closeout.yml");
+});
+
+test("every automatic mutation workflow carries explicit rollout admission to the live guard", async () => {
+  for (const filename of ["openclaw-autopilot.yml", "release-openclaw-plugin.yml", "publish-clawhub.yml", "complete-openclaw-autopilot-closeout.yml"]) {
+    const workflow = await readFile(new URL(`../.github/workflows/${filename}`, import.meta.url), "utf8");
+    assert.match(workflow, /^env:\n  OPENCLAW_AUTOPILOT_ENABLED: \$\{\{ vars\.OPENCLAW_AUTOPILOT_ENABLED \}\}/mu, filename);
+  }
 });

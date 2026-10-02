@@ -125,7 +125,7 @@ checks as appropriate, and dispatch a new pre-release run.
 ### One-time 0.1.11 foundation migration
 
 The automation changes after `openclaw-plugin-v0.1.10` are intentionally too
-broad for recurring automatic admission. Keep the live repository variable
+broad for recurring automatic admission. Keep the repository rollout variable
 `OPENCLAW_AUTOPILOT_ENABLED=false`. Review the strict
 `openclaw-autopilot-foundation.json` source anchor and exact `0.1.11` /
 OpenClaw `2026.9.6` target, the full candidate diff, the rehearsal report, and
@@ -134,10 +134,12 @@ the complete pre-release CI run. The tag workflow must classify the tag as
 normal human approvals.
 
 Before any later sandbox enablement, confirm that the narrowly installed
-autopilot App and the automatic publication jobs can read the live repository
-Actions-variable endpoint. An unreadable variable is intentionally equivalent
-to a disabled switch, so this permission check must succeed before mutation
-credentials are introduced to a test run.
+autopilot App and the automatic publication jobs can read the live controller
+workflow endpoint with their existing Actions read permission. Only its exact
+path and `active` state authorize a mutation. Disable the controller workflow
+in GitHub Actions to pause already running jobs before their next mutation;
+setting the rollout variable to `false` stops new jobs. Verify this permission
+check before enabling discovery.
 
 After publication and public verification, use the manual command in section 6
 to open a one-file counterpart-baseline change for `0.1.11`. Merge that closeout
