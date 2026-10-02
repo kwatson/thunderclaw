@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { validateReleaseState } from "./openclaw-release-state.mjs";
+import { compareOpenClawVersions } from "./openclaw-upgrade-policy.mjs";
 
 export const FOUNDATION_FORMAT = "thunderclaw-openclaw-autopilot-foundation-v1";
 const sha40 = /^[a-f0-9]{40}$/u;
@@ -110,7 +111,48 @@ export async function verifyFoundationCloseout({ root, stateFile }) {
     path.join(root, "openclaw-autopilot-foundation.json"), path.join(root, "e2e/qualification/counterpart-baselines.json"),
     path.join(root, "packages/openclaw-plugin/package.json"), path.join(root, "openclaw-qualification.json"), stateFile,
   ].map(async (file) => JSON.parse(await readFile(file, "utf8"))));
-  return assessFoundationCloseout({ manifest, baselines, plugin, qualification, state: validateReleaseState(state) });
+  return assessFoundationCloseoutHistory({ root, manifest, baselines, plugin, qualification, state: validateReleaseState(state) });
+}
+
+export function assessFoundationCloseoutHistory({ root, manifest: manifestValue, baselines, plugin, qualification, state }) {
+  const manifest = validateFoundationManifest(manifestValue);
+  if (plugin?.version === manifest.foundation.pluginVersion) {
+    return assessFoundationCloseout({ manifest, baselines, plugin, qualification, state });
+  }
+  const baseline = baselines?.["openclaw-plugin"];
+  if (!semver.test(plugin?.version) || !record(baseline)
+      || baseline.tag !== `openclaw-plugin-v${plugin.version}`
+      || baseline.name !== `thunderclaw-openclaw-plugin-${plugin.version}.tgz`
+      || !sha256.test(baseline.sha256) || !Number.isSafeInteger(baseline.size) || baseline.size < 1
+      || compareOpenClawVersions(qualification?.stableVersion, manifest.foundation.openclawVersion) < 0) {
+    throw new Error("published successor does not match the current source and counterpart baseline");
+  }
+  const versions = [manifest.foundation.pluginVersion, plugin.version].map((version) => version.split(".").map(Number));
+  const difference = versions[1].map((part, index) => part - versions[0][index]).find((part) => part !== 0);
+  if (!(difference > 0)) throw new Error("published successor must be later than the foundation");
+  const ancestor = (before, after) => spawnSync("git", ["merge-base", "--is-ancestor", before, after], { cwd: root }).status === 0;
+  const successor = git(root, ["rev-parse", "--verify", `${baseline.tag}^{commit}`]);
+  const foundation = git(root, ["rev-parse", "--verify", `${manifest.foundation.tag}^{commit}`]);
+  if (!ancestor(foundation, successor) || !ancestor(successor, "HEAD")) {
+    throw new Error("published successor is not rooted in the foundation and current source history");
+  }
+  const readAt = (commit, file) => JSON.parse(git(root, ["show", `${commit}:${file}`]));
+  if (readAt(successor, "packages/openclaw-plugin/package.json").version !== plugin.version
+      || readAt(successor, "openclaw-qualification.json").stableVersion !== qualification.stableVersion) {
+    throw new Error("published successor tag does not match the current source identity");
+  }
+  // A later pin alone cannot retire the manifest-bound reservation: require
+  // the exact foundation closeout in the published successor's ancestry.
+  const commits = git(root, ["rev-list", successor, "--", "e2e/qualification/counterpart-baselines.json"]).split("\n").filter(Boolean);
+  for (const commit of commits) {
+    if (!ancestor(foundation, commit)) continue;
+    const historical = readAt(commit, "e2e/qualification/counterpart-baselines.json");
+    if (historical?.["openclaw-plugin"]?.tag !== manifest.foundation.tag) continue;
+    return assessFoundationCloseout({ manifest, baselines: historical,
+      plugin: readAt(commit, "packages/openclaw-plugin/package.json"),
+      qualification: readAt(commit, "openclaw-qualification.json"), state });
+  }
+  throw new Error("published successor history has no exact foundation counterpart closeout");
 }
 
 function option(args, name) { const index = args.indexOf(name); return index < 0 ? undefined : args[index + 1]; }

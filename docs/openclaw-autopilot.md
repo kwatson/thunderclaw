@@ -199,8 +199,16 @@ holds. The same manifest pins the exact pre-foundation durable reservation at
 revision 16. Only after source and counterpart both prove the exact foundation
 target may discovery roll that obsolete record into a new reservation for a
 strictly later OpenClaw release; no state-branch edit or deletion is needed.
-Subsequent automatic classifications compare against the published `0.1.11`
-trust anchor. The autopilot cannot authorize its own foundation.
+Subsequent automatic classifications compare against the current published
+plugin trust anchor. The autopilot cannot authorize its own foundation.
+
+After a later reviewed plugin release advances the published anchor, retirement
+still requires the exact original foundation closeout in that successor tag's
+Git ancestry. The current plugin version and qualification must agree with the
+published successor, and only the manifest-pinned reservation may be retired.
+A later counterpart pin without that historical closeout does not qualify.
+Discovery checks out full history to verify this proof without editing or
+deleting durable state.
 
 Keep `OPENCLAW_AUTOPILOT_ENABLED=false` while merging and releasing the
 foundation. Enable later stages only after the credential-free rehearsal and

@@ -1,6 +1,6 @@
 # ThunderClaw roadmap
 
-Last reconciled: 2026-09-25
+Last reconciled: 2026-10-02
 
 This file contains unfinished work only. Current behavior belongs in the
 product and architecture documents; completed test results belong in release
@@ -8,9 +8,10 @@ provenance and CI artifacts.
 
 ## Now: compatibility release autopilot
 
-1. Run and retain the credential-free `0.1.11` / OpenClaw `2026.9.6`
-   foundation rehearsal, then complete the human-reviewed foundation release
-   and one-file counterpart closeout while the live autopilot remains disabled.
+1. Complete the reviewed `0.1.13` controller repair release and counterpart
+   closeout, then enable discovery and verify retirement of the original
+   foundation reservation. The `0.1.11` foundation and `0.1.12` anchor are
+   published; the controller repair preserves their historical closeout proof.
 2. Rehearse the controller, automatic tag lane, publication, cancellation,
    lost-response handling, and idempotent closeout in a sandbox before enabling
    each mutation stage.
