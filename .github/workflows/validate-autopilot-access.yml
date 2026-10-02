@@ -1,0 +1,32 @@
+name: Validate autopilot variable access
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  validate:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    environment: openclaw-autopilot-mutation
+    steps:
+      - name: Mint the automation token with existing permission scopes
+        id: app
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349
+        with:
+          app-id: ${{ vars.OPENCLAW_AUTOPILOT_APP_ID }}
+          private-key: ${{ secrets.OPENCLAW_AUTOPILOT_APP_PRIVATE_KEY }}
+          permission-actions: read
+          permission-contents: read
+      - name: Verify App access to the live repository switch
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+        run: gh api "repos/$GITHUB_REPOSITORY/actions/variables/OPENCLAW_AUTOPILOT_ENABLED" --jq '{name, value}'
+      - name: Verify publication job access to the live repository switch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api "repos/$GITHUB_REPOSITORY/actions/variables/OPENCLAW_AUTOPILOT_ENABLED" --jq '{name, value}'
