@@ -58,6 +58,15 @@ trusted-publisher configuration does not model. Do not broaden branch/ref trust
 to unblock publication. Record this settings review in the release issue
 because it is not represented by a repository diff.
 
+For a human-approved retry of a previously qualified GitHub release, dispatch
+the current reviewed `publish-clawhub.yml` at a protected plugin tag with the
+older release's `tag` input and `release_lane=manual`. The archive, canonical
+notes, source identity, and attestation come from the older immutable release.
+The audited transport patch comes from the publisher workflow's own commit, so
+a transport repair can promote those exact bytes without rebuilding or editing
+the release. Automatic publication requires the publisher workflow commit to
+equal the qualified release commit; it cannot use this manual retry exception.
+
 ## Candidate construction and exact-byte qualification
 
 From a clean checkout, build only the component being released. The protected

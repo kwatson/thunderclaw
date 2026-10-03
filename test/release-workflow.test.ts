@@ -216,3 +216,10 @@ test("legacy audits and retries use current trusted automation, the immutable le
   assert.doesNotMatch(workflow, /publish_clawhub|submit_thunderbird/u);
   verifyWorkflow(workflow, "publish-legacy-release.yml");
 });
+
+test("manual publisher repairs use reviewed workflow source while automatic publication stays bound to the qualified commit", async () => {
+  const workflow = await readFile(new URL("../.github/workflows/publish-clawhub.yml", import.meta.url), "utf8");
+  assert.match(workflow, /PUBLISHER_WORKFLOW_SHA: \$\{\{ github\.workflow_sha \}\}/u);
+  assert.match(workflow, /RELEASE_LANE" == automatic && "\$PUBLISHER_WORKFLOW_SHA" != "\$RELEASE_COMMIT"[\s\S]*exit 1[\s\S]*git show "\$PUBLISHER_WORKFLOW_SHA:scripts\/patch-clawhub-publisher\.mjs"/u);
+  assert.match(workflow, /ref: \$\{\{ inputs\.tag \}\}/u, "the candidate source remains the qualified release tag");
+});

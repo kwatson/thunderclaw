@@ -4,6 +4,18 @@ All notable changes to ThunderClaw are documented in this file. The OpenClaw
 plugin and Thunderbird extension release independently, so every entry names
 the component and version it describes.
 
+## OpenClaw plugin [0.1.16] - 2026-10-02
+
+### Fixed
+
+- Preserved literal ClawHub upload metadata; semicolons and other form syntax
+  in canonical release notes no longer truncate the JSON payload.
+- Used the audited transport patch from the publisher workflow's own commit
+  for human-approved retries of older qualified releases, while binding the
+  automatic publisher to the exact qualified release commit.
+- Carried forward the live workflow pause control from `0.1.15`, whose GitHub
+  release qualified successfully but whose ClawHub upload exposed this bug.
+
 ## OpenClaw plugin [0.1.15] - 2026-10-02
 
 ### Fixed
