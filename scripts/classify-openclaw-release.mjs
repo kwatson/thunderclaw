@@ -1,3 +1,4 @@
+import { assessPublishedPluginChanges } from "./classify-change-scope.mjs";
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
@@ -20,7 +21,7 @@ const verifierPaths = ["scripts/classify-openclaw-release.mjs", "scripts/classif
   "scripts/prepare-openclaw-upgrade.mjs", "scripts/openclaw-upgrade-policy.mjs", "scripts/openclaw-release-state.mjs",
   "scripts/verify-openclaw-autopilot-result.mjs", "scripts/openclaw-qualification.mjs",
   "scripts/assert-openclaw-autopilot-enabled.mjs", "scripts/classify-openclaw-qualification-failure.mjs",
-  "scripts/verify-openclaw-foundation.mjs"];
+  "scripts/verify-openclaw-foundation.mjs", "scripts/classify-change-scope.mjs"];
 
 function digest(contents) {
   return createHash("sha256").update(contents).digest("hex");
@@ -142,10 +143,8 @@ function git(root, args, encoding = "utf8") {
 }
 
 async function classifyRange(root, state, releaseBaseRef, afterRef) {
-  const intervening = git(root, ["diff", "--name-only", "--no-renames", releaseBaseRef, state.baseSha]).trim().split("\n").filter(Boolean);
-  if (intervening.some((file) => file !== "e2e/qualification/counterpart-baselines.json")) {
-    throw new Error("changes since the published trust anchor are not limited to deterministic counterpart closeout");
-  }
+  const { findings } = assessPublishedPluginChanges(root, releaseBaseRef, state.baseSha);
+  if (findings.length) throw new Error(findings.join("; "));
   const snapshots = snapshotGitRange(root, state.baseSha, afterRef);
   const preparedDate = state.outputs.preparation.preparedDate;
   const expectedLockfile = await regenerateLockfile(root, snapshots, state.baseline, preparedDate);

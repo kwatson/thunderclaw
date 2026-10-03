@@ -1,3 +1,4 @@
+import { assessPublishedPluginChanges } from "./classify-change-scope.mjs";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { copyFile, mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
@@ -11,7 +12,7 @@ const classifierPaths = ["scripts/classify-openclaw-release.mjs", "scripts/class
   "scripts/prepare-openclaw-upgrade.mjs", "scripts/openclaw-upgrade-policy.mjs", "scripts/openclaw-release-state.mjs",
   "scripts/verify-openclaw-autopilot-result.mjs", "scripts/openclaw-qualification.mjs",
   "scripts/assert-openclaw-autopilot-enabled.mjs", "scripts/classify-openclaw-qualification-failure.mjs",
-  "scripts/verify-openclaw-foundation.mjs"];
+  "scripts/verify-openclaw-foundation.mjs", "scripts/classify-change-scope.mjs"];
 const releasePaths = [".github/workflows/release-openclaw-plugin.yml", ".github/workflows/publish-clawhub.yml"];
 
 function run(program, args, options = {}) {
@@ -122,11 +123,8 @@ export async function rehearseOpenClawAutopilot({ root, baselineFile, preflightF
     } else {
       const baselines = JSON.parse(await readFile(path.join(worktree, "e2e/qualification/counterpart-baselines.json"), "utf8"));
       const fromTag = baselines["openclaw-plugin"].tag;
-      const intervening = run("git", ["diff", "--name-only", "--no-renames", fromTag, baseSha], { cwd: worktree }).split("\n").filter(Boolean);
-      const findings = [...classification.findings];
-      if (intervening.some((file) => file !== "e2e/qualification/counterpart-baselines.json")) {
-        findings.push("changes since the published trust anchor are not limited to deterministic counterpart closeout");
-      }
+      const findings = [...classification.findings,
+        ...assessPublishedPluginChanges(worktree, fromTag, baseSha).findings];
       releaseAdmission = { releaseLane: findings.length ? "manual" : "automatic-candidate", fromTag,
         findings, qualificationRequired: true };
     }

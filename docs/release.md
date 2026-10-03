@@ -1,5 +1,34 @@
 # ThunderClaw release policy
 
+## Product changes and internal changes
+
+Create a component release for shipped runtime fixes, behavior or installed
+metadata changes, or a newly qualified OpenClaw compatibility version. Release
+the plugin and extension independently. GitHub workflow, approval, uploader,
+test-harness, documentation and development-tool repairs do not require a
+component version bump, tag, release or protected full product qualification.
+
+Ordinary CI classifies changed paths with `scripts/classify-change-scope.mjs`.
+Internal tooling changes run deterministic tests and type checks. Product,
+compatibility, dependency and packaging inputs retain package validation and
+relevant OpenClaw integration; unknown paths conservatively affect both products.
+Documentation-only changes skip these checks. Expensive cross-platform and real
+Thunderbird qualification remains an explicit dispatch for release candidates.
+Path classification identifies required validation, never permission to publish.
+
+Review automation changes through a pull request and passing CI. Validate
+credential or dispatch changes with read-only probes or a sandbox when needed;
+do not manufacture a release as a workflow test. Keep automatic publication
+paused while its repairs or required sandbox validation remain incomplete.
+
+A repaired human-approved publisher may retry an existing release using its
+original archive, digest, source, notes and qualification evidence, as the
+0.1.15 ClawHub retry demonstrated. It must not rebuild or relabel those bytes.
+Automatic candidates still bind the exact reviewed machinery to their active
+reservation and qualification result; changing that machinery requires fresh
+authorization for the candidate, not an unrelated product release.
+
+
 ## Independent components
 
 ThunderClaw has two independently released components:

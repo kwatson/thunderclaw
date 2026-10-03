@@ -54,13 +54,25 @@ An allowlisted filename is not an allowlisted arbitrary edit. Added package
 scripts, lifecycle hooks, dependencies, overrides, exports, symlinks, file-mode
 changes, Compose behavior, runtime source, workflows, release tooling,
 qualification harnesses, tests, fixtures, or contracts force the manual lane.
-The previous published plugin and the reviewed autopilot implementation are the
-recurring-release trust anchors. Automation may bridge a published trust anchor
-only through deterministic counterpart closeout. Broader controller or policy
-changes require the explicit one-use foundation manifest, the exact declared
-source and target releases, the normal human-reviewed release environments, and
-a reviewed counterpart closeout. A foundation release is never reclassified as
-automatic.
+The published plugin anchors product inputs; reviewed `main` supplies the
+controller and publishing implementation. `scripts/classify-change-scope.mjs`
+compares the published plugin tag with the reservation base and rejects
+unreleased plugin, compatibility, dependency, and packaging inputs. Reviewed
+workflow, publishing, test, qualification-harness, documentation, and counterpart
+closeout changes may intervene without a plugin version bump. Extension-only
+changes do not invalidate plugin provenance: qualification still uses the
+cryptographically pinned published extension, not the extension source on main.
+Unknown files conservatively affect both products.
+
+This exemption applies to changes already on reviewed main before a reservation.
+The automatic candidate itself remains restricted to independently regenerated
+compatibility edits. Runtime or machinery edits inside that candidate still
+force the manual lane. The scope policy participates in the reserved verifier
+digest; controller, classifier, qualification and publication fingerprints must
+remain unchanged throughout an active reservation. An automation repair cannot
+reuse an old reservation's authorization with different machinery. The original
+one-use foundation rules remain historical migration evidence, not a requirement
+to release the plugin after every controller repair.
 
 ## State machine and candidate lifecycle
 

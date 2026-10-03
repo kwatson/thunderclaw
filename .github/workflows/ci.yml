@@ -30,6 +30,8 @@ jobs:
     timeout-minutes: 20
     outputs:
       run_full: ${{ steps.changes.outputs.run_full }}
+      qualify_plugin: ${{ steps.changes.outputs.qualify_plugin }}
+      qualify_extension: ${{ steps.changes.outputs.qualify_extension }}
 
     steps:
       - name: Check out repository
@@ -45,33 +47,11 @@ jobs:
           TARGET_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         shell: bash
         run: |
-          run_full=true
-
-          if [[ "${{ github.event_name }}" != "workflow_dispatch" \
-            && -n "$BASE_SHA" \
-            && ! "$BASE_SHA" =~ ^0+$ \
-            && -n "$TARGET_SHA" ]]; then
-            run_full=false
-
-            while IFS= read -r -d '' file; do
-              case "$file" in
-                docs/*)
-                  ;;
-                */*)
-                  run_full=true
-                  break
-                  ;;
-                *.md)
-                  ;;
-                *)
-                  run_full=true
-                  break
-                  ;;
-              esac
-            done < <(git diff --name-only -z "$BASE_SHA" "$TARGET_SHA")
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            node scripts/classify-change-scope.mjs
+          else
+            node scripts/classify-change-scope.mjs "$BASE_SHA" "$TARGET_SHA"
           fi
-
-          echo "run_full=$run_full" >> "$GITHUB_OUTPUT"
 
       - name: Documentation-only change
         if: steps.changes.outputs.run_full == 'false'
@@ -93,9 +73,13 @@ jobs:
         if: steps.changes.outputs.run_full == 'true'
         run: mise exec -- npm run typecheck
 
-      - name: Build release packages
-        if: steps.changes.outputs.run_full == 'true'
-        run: mise exec -- npm run pack:release
+      - name: Validate plugin package
+        if: steps.changes.outputs.qualify_plugin == 'true'
+        run: mise exec -- npm run pack:plugin
+
+      - name: Validate extension packages
+        if: steps.changes.outputs.qualify_extension == 'true'
+        run: mise exec -- npm run build:extension && mise exec -- npm run pack:source
 
       - name: Record candidate XPI digest
         if: github.event_name == 'workflow_dispatch' && inputs.release_qualification == true && steps.changes.outputs.run_full == 'true'
@@ -115,7 +99,7 @@ jobs:
   thunderbird-e2e:
     name: Thunderbird ${{ matrix.thunderbird }}
     needs: checks
-    if: github.event_name == 'workflow_dispatch' && inputs.release_qualification == true && needs.checks.outputs.run_full == 'true'
+    if: github.event_name == 'workflow_dispatch' && inputs.release_qualification == true && needs.checks.outputs.qualify_extension == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     strategy:
@@ -163,7 +147,7 @@ jobs:
   native-platform:
     name: Native qualification on ${{ matrix.platform }}
     needs: checks
-    if: github.event_name == 'workflow_dispatch' && inputs.release_qualification == true && needs.checks.outputs.run_full == 'true'
+    if: github.event_name == 'workflow_dispatch' && inputs.release_qualification == true && needs.checks.outputs.qualify_extension == 'true'
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 35
     strategy:
@@ -262,7 +246,7 @@ jobs:
   openclaw-integration:
     name: Pinned qualified OpenClaw integration
     needs: checks
-    if: needs.checks.outputs.run_full == 'true' && (github.event_name != 'workflow_dispatch' || inputs.release_qualification == true)
+    if: needs.checks.outputs.qualify_plugin == 'true' && (github.event_name != 'workflow_dispatch' || inputs.release_qualification == true)
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
