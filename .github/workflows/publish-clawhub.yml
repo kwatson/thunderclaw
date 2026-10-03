@@ -158,8 +158,18 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Apply audited ClawHub transport compatibility patch
+        env:
+          PUBLISHER_WORKFLOW_SHA: ${{ github.workflow_sha }}
+          RELEASE_LANE: ${{ inputs.release_lane || 'manual' }}
+          RELEASE_COMMIT: ${{ steps.release.outputs.commit }}
         run: |
-          mise exec -- node scripts/patch-clawhub-publisher.mjs \
+          set -euo pipefail
+          if [[ "$RELEASE_LANE" == automatic && "$PUBLISHER_WORKFLOW_SHA" != "$RELEASE_COMMIT" ]]; then
+            echo "Automatic publication must use the exact qualified publisher workflow commit" >&2
+            exit 1
+          fi
+          git show "$PUBLISHER_WORKFLOW_SHA:scripts/patch-clawhub-publisher.mjs" > "$RUNNER_TEMP/patch-clawhub-publisher.mjs"
+          mise exec -- node "$RUNNER_TEMP/patch-clawhub-publisher.mjs" \
             clawhub-source/packages/clawhub/src/http.ts
 
       - name: Configure ClawHub authentication

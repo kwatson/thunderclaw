@@ -5,6 +5,8 @@ import { pathToFileURL } from "node:url";
 const invalidHeaderPattern = /%\{header:([^}]+)\}/gu;
 const retryPattern = "curl failed|fetch failed|network|socket|ECONN|EAI_AGAIN|ENET|ETIMEDOUT|request timed out";
 const patchedRetryPattern = "curl failed|fetch failed|network|socket|ECONN|EAI_AGAIN|ENET|ETIMEDOUT|request timed out|connection timed out";
+const formFieldPattern = 'formArgs.push("-F", `${key}=${value}`);';
+const patchedFormFieldPattern = 'formArgs.push("--form-string", `${key}=${value}`);';
 
 export function patchClawHubPublisherSource(source) {
   if (typeof source !== "string") throw new Error("ClawHub HTTP source must be a string");
@@ -16,11 +18,15 @@ export function patchClawHubPublisherSource(source) {
   if (retryOccurrences !== 1 || source.includes(patchedRetryPattern)) {
     throw new Error("Expected one unpatched ClawHub transient-error classifier");
   }
+  if (source.split(formFieldPattern).length - 1 !== 1 || source.includes(patchedFormFieldPattern)) {
+    throw new Error("Expected one unpatched ClawHub literal form-field upload");
+  }
 
   const patched = source
     .replace(invalidHeaderPattern, "%header{$1}")
-    .replace(retryPattern, patchedRetryPattern);
-  if (patched.match(invalidHeaderPattern) || !patched.includes(patchedRetryPattern)) {
+    .replace(retryPattern, patchedRetryPattern)
+    .replace(formFieldPattern, patchedFormFieldPattern);
+  if (patched.match(invalidHeaderPattern) || !patched.includes(patchedRetryPattern) || !patched.includes(patchedFormFieldPattern)) {
     throw new Error("ClawHub publisher transport patch did not apply completely");
   }
   return patched;
