@@ -8,10 +8,10 @@ provenance and CI artifacts.
 
 ## Now: compatibility release autopilot
 
-1. Complete the reviewed `0.1.16` controller and publisher repair release and counterpart
-   closeout, then enable discovery and verify retirement of the original
-   foundation reservation. The `0.1.11` foundation and `0.1.12` anchor are
-   published; the controller repair preserves their historical closeout proof.
+1. Validate the separation of internal automation changes from product release
+   qualification, then enable discovery and verify retirement of the original
+   foundation reservation. Plugin `0.1.15` is published on GitHub and ClawHub;
+   no additional product release is required for controller repairs.
 2. Rehearse the controller, automatic tag lane, publication, cancellation,
    lost-response handling, and idempotent closeout in a sandbox before enabling
    each mutation stage.
