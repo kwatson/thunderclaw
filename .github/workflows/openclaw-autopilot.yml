@@ -10,7 +10,7 @@ on:
         required: true
         type: string
       expedite_soak:
-        description: Waive only the remaining 24-hour soak after a second unchanged observation
+        description: Waive only the remaining 6-hour soak after a second unchanged observation
         required: false
         default: false
         type: boolean

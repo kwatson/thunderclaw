@@ -71,13 +71,15 @@ test("autopilot orders stable calendar versions and rejects prereleases", () => 
   assert.throws(() => validateUpgradePreflight({ ...preflight(), proposed: { ...preflight().proposed, version: "2026.9.5" } }), /newer/u);
 });
 
-test("24-hour soak requires two unchanged observations while unsigned tags and CI waivers stay advisory", () => {
+test("6-hour soak requires two unchanged observations while unsigned tags and CI waivers stay advisory", () => {
   const baseline = preflight();
-  const early = preflight("2026-09-23T00:59:59.999Z");
-  const current = preflight("2026-09-23T01:00:00.000Z");
+  const early = preflight("2026-09-22T06:59:59.999Z");
+  const current = preflight("2026-09-22T07:00:00.000Z");
   assert.equal(assessUpgradeEvidence({ baseline, current: early }).decision, "waiting");
   const assessment = assessUpgradeEvidence({ baseline, current });
   assert.equal(assessment.decision, "ready");
+  assert.equal(assessment.soakCompletesAt, "2026-09-22T07:00:00.000Z");
+  assert.equal(assessUpgradeEvidence({ baseline, current: early, now: current.observedAt }).decision, "waiting");
   assert.deepEqual(assessment.blockers, []);
   assert.ok(assessment.advisories.includes("upstream release tag is unsigned or unverified"));
   assert.ok(assessment.advisories.includes("upstream CI was waived"));
@@ -88,6 +90,18 @@ test("24-hour soak requires two unchanged observations while unsigned tags and C
   const missing = structuredClone(current);
   missing.sdk.missingEntrypoints.push("./plugin-sdk/plugin-entry");
   assert.match(assessUpgradeEvidence({ baseline, current: missing }).blockers.join("\n"), /missing required export/u);
+});
+
+test("reobservation updates an existing observation to the current six-hour deadline", () => {
+  const state = createReleaseState(preflight(), { reservationId: hex("1", 32), baseSha: hex("2", 40) });
+  state.soakCompletesAt = "2026-09-23T01:00:00.000Z"; // Retained state from the former 24-hour policy.
+  const observedAt = "2026-09-22T06:59:59.999Z";
+  const outcome = applyReleaseStateIntent(state, { format: "thunderclaw-openclaw-autopilot-intent-v1",
+    intentId: "six-hour-reobserve", expectedRevision: 0, type: "reobserve", at: observedAt,
+    payload: { preflight: preflight(observedAt), baseSha: hex("2", 40) } });
+  assert.equal(outcome.state.phase, "observed");
+  assert.equal(outcome.state.soakCompletesAt, "2026-09-22T07:00:00.000Z");
+  assert.equal(state.soakCompletesAt, "2026-09-23T01:00:00.000Z");
 });
 
 test("preparation generates only canonical compatibility surfaces and detects partial state", async () => {
@@ -272,7 +286,7 @@ test("release state provides strict CAS, replay, and safe resume through qualifi
   const baseline = preflight();
   const state = createReleaseState(baseline, { reservationId: hex("1", 32), baseSha: hex("2", 40) });
   assert.deepEqual(decideReleaseResume(state), { action: "reobserve", revision: 0,
-    pause: { reason: "soak", until: "2026-09-23T01:00:00.000Z" } });
+    pause: { reason: "soak", until: "2026-09-22T07:00:00.000Z" } });
   const intent = (intentId: string, expectedRevision: number, type: string, payload: object, at = "2026-09-23T01:00:00.000Z") => ({ format: "thunderclaw-openclaw-autopilot-intent-v1" as const, intentId, expectedRevision, type, at, payload });
   const readyResult = applyReleaseStateIntent(state, intent("observe-2", 0, "reobserve", { preflight: preflight("2026-09-23T01:00:00.000Z"), baseSha: hex("2", 40) }, "2026-09-23T01:00:00Z") as never);
   assert.equal(readyResult.state.phase, "ready");
@@ -376,7 +390,7 @@ test("a manual expedite records an auditable one-release soak waiver", () => {
   } as never).state;
   assert.equal(expedited.phase, "ready");
   assert.equal(decideReleaseResume(expedited).action, "prepare");
-  assert.ok(expedited.advisories.includes(`24-hour soak waived: explicit manual expedite for OpenClaw ${proposedVersion}`));
+  assert.ok(expedited.advisories.includes(`6-hour soak waived: explicit manual expedite for OpenClaw ${proposedVersion}`));
   assert.throws(() => applyReleaseStateIntent(state, {
     format: "thunderclaw-openclaw-autopilot-intent-v1",
     intentId: "bad-waiver",

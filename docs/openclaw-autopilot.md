@@ -7,7 +7,7 @@ must pass. Anything outside that policy stops before publication and enters the
 manual release lane.
 
 The controller polls at minute 17 every six hours. Together with the two
-unchanged observations required by the policy, this preserves the 24-hour soak
+unchanged observations required by the policy, this preserves the 6-hour soak
 while bounding the normal discovery delay after that soak to about six hours.
 An explicitly dispatched run may expedite an already observed release after a
 fresh unchanged observation. The waiver payload and durable history bind the
@@ -20,7 +20,7 @@ gates. Scheduled runs cannot use the override.
 ## Upstream admission policy
 
 The controller considers only a stable release from the official
-`openclaw/openclaw` repository after a 24-hour soak. At discovery and again
+`openclaw/openclaw` repository after a 6-hour soak. At discovery and again
 immediately before tagging it records and verifies the exact:
 
 - OpenClaw release tag and commit;
