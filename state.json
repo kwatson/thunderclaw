@@ -1,56 +1,52 @@
 {
   "format": "thunderclaw-openclaw-autopilot-state-v1",
-  "revision": 16,
-  "phase": "ready",
-  "reservationId": "b56e887895d0e87388dd1c8c01dbd92e",
-  "baseSha": "7d97944d81bb53768fd1a2fcf526ba2435ca9839",
+  "revision": 0,
+  "phase": "observed",
+  "reservationId": "11807cb4224dd306dfde92291346f91f",
+  "baseSha": "e9006041f294d78035a597ff919e4eaa94b21063",
   "baseline": {
     "format": "thunderclaw-openclaw-upgrade-preflight-v2",
-    "observedAt": "2026-09-25T18:03:55.562Z",
+    "observedAt": "2026-10-05T19:19:40.390Z",
     "current": {
-      "version": "2026.9.5",
-      "releaseCommit": "ec9c1a13db8938e5a3eaa51fca2e981cde2395a9",
-      "pluginVersion": "0.1.10"
+      "version": "2026.9.7",
+      "releaseCommit": "c074824a27c96d3983043f9eeb33823cd1772d8c",
+      "pluginVersion": "0.1.15"
     },
     "proposed": {
-      "version": "2026.9.6",
+      "version": "2026.9.8",
       "npm": {
         "package": "openclaw",
-        "version": "2026.9.6",
-        "integrity": "sha512-Ie0kyQSCVfFqixsgVg39vevUDq01Ch5u3+7Yu5Y3qARczmdAe+lzp8bVnO9925rHiW/+CFp70zfORCyPmCH31g==",
-        "tarball": "https://registry.npmjs.org/openclaw/-/openclaw-2026.9.6.tgz"
+        "version": "2026.9.8",
+        "integrity": "sha512-G+JkNUhtpDE3cXR4AEi2NyyG9fqI/T2WUSl8ZnR8AATH8Dh1kC3qYFL7wwPoZtgHiP/cszA86PEiE0PDysxb9Q==",
+        "tarball": "https://registry.npmjs.org/openclaw/-/openclaw-2026.9.8.tgz"
       },
       "providerNpm": {
         "package": "@openclaw/deepseek-provider",
-        "version": "2026.9.6",
-        "integrity": "sha512-krB49SRz/wl/2VKc0l3hgsL6I9kJKM8vuKHkxPBsJsg3cgCIJ005hjD0D1LViji4uBeRzRwSKPLl2d/9u0YPGg==",
-        "tarball": "https://registry.npmjs.org/@openclaw/deepseek-provider/-/deepseek-provider-2026.9.6.tgz"
+        "version": "2026.9.8",
+        "integrity": "sha512-NBM1CtQYfeJCaKr4qctKxeSj+M7Qa+dAE8bESLWFA4+CBP+7kFIWKJ8EHFo5jkiREHedVsTsaSqYDnx0SIIkXQ==",
+        "tarball": "https://registry.npmjs.org/@openclaw/deepseek-provider/-/deepseek-provider-2026.9.8.tgz"
       },
       "upstream": {
         "repository": "openclaw/openclaw",
-        "tag": "v2026.9.6",
-        "releaseTag": "v2026.9.6",
-        "commit": "eb377ac59e6c9fd6c7705028034812becf00271b",
-        "verifiedTag": false,
+        "tag": "v2026.9.8",
+        "releaseTag": "v2026.9.8",
+        "commit": "fc23bc864e4553c2d215e479eeec47b67a0bf943",
+        "verifiedTag": true,
         "tagKind": "annotated",
-        "verifiedCommit": false,
+        "verifiedCommit": true,
         "officialRelease": true,
-        "releaseId": 395067017,
-        "releaseUrl": "https://github.com/openclaw/openclaw/releases/tag/v2026.9.6",
-        "publishedAt": "2026-09-23T23:21:10.000Z",
+        "releaseId": 402271245,
+        "releaseUrl": "https://github.com/openclaw/openclaw/releases/tag/v2026.9.8",
+        "publishedAt": "2026-10-03T03:21:47.000Z",
         "draft": false,
         "prerelease": false
       },
       "image": {
         "repository": "ghcr.io/openclaw/openclaw",
-        "tag": "2026.9.6",
-        "indexDigest": "sha256:0a5ff5e682e62afa19149df126aa50063bf65ef885b5c94713ce32dc0eb12e15",
-        "linuxAmd64Digest": "sha256:66ed9d9bf9ecc02e2a2d5d4b7110b766ba535a64c802e9d20b0794ae062f82e5"
+        "tag": "2026.9.8",
+        "indexDigest": "sha256:d0ded1dd76939b2bf4d67ef2d13247b8b160aa5666331d4a0b0e58811182cbb8",
+        "linuxAmd64Digest": "sha256:5139eb3ca71ba20d3cd3aa933338e63dbff857d384e482fbdb7dd557849e5529"
       }
-    },
-    "upstreamCi": {
-      "conclusion": "waived in official release evidence",
-      "waived": true
     },
     "sdk": {
       "requiredEntrypoints": [
@@ -68,21 +64,20 @@
       ],
       "changedDeclarations": [
         "dist/plugin-sdk/agent-runtime.d.ts",
-        "dist/plugin-sdk/cli-argv.d.ts",
         "dist/plugin-sdk/gateway-runtime.d.ts",
         "dist/plugin-sdk/plugin-entry.d.ts"
       ],
       "currentHashes": {
-        "dist/plugin-sdk/agent-runtime.d.ts": "44e7f2089abdd227180b09de7e0c424b569f03c13c2f671c9e4a0ed14283cb7f",
-        "dist/plugin-sdk/cli-argv.d.ts": "8b0318e491984a549608c502c37798dfedf0dedafa82cf2354e835964527e1b7",
-        "dist/plugin-sdk/gateway-runtime.d.ts": "d1c1fd5866e58aea2b7eb6c0fa7d887b082e1c0f51f24f0be14cce18e3f29ef8",
-        "dist/plugin-sdk/plugin-entry.d.ts": "82fd933aa67b3f6c564e1e9f1e7425a7de1ba9b823f27e6beabdac8421e27b86"
+        "dist/plugin-sdk/agent-runtime.d.ts": "b4f9f1622b43da84f41e1a61e680de5a105f64a32d33f750cf3f634a761bb11b",
+        "dist/plugin-sdk/cli-argv.d.ts": "ab8a921b3fd08b69816363131b3524a98d570700758bdafdd5323a0deda1e742",
+        "dist/plugin-sdk/gateway-runtime.d.ts": "a113bb1304975aaee187b28218a79422bc95c426ff0e67a66cd5f414c8e8ede3",
+        "dist/plugin-sdk/plugin-entry.d.ts": "4337e9ddabfeb74bad6ded3dfb1202f394f5538c139c8cdd1412d7ca5ac05aa1"
       },
       "proposedHashes": {
-        "dist/plugin-sdk/agent-runtime.d.ts": "f08784e7b0edb1732e9326341afe673c3b087b1076cf98986e5184e8cb8d880e",
+        "dist/plugin-sdk/agent-runtime.d.ts": "01215385c979c5b7152141dcdab290ab6c97d71848dc3673ba6d4862a63fc738",
         "dist/plugin-sdk/cli-argv.d.ts": "ab8a921b3fd08b69816363131b3524a98d570700758bdafdd5323a0deda1e742",
-        "dist/plugin-sdk/gateway-runtime.d.ts": "137702a33ca23420837c4e48942bc4e459ca348092fdfe8575878f8cf74652db",
-        "dist/plugin-sdk/plugin-entry.d.ts": "b6f1c9413cf443e29892cc9f055459ea72d97df259e08637d40118499732706b"
+        "dist/plugin-sdk/gateway-runtime.d.ts": "b474677440dab0055824cd7ef198b17d76453961af8b8843921187edf546e7d0",
+        "dist/plugin-sdk/plugin-entry.d.ts": "c54895cb722365a2042c4a0399e2be867385bc0e95020a7663ac175e1d1851cf"
       }
     },
     "repositoryImpact": [
@@ -106,184 +101,29 @@
       "site/index.html"
     ],
     "blockingFindings": [],
-    "advisoryFindings": [
-      "upstream release tag is unsigned or unverified",
-      "upstream release commit is unsigned or unverified",
-      "upstream CI waivers are recorded in the official release evidence"
-    ],
+    "advisoryFindings": [],
     "compatibilityDecision": "not-made"
   },
   "identity": {
-    "version": "2026.9.6",
-    "npmIntegrity": "sha512-Ie0kyQSCVfFqixsgVg39vevUDq01Ch5u3+7Yu5Y3qARczmdAe+lzp8bVnO9925rHiW/+CFp70zfORCyPmCH31g==",
+    "version": "2026.9.8",
+    "npmIntegrity": "sha512-G+JkNUhtpDE3cXR4AEi2NyyG9fqI/T2WUSl8ZnR8AATH8Dh1kC3qYFL7wwPoZtgHiP/cszA86PEiE0PDysxb9Q==",
     "providerPackage": "@openclaw/deepseek-provider",
-    "providerIntegrity": "sha512-krB49SRz/wl/2VKc0l3hgsL6I9kJKM8vuKHkxPBsJsg3cgCIJ005hjD0D1LViji4uBeRzRwSKPLl2d/9u0YPGg==",
+    "providerIntegrity": "sha512-NBM1CtQYfeJCaKr4qctKxeSj+M7Qa+dAE8bESLWFA4+CBP+7kFIWKJ8EHFo5jkiREHedVsTsaSqYDnx0SIIkXQ==",
     "imageRepository": "ghcr.io/openclaw/openclaw",
-    "imageIndexDigest": "sha256:0a5ff5e682e62afa19149df126aa50063bf65ef885b5c94713ce32dc0eb12e15",
-    "linuxAmd64Digest": "sha256:66ed9d9bf9ecc02e2a2d5d4b7110b766ba535a64c802e9d20b0794ae062f82e5",
+    "imageIndexDigest": "sha256:d0ded1dd76939b2bf4d67ef2d13247b8b160aa5666331d4a0b0e58811182cbb8",
+    "linuxAmd64Digest": "sha256:5139eb3ca71ba20d3cd3aa933338e63dbff857d384e482fbdb7dd557849e5529",
     "upstreamRepository": "openclaw/openclaw",
-    "releaseId": 395067017,
-    "releaseTag": "v2026.9.6",
-    "releaseCommit": "eb377ac59e6c9fd6c7705028034812becf00271b",
-    "publishedAt": "2026-09-23T23:21:10.000Z"
+    "releaseId": 402271245,
+    "releaseTag": "v2026.9.8",
+    "releaseCommit": "fc23bc864e4553c2d215e479eeec47b67a0bf943",
+    "publishedAt": "2026-10-03T03:21:47.000Z"
   },
-  "identitySha256": "0b9abbf859f1adbdfed240e338a347d4cf9630534fb1ee0152053ee482b06070",
-  "firstObservedAt": "2026-09-25T18:03:55.562Z",
-  "lastObservedAt": "2026-09-25T18:35:55.275Z",
-  "soakCompletesAt": "2026-09-26T18:03:55.562Z",
-  "advisories": [
-    "upstream release tag is unsigned or unverified",
-    "upstream release commit is unsigned or unverified",
-    "upstream CI waivers are recorded in the official release evidence",
-    "upstream CI was waived",
-    "24-hour soak waived: explicit manual expedite for OpenClaw 2026.9.6"
-  ],
+  "identitySha256": "b8528594970cae1231bd30e28f460ef36d8caccb332bce01963074bbd7827050",
+  "firstObservedAt": "2026-10-05T19:19:40.390Z",
+  "lastObservedAt": "2026-10-05T19:19:40.390Z",
+  "soakCompletesAt": "2026-10-06T01:19:40.390Z",
+  "advisories": [],
   "blockers": [],
   "outputs": {},
-  "history": [
-    {
-      "intentId": "reobserve-36172366868-1",
-      "type": "reobserve",
-      "at": "2026-09-25T18:17:22Z",
-      "payloadSha256": "a3b5b23a41844a9625a718216ae50139651150eedeeb004b0b5f4c80c5cf9547",
-      "from": "observed",
-      "to": "observed",
-      "revision": 1
-    },
-    {
-      "intentId": "waive-soak-36172366868-1",
-      "type": "waive-soak",
-      "at": "2026-09-25T18:17:22Z",
-      "payloadSha256": "31cc540bf735504b261682ef72d4553b56489e008d009732510c7e336cc46af1",
-      "from": "observed",
-      "to": "ready",
-      "revision": 2
-    },
-    {
-      "intentId": "reobserve-36172708237-1",
-      "type": "reobserve",
-      "at": "2026-09-25T18:20:37Z",
-      "payloadSha256": "0fa33ac9fb33c205fef6c6f919e19486123b004f12f2f77012cea215f7d0c256",
-      "from": "ready",
-      "to": "observed",
-      "revision": 3
-    },
-    {
-      "intentId": "waive-soak-36172708237-1",
-      "type": "waive-soak",
-      "at": "2026-09-25T18:20:37Z",
-      "payloadSha256": "31cc540bf735504b261682ef72d4553b56489e008d009732510c7e336cc46af1",
-      "from": "observed",
-      "to": "ready",
-      "revision": 4
-    },
-    {
-      "intentId": "reobserve-36173089368-1",
-      "type": "reobserve",
-      "at": "2026-09-25T18:24:13Z",
-      "payloadSha256": "92355b9cf1958bb373f6a804e3f6bdc97f933ee174c08c62c852b08a6e4ac6e5",
-      "from": "ready",
-      "to": "observed",
-      "revision": 5
-    },
-    {
-      "intentId": "waive-soak-36173089368-1",
-      "type": "waive-soak",
-      "at": "2026-09-25T18:24:13Z",
-      "payloadSha256": "31cc540bf735504b261682ef72d4553b56489e008d009732510c7e336cc46af1",
-      "from": "observed",
-      "to": "ready",
-      "revision": 6
-    },
-    {
-      "intentId": "reobserve-36173539029-1",
-      "type": "reobserve",
-      "at": "2026-09-25T18:28:21Z",
-      "payloadSha256": "8ccc126ef4c7f8708e0e8f81f54357a8a4ca9c2af8de4ed550982a8cdd7eb284",
-      "from": "ready",
-      "to": "observed",
-      "revision": 7
-    },
-    {
-      "intentId": "waive-soak-36173539029-1",
-      "type": "waive-soak",
-      "at": "2026-09-25T18:28:21Z",
-      "payloadSha256": "31cc540bf735504b261682ef72d4553b56489e008d009732510c7e336cc46af1",
-      "from": "observed",
-      "to": "ready",
-      "revision": 8
-    },
-    {
-      "intentId": "prepare-36173539029-1",
-      "type": "record-preparation",
-      "at": "2026-09-25T18:29:06Z",
-      "payloadSha256": "a971c79558968e4110881a030ce8e392fec6e367500eac9928951b26f005d87a",
-      "from": "ready",
-      "to": "prepared",
-      "revision": 9
-    },
-    {
-      "intentId": "dispatch-2f6fc9743b6609dbd52413945ff2b6f2",
-      "type": "record-qualification-dispatch",
-      "at": "2026-09-25T18:29:30Z",
-      "payloadSha256": "3d9a228fef32394baea1d89414711b36b8c74b884d38f09afaaf8821847ed675",
-      "from": "prepared",
-      "to": "qualifying",
-      "revision": 10
-    },
-    {
-      "intentId": "qualification-failed-36173765366-1",
-      "type": "block",
-      "at": "2026-09-25T18:30:45Z",
-      "payloadSha256": "a936c623e0bae32139864eeaad5ff2ea2318a4602fce902bee2598be103c73e0",
-      "from": "qualifying",
-      "to": "blocked",
-      "revision": 11
-    },
-    {
-      "intentId": "recover-qualification-36173765366-1",
-      "type": "recover-qualification-automation",
-      "at": "2026-09-25T18:33:00Z",
-      "payloadSha256": "f6a865843bfb6bd218513e4508dfd377d9d38906f7dc86c590b1505d38b2c5ea",
-      "from": "blocked",
-      "to": "ready",
-      "revision": 12
-    },
-    {
-      "intentId": "reobserve-36174151025-1",
-      "type": "reobserve",
-      "at": "2026-09-25T18:34:10Z",
-      "payloadSha256": "9adbea321dc7256e3cf13d88aa66c4fad3c9c33e44404b2d34afe542ca8b7dd3",
-      "from": "ready",
-      "to": "observed",
-      "revision": 13
-    },
-    {
-      "intentId": "waive-soak-36174151025-1",
-      "type": "waive-soak",
-      "at": "2026-09-25T18:34:10Z",
-      "payloadSha256": "31cc540bf735504b261682ef72d4553b56489e008d009732510c7e336cc46af1",
-      "from": "observed",
-      "to": "ready",
-      "revision": 14
-    },
-    {
-      "intentId": "reobserve-36174375969-1",
-      "type": "reobserve",
-      "at": "2026-09-25T18:36:13Z",
-      "payloadSha256": "f78a6f158c5884b19819e6e38c10d523d70df1af7a80a9952cc1cc4b0ba59e77",
-      "from": "ready",
-      "to": "observed",
-      "revision": 15
-    },
-    {
-      "intentId": "waive-soak-36174375969-1",
-      "type": "waive-soak",
-      "at": "2026-09-25T18:36:13Z",
-      "payloadSha256": "31cc540bf735504b261682ef72d4553b56489e008d009732510c7e336cc46af1",
-      "from": "observed",
-      "to": "ready",
-      "revision": 16
-    }
-  ]
+  "history": []
 }
