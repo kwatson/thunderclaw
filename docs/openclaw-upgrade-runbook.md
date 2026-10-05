@@ -36,7 +36,7 @@ hook, and state behavior as well.
 ## 2. Prepare the compatibility change
 
 For an automatic release, the controller starts only after the official stable
-release has soaked for 24 hours and the exact upstream identities remain
+release has soaked for 6 hours and the exact upstream identities remain
 unchanged. It runs the versioned generator and independently verifies the
 resulting field-level diff. Continue manually below only for an exception or a
 change outside that policy.

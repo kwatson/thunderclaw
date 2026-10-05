@@ -130,12 +130,12 @@ export function applyReleaseStateIntent(stateValue, intentValue) {
         || failure.reservation.identitySha256 !== state.identitySha256 || !state.outputs.preparation
         || !state.outputs.qualificationDispatch || state.outputs.qualification) throw new Error("only exact structured pre-gate qualification evidence may be recovered");
     state.reservationId = payload.reservationId; state.baseSha = payload.baseSha; state.outputs = {}; state.blockers = [];
-    state.lastObservedAt = current.observedAt; state.advisories = reassessment.advisories;
+    state.lastObservedAt = current.observedAt; state.soakCompletesAt = reassessment.soakCompletesAt; state.advisories = reassessment.advisories;
     state.advisories = [...new Set([...state.advisories, `qualification automation failure recovered: ${payload.reason}`])]; state.phase = "ready";
   } else if (intent.type === "reobserve") {
     if (!["observed", "ready"].includes(state.phase)) throw new Error("reobservation may be recorded only from observed or ready");
     exact(payload, ["preflight", "baseSha"], "reobserve payload"); const current = validateUpgradePreflight(payload.preflight); pattern(payload.baseSha, sha40, "reobserve baseSha");
-    const assessment = assessUpgradeEvidence({ baseline: state.baseline, current, now: intent.at }); state.lastObservedAt = current.observedAt; state.advisories = assessment.advisories; state.blockers = assessment.blockers;
+    const assessment = assessUpgradeEvidence({ baseline: state.baseline, current, now: intent.at }); state.lastObservedAt = current.observedAt; state.soakCompletesAt = assessment.soakCompletesAt; state.advisories = assessment.advisories; state.blockers = assessment.blockers;
     if (assessment.identitySha256 !== state.identitySha256) state.blockers = [...new Set([...state.blockers, "immutable release identity changed during soak"])]; state.baseSha = payload.baseSha; state.phase = state.blockers.length ? "blocked" : assessment.decision === "ready" ? "ready" : "observed";
   } else if (intent.type === "waive-soak") {
     phase(state, "observed", "soak waiver"); exact(payload, ["reason", "identitySha256", "firstObservedAt", "secondObservedAt"], "soak waiver payload");
@@ -146,7 +146,7 @@ export function applyReleaseStateIntent(stateValue, intentValue) {
         || payload.secondObservedAt !== state.lastObservedAt || Date.parse(payload.secondObservedAt) <= Date.parse(payload.firstObservedAt)) {
       throw new Error("soak waiver requires two distinct observations of the exact same release identity");
     }
-    state.advisories = [...new Set([...state.advisories, `24-hour soak waived: ${payload.reason}`])]; state.phase = "ready";
+    state.advisories = [...new Set([...state.advisories, `6-hour soak waived: ${payload.reason}`])]; state.phase = "ready";
   } else if (intent.type === "record-qualification-failure") {
     phase(state, "qualifying", "qualification failure");
     const failure = validateQualificationFailureEvidence(payload);

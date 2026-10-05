@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 
 export const PREFLIGHT_FORMAT = "thunderclaw-openclaw-upgrade-preflight-v2";
-export const SOAK_MILLISECONDS = 24 * 60 * 60 * 1000;
+export const SOAK_MILLISECONDS = 6 * 60 * 60 * 1000;
 
 const stableVersionPattern = /^\d{4}\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/u;
 const sha256Pattern = /^sha256:[a-f0-9]{64}$/u;

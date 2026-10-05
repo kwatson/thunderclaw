@@ -213,7 +213,7 @@ system package belongs to the release graph.
 ## Compatibility automation
 
 The narrowly scoped OpenClaw compatibility autopilot may prepare, qualify, and
-publish a metadata-only plugin patch release after a 24-hour upstream soak. It
+publish a metadata-only plugin patch release after a 6-hour upstream soak. It
 pins and revalidates the official release's exact npm and provider integrities,
 Linux/AMD64 container digest, tag, and commit. Upstream signature status and CI
 waivers are recorded evidence, not ThunderClaw compatibility gates; every
