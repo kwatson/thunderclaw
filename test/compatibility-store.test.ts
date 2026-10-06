@@ -491,23 +491,31 @@ test("a compatibility database missing after initialization fails closed", async
 
 test("writer contention observes the short wait bound and fails closed", async (context) => {
   const stateDir = await stateDirectory();
-  context.after(() => rm(stateDir, { recursive: true, force: true }));
+  let lockHolder: DatabaseSync | undefined;
+  context.after(async () => {
+    lockHolder?.close();
+    store.close();
+    await rm(stateDir, { recursive: true, force: true });
+  });
   const databasePath = join(stateDir, "plugins", "thunderclaw", "compatibility.sqlite");
   const store = CompatibilityStore.open(stateDir);
   assert.equal(store.isAvailable, true);
-  const lockHolder = new DatabaseSync(databasePath);
+  // Check the operative SQLite policy directly. Wall time also includes
+  // scheduling delays on shared native runners, not just SQLite's lock wait.
+  const connection = (store as unknown as { database: DatabaseSync }).database;
+  assert.equal(connection.prepare("PRAGMA busy_timeout").get()?.timeout, 250);
+  lockHolder = new DatabaseSync(databasePath);
   lockHolder.exec("BEGIN IMMEDIATE");
-  const startedAt = Date.now();
+  const startedAt = performance.now();
   assert.throws(
     () => store.startAttempt("probe-lock-contention", "main", "2".repeat(64)),
     (error) => error instanceof CompatibilityStoreError,
   );
-  const elapsed = Date.now() - startedAt;
+  const elapsed = performance.now() - startedAt;
   assert.ok(elapsed >= 150, `lock wait was unexpectedly short: ${elapsed}ms`);
-  assert.ok(elapsed < 1_000, `lock wait exceeded the short bound: ${elapsed}ms`);
+  assert.ok(elapsed < 5_000, `lock wait exceeded the scheduling allowance: ${elapsed}ms`);
   assert.equal(store.isAvailable, false);
   lockHolder.exec("ROLLBACK");
-  lockHolder.close();
 });
 
 test("attempt and result history stay globally and per-agent bounded without persisting caller detail", async (context) => {
