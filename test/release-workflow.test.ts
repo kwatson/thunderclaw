@@ -192,6 +192,10 @@ test("automatic publication probes external state and isolates App-powered one-f
   assert.ok(dispatch.indexOf("uses: actions/checkout@") < dispatch.indexOf("gh run list"));
   assert.ok(dispatch.indexOf("uses: jdx/mise-action@") < dispatch.indexOf("mise exec --"));
   assert.match(dispatch, /GH_REPO: \$\{\{ github\.repository \}\}/u);
+  assert.match(dispatch, /permissions:\n\s+actions: read\n\s+contents: read/u);
+  assert.match(dispatch, /PUBLISHER_READ_TOKEN: \$\{\{ github\.token \}\}/u);
+  assert.match(dispatch, /GH_TOKEN="\$PUBLISHER_READ_TOKEN" gh run list/u);
+  assert.match(dispatch, /GH_TOKEN="\$PUBLISHER_READ_TOKEN" gh api/u);
   assert.match(finalizer, /verify-plugin-publication-resume\.mjs[\s\S]*gh attestation verify/u);
   assert.match(finalizer, /test "\$REF" = refs\/heads\/main/u);
   assert.doesNotMatch(finalizer, /npm run pack|attest-build-provenance|gh release create/u);

@@ -102,6 +102,7 @@ jobs:
     environment:
       name: autopilot-closeout
     permissions:
+      actions: read
       contents: read
     steps:
       - name: Check out protected publication automation
@@ -122,6 +123,7 @@ jobs:
       - name: Dispatch and await the exact protected-tag publisher
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          PUBLISHER_READ_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           RELEASE_TAG: ${{ needs.verify.outputs.tag }}
           RELEASE_COMMIT: ${{ needs.verify.outputs.commit }}
@@ -130,7 +132,7 @@ jobs:
           set -euo pipefail
           title="Publish ClawHub $RELEASE_TAG (automatic)"
           find_run() {
-            gh run list --workflow .github/workflows/publish-clawhub.yml --event workflow_dispatch --limit 50 \
+            GH_TOKEN="$PUBLISHER_READ_TOKEN" gh run list --workflow .github/workflows/publish-clawhub.yml --event workflow_dispatch --limit 50 \
               --json databaseId,displayTitle,headBranch,headSha,status,conclusion,createdAt \
               | jq -c --arg title "$title" --arg tag "$RELEASE_TAG" --arg commit "$RELEASE_COMMIT" \
                 '[.[] | select(.displayTitle == $title and .headBranch == $tag and .headSha == $commit)] | first // empty'
@@ -161,7 +163,7 @@ jobs:
             if [[ -n "$run" && "$(jq -r .status <<<"$run")" == completed ]]; then
               if [[ "$(jq -r .conclusion <<<"$run")" == success ]]; then
                 run_id=$(jq -r .databaseId <<<"$run")
-                run_details=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id")
+                run_details=$(GH_TOKEN="$PUBLISHER_READ_TOKEN" gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id")
                 test "$(jq -r .event <<<"$run_details")" = workflow_dispatch
                 run_path=$(jq -r .path <<<"$run_details")
                 test "${run_path%@*}" = .github/workflows/publish-clawhub.yml
