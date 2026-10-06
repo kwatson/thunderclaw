@@ -157,7 +157,7 @@ test("merged counterpart closeout completes only the exact durable reservation",
 });
 
 test("every automatic mutation workflow carries explicit rollout admission to the live guard", async () => {
-  for (const filename of ["openclaw-autopilot.yml", "release-openclaw-plugin.yml", "publish-clawhub.yml", "complete-openclaw-autopilot-closeout.yml"]) {
+  for (const filename of ["openclaw-autopilot.yml", "release-openclaw-plugin.yml", "publish-clawhub.yml", "complete-plugin-publication.yml", "complete-openclaw-autopilot-closeout.yml"]) {
     const workflow = await readFile(new URL(`../.github/workflows/${filename}`, import.meta.url), "utf8");
     assert.match(workflow, /^env:\n  OPENCLAW_AUTOPILOT_ENABLED: \$\{\{ vars\.OPENCLAW_AUTOPILOT_ENABLED \}\}/mu, filename);
   }

@@ -211,3 +211,14 @@ use `restart_completed_qualification=true` for the exact active version. The
 controller authenticates the unique completed run for the active request before
 starting a fresh reservation on trusted main. Running and cancelled runs cannot
 use this option, and every gate must run again before publication.
+
+After the protected-tag release has passed every qualification gate and created
+its GitHub release, publication repairs do not require another candidate, build,
+tag, or version. Run **Complete existing OpenClaw plugin publication** on `main`
+with the existing `tag` and original `release_run_id`. This is the same finalizer
+used by new automatic releases. It authenticates the original protected-tag run
+and its successful gates, checks the published archive against the active
+reservation and provenance, and verifies the original GitHub attestation before
+resuming the exact-tag ClawHub publisher and counterpart closeout. A cancelled
+publisher still requires an explicit operator retry. The resume workflow cannot
+build artifacts or create a GitHub release.

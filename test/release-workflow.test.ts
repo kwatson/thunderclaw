@@ -107,6 +107,7 @@ test("OpenClaw automatic release is selected only by the read-only durable-state
   const release = await readFile(new URL("../.github/workflows/release-openclaw-plugin.yml", import.meta.url), "utf8");
   const qualification = await readFile(new URL("../.github/workflows/qualify-release-pair.yml", import.meta.url), "utf8");
   const publisher = await readFile(new URL("../.github/workflows/publish-clawhub.yml", import.meta.url), "utf8");
+  const finalizer = await readFile(new URL("../.github/workflows/complete-plugin-publication.yml", import.meta.url), "utf8");
   const releaseClassifier = await readFile(new URL("../scripts/classify-openclaw-release.mjs", import.meta.url), "utf8");
   const classifier = release.slice(release.indexOf("  classify:"), release.indexOf("  build:"));
   assert.match(classifier, /permissions:\n\s+actions: read\n\s+contents: read/u);
@@ -138,12 +139,12 @@ test("OpenClaw automatic release is selected only by the read-only durable-state
   assert.match(publisher, /\.github\/workflows\/publish-clawhub\.yml@refs\/tags\/\$RELEASE_TAG/u);
   assert.match(publisher, /assert-openclaw-autopilot-enabled\.mjs/u);
   assert.match(publisher, /GITHUB_WORKFLOW_REF/u);
-  assert.match(release, /clawhub-auto:[\s\S]*permission-actions: write[\s\S]*gh workflow run \.github\/workflows\/publish-clawhub\.yml --ref "\$RELEASE_TAG"/u);
-  assert.match(release, /displayTitle == \$title and \.headBranch == \$tag and \.headSha == \$commit/u);
-  assert.match(release, /dispatch_status=\$\?[\s\S]*Publisher dispatch was not acknowledged[\s\S]*for _ in \$\(seq 1 240\)/u);
-  assert.match(release, /test "\$\{run_path%@\*\}" = \.github\/workflows\/publish-clawhub\.yml/u);
-  assert.match(release, /actual_workflow=\$\(\{ sha256sum \.github\/workflows\/release-openclaw-plugin\.yml \.github\/workflows\/publish-clawhub\.yml;/u);
-  assert.match(releaseClassifier, /publicationWorkflowPaths = \["\.github\/workflows\/release-openclaw-plugin\.yml", "\.github\/workflows\/publish-clawhub\.yml"\]/u);
+  assert.match(finalizer, /clawhub-auto:[\s\S]*permission-actions: write[\s\S]*gh workflow run \.github\/workflows\/publish-clawhub\.yml --ref "\$RELEASE_TAG"/u);
+  assert.match(finalizer, /displayTitle == \$title and \.headBranch == \$tag and \.headSha == \$commit/u);
+  assert.match(finalizer, /dispatch_status=\$\?[\s\S]*Publisher dispatch was not acknowledged[\s\S]*for _ in \$\(seq 1 240\)/u);
+  assert.match(finalizer, /test "\$\{run_path%@\*\}" = \.github\/workflows\/publish-clawhub\.yml/u);
+  assert.match(release, /actual_workflow=\$\(\{ sha256sum \.github\/workflows\/release-openclaw-plugin\.yml \.github\/workflows\/publish-clawhub\.yml \.github\/workflows\/complete-plugin-publication\.yml;/u);
+  assert.match(releaseClassifier, /publicationWorkflowPaths = \["\.github\/workflows\/release-openclaw-plugin\.yml", "\.github\/workflows\/publish-clawhub\.yml", "\.github\/workflows\/complete-plugin-publication\.yml"\]/u);
   assert.match(releaseClassifier, /automation\.releaseWorkflowSha = digest\(publicationWorkflowPaths\.map/u);
   assert.match(release, /Re-read the live autopilot guard before provenance[\s\S]*attest-build-provenance/u);
   assert.match(release, /release:\n[\s\S]*?permissions:\n\s+actions: read[\s\S]*?Install managed runtimes/u);
@@ -161,8 +162,9 @@ test("automatic publication probes external state and isolates App-powered one-f
   assert.match(release, /if: steps\.existing\.outputs\.exists != 'true'[\s\S]*attest-build-provenance/u);
   assert.match(publisher, /client-unconfirmed/u);
   assert.match(publisher, /Verify public ClawHub artifact/u);
-  const closeout = release.slice(release.indexOf("  counterpart-closeout:"));
-  assert.match(closeout, /if: needs\.classify\.outputs\.release_lane == 'automatic'/u);
+  const finalizer = await readFile(new URL("../.github/workflows/complete-plugin-publication.yml", import.meta.url), "utf8");
+  const closeout = finalizer.slice(finalizer.indexOf("  counterpart-closeout:"));
+  assert.match(release, /publication-closeout:[\s\S]*if: needs\.classify\.outputs\.release_lane == 'automatic'/u);
   assert.match(closeout, /environment:\n\s+name: autopilot-closeout/u);
   assert.match(closeout, /create-github-app-token@[a-f0-9]{40}/u);
   assert.match(closeout, /update-counterpart-baseline\.mjs/u);
@@ -172,8 +174,16 @@ test("automatic publication probes external state and isolates App-powered one-f
   assert.match(closeout, /gh pr merge "\$pr_number" --auto --squash --match-head-commit/u);
   assert.ok((closeout.match(/assert-openclaw-autopilot-enabled\.mjs/gu) ?? []).length >= 4,
     "closeout branch, PR, state, and auto-merge mutations must each re-read the live guard");
-  assert.doesNotMatch(release.slice(0, release.indexOf("  clawhub-auto:")), /OPENCLAW_AUTOPILOT_APP_PRIVATE_KEY/u);
-  assert.equal((release.match(/OPENCLAW_AUTOPILOT_APP_PRIVATE_KEY/gu) ?? []).length, 2);
+  assert.doesNotMatch(release, /OPENCLAW_AUTOPILOT_APP_PRIVATE_KEY/u);
+  assert.equal((finalizer.match(/OPENCLAW_AUTOPILOT_APP_PRIVATE_KEY/gu) ?? []).length, 2);
+  const dispatch = finalizer.slice(finalizer.indexOf("  clawhub-auto:"), finalizer.indexOf("  counterpart-closeout:"));
+  assert.ok(dispatch.indexOf("uses: actions/checkout@") < dispatch.indexOf("gh run list"));
+  assert.ok(dispatch.indexOf("uses: jdx/mise-action@") < dispatch.indexOf("mise exec --"));
+  assert.match(dispatch, /GH_REPO: \$\{\{ github\.repository \}\}/u);
+  assert.match(finalizer, /verify-plugin-publication-resume\.mjs[\s\S]*gh attestation verify/u);
+  assert.match(finalizer, /test "\$REF" = refs\/heads\/main/u);
+  assert.doesNotMatch(finalizer, /npm run pack|attest-build-provenance|gh release create/u);
+  verifyWorkflow(finalizer, "complete-plugin-publication.yml");
   verifyWorkflow(release, "release-openclaw-plugin.yml");
 });
 
