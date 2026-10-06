@@ -1,7 +1,7 @@
 {
   "format": "thunderclaw-openclaw-autopilot-state-v1",
-  "revision": 26,
-  "phase": "tagged",
+  "revision": 27,
+  "phase": "github-published",
   "reservationId": "a9320b47570b374fecb481fe7014b3a8",
   "baseSha": "5932512f9617324e0c8135e54ee5fb4c4a8b6064",
   "baseline": {
@@ -190,6 +190,12 @@
       "tag": "openclaw-plugin-v0.1.16",
       "commit": "5a26dc1e83129a8657d495e07921bbc95311cede",
       "tree": "ecf551dc127c88bfc480fc81c0d3e113b8e62e92"
+    },
+    "githubPublication": {
+      "tag": "openclaw-plugin-v0.1.16",
+      "commit": "5a26dc1e83129a8657d495e07921bbc95311cede",
+      "artifactSha256": "750d926ada1da59454282dc2b1ba0ee6e1233a9319d60f5ec06aa29fed45ac28",
+      "releaseId": 405155042
     }
   },
   "history": [
@@ -426,6 +432,15 @@
       "from": "merged",
       "to": "tagged",
       "revision": 26
+    },
+    {
+      "intentId": "github-37541893189-1",
+      "type": "record-github-publication",
+      "at": "2026-10-06T22:39:54Z",
+      "payloadSha256": "ff6d691fb9bb7d4ae33a906f58e1db53007753655adc6b270610d04fa4c7f285",
+      "from": "tagged",
+      "to": "github-published",
+      "revision": 27
     }
   ]
 }
