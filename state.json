@@ -1,9 +1,9 @@
 {
   "format": "thunderclaw-openclaw-autopilot-state-v1",
-  "revision": 12,
-  "phase": "qualifying",
-  "reservationId": "82a316c17a830afad61ad1da39abb3c8",
-  "baseSha": "d82700dd54aa1af99cb64e33a5b4d70b161d4dae",
+  "revision": 13,
+  "phase": "ready",
+  "reservationId": "4c36c78840bf45f522fcb27368261135",
+  "baseSha": "20033149d2949f9c8a3aa573418d5453f6b31f05",
   "baseline": {
     "format": "thunderclaw-openclaw-upgrade-preflight-v2",
     "observedAt": "2026-10-05T19:19:40.390Z",
@@ -120,46 +120,13 @@
   },
   "identitySha256": "b8528594970cae1231bd30e28f460ef36d8caccb332bce01963074bbd7827050",
   "firstObservedAt": "2026-10-05T19:19:40.390Z",
-  "lastObservedAt": "2026-10-06T20:06:34.429Z",
+  "lastObservedAt": "2026-10-06T20:22:21.564Z",
   "soakCompletesAt": "2026-10-06T01:19:40.390Z",
   "advisories": [
-    "qualification operator retry: operator-reviewed failure; rerun every gate on trusted main"
+    "operator qualification restart: operator-reviewed automation repair; all gates rerun"
   ],
   "blockers": [],
-  "outputs": {
-    "preparation": {
-      "reservationId": "82a316c17a830afad61ad1da39abb3c8",
-      "pluginVersion": "0.1.16",
-      "preparedDate": "2026-10-03",
-      "baseSha": "d82700dd54aa1af99cb64e33a5b4d70b161d4dae",
-      "branch": "automation/openclaw-2026.9.8-82a316c1",
-      "prNumber": 18,
-      "candidateSha": "48f2896b5316c8efed56351b864411f8795b8d9a",
-      "candidateTree": "9ef3222ad486c5e1c6ef897df6e57523f37738f1",
-      "tag": "openclaw-plugin-v0.1.16",
-      "classificationEvidenceSha256": "d53c0405c5e323f1e3adcecc00f35b438b539a260b7f6e76fdb8d0906daaada0",
-      "counterpart": {
-        "tag": "thunderbird-extension-v0.1.2",
-        "name": "thunderclaw-thunderbird-0.1.2.xpi",
-        "sha256": "24bd448bb0d364184e3f72958564ef12bdcbac2c9aae568e353c64209e4bd497",
-        "size": 119484,
-        "repository": "kwatson/thunderclaw"
-      },
-      "automation": {
-        "controllerWorkflowSha": "28879f3aa1bb32c6deb68fc4ab75970396b6c4522d6c3bcb54ec8935c38fd8d4",
-        "qualificationWorkflowSha": "baa0f197900305b3d6fe998b9a118a2e3a3636cc817a40cfd6e8b6d9a0c86a72",
-        "classifierSha": "72619e94e8b38a9075480c6b70d3e55e0a30e396ce7bd31a834e872108a05724",
-        "releaseWorkflowSha": "f01faf83c0011aa39e96d2146578141c7627b8014d96117b2c42496e94afd056"
-      }
-    },
-    "qualificationDispatch": {
-      "requestId": "553f2ca9b136449272835165a80e22e3",
-      "workflow": ".github/workflows/qualify-openclaw-autopilot.yml",
-      "workflowCommit": "d82700dd54aa1af99cb64e33a5b4d70b161d4dae",
-      "workflowSha256": "baa0f197900305b3d6fe998b9a118a2e3a3636cc817a40cfd6e8b6d9a0c86a72",
-      "dispatchedAt": "2026-10-06T20:07:54Z"
-    }
-  },
+  "outputs": {},
   "history": [
     {
       "intentId": "reobserve-37391617511-1",
@@ -268,6 +235,15 @@
       "from": "prepared",
       "to": "qualifying",
       "revision": 12
+    },
+    {
+      "intentId": "restart-37524117149-37525826676",
+      "type": "restart-completed-qualification",
+      "at": "2026-10-06T20:22:37Z",
+      "payloadSha256": "9bbd0120f9fb180596d8366a132993929b30b4edd89bc87b420bdf8519731c10",
+      "from": "qualifying",
+      "to": "ready",
+      "revision": 13
     }
   ]
 }
