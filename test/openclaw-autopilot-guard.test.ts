@@ -15,12 +15,34 @@ test("live autopilot guard authenticates the exact active controller and require
     url: "https://github.example/api/v3/repos/owner/repo/actions/workflows/openclaw-autopilot.yml",
     authorization: "Bearer fixture-token",
   }]);
-  for (const rolloutEnabled of [undefined, "false", "TRUE", ""]) {
-    await assert.rejects(assertOpenClawAutopilotEnabled({
-      repository: "owner/repo", token: "fixture-token", rolloutEnabled, fetchImpl,
-    }), /rollout setting/u);
+  const original = process.env.OPENCLAW_AUTOPILOT_ENABLED;
+  delete process.env.OPENCLAW_AUTOPILOT_ENABLED;
+  try {
+    for (const rolloutEnabled of [undefined, "false", "TRUE", ""]) {
+      await assert.rejects(assertOpenClawAutopilotEnabled({
+        repository: "owner/repo", token: "fixture-token", rolloutEnabled, fetchImpl,
+      }), /rollout setting/u);
+    }
+  } finally {
+    if (original === undefined) delete process.env.OPENCLAW_AUTOPILOT_ENABLED;
+    else process.env.OPENCLAW_AUTOPILOT_ENABLED = original;
   }
   assert.equal(calls.length, 1, "a disabled rollout must not reach the live authorization boundary");
+});
+
+test("autopilot guard uses rollout admission from the job environment when omitted", async () => {
+  const original = process.env.OPENCLAW_AUTOPILOT_ENABLED;
+  const input = { repository: "owner/repo", token: "fixture-token",
+    fetchImpl: async () => Response.json({ path: AUTOPILOT_WORKFLOW, state: "active" }) };
+  try {
+    process.env.OPENCLAW_AUTOPILOT_ENABLED = "true";
+    await assertOpenClawAutopilotEnabled(input);
+    process.env.OPENCLAW_AUTOPILOT_ENABLED = "false";
+    await assert.rejects(assertOpenClawAutopilotEnabled(input), /rollout setting/u);
+  } finally {
+    if (original === undefined) delete process.env.OPENCLAW_AUTOPILOT_ENABLED;
+    else process.env.OPENCLAW_AUTOPILOT_ENABLED = original;
+  }
 });
 
 test("live autopilot guard fails closed for disabled, malformed, missing, and unreadable workflows", async () => {

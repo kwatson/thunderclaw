@@ -66,6 +66,8 @@ jobs:
 
       - name: Run deterministic tests
         if: steps.changes.outputs.run_full == 'true'
+        env:
+          OPENCLAW_AUTOPILOT_ENABLED: "true"
         run: mise exec -- npm test
 
       - name: Typecheck
@@ -183,6 +185,8 @@ jobs:
         run: mise exec -- npm ci
 
       - name: Run native deterministic tests
+        env:
+          OPENCLAW_AUTOPILOT_ENABLED: "true"
         run: mise exec -- npm test
 
       - name: Qualify native filesystem security
