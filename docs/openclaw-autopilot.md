@@ -88,7 +88,10 @@ An independently classified pre-gate binding or infrastructure failure enters
 `retryable`; an explicit retry first re-collects the upstream identity and must
 match the stored reservation and evidence digest. A cancelled qualification
 enters `cancelled`, and a test or qualification-gate failure enters `blocked`.
-Neither cancelled nor gate-failure state can use automation recovery. Waiting
+Cancelled runs remain terminal. A blocked gate requires operator review and an
+explicit `retry_blocked_failure` dispatch. This verifies the unchanged upstream
+identity, records the failed run and evidence digest, and creates a fresh
+reservation on trusted main. Every gate must pass again; no gate is waived. Waiting
 for the soak, a qualification result, or closeout is represented as an explicit
 pause with its reason instead of being described as active work. The controller
 never holds a workflow concurrency lock while waiting for a tag-triggered

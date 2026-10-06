@@ -725,7 +725,10 @@ def run(args: argparse.Namespace) -> dict:
     process = subprocess.Popen(["thunderbird", "--marionette", "-remote-allow-system-access", "-no-remote", "-profile", str(profile)], stdout=log, stderr=subprocess.STDOUT, text=True)
     client = None
     try:
-        harness.wait_for_port(2828, process)
+        try:
+            harness.wait_for_port(2828, process)
+        except Exception as error:
+            raise ThunderbirdStartupFailure(str(error)) from error
         client = Marionette(host="127.0.0.1", port=2828); client.start_session()
         actual = harness.chrome(client, "return Services.appinfo.version;")
         if actual != "153.0.3": raise AssertionError(f"unexpected Thunderbird {actual}")
@@ -763,6 +766,10 @@ const { ExtensionParent } = ChromeUtils.importESModule("resource://gre/modules/E
         log.close(); shutil.rmtree(profile, ignore_errors=True)
 
 
+class ThunderbirdStartupFailure(RuntimeError):
+    pass
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--xpi", type=Path, required=True); parser.add_argument("--artifacts", type=Path, required=True)
@@ -774,7 +781,7 @@ def main() -> int:
         *DIAGNOSTIC_TRIALS])
     args = parser.parse_args(); args.artifacts.mkdir(parents=True, exist_ok=True)
     try: result = run(args)
-    except Exception as error: result = {"status": "failed", "error": str(error), "traceback": traceback.format_exc()}
+    except Exception as error: result = {"status": "failed", "stage": "startup" if isinstance(error, ThunderbirdStartupFailure) else "gate", "error": str(error), "traceback": traceback.format_exc()}
     (args.artifacts / "result.json").write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
     print(json.dumps({"status": result["status"], "artifacts": str(args.artifacts)}))
     return 0 if result["status"] == "passed" else 1

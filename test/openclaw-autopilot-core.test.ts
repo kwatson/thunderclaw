@@ -337,6 +337,28 @@ test("release state provides strict CAS, replay, and safe resume through qualifi
     identitySha256: gateBlocked.identitySha256, preflight: preflight("2026-09-23T02:00:00.000Z"),
     reason: "test failed", reservationId: hex("f", 32), baseSha: hex("e", 40),
   }) as never).decision, "terminal");
+  const operatorPayload = {
+    failedRunId: 123, failedRunAttempt: 1, failureEvidenceSha256: gateFailure.evidenceSha256,
+    identitySha256: gateBlocked.identitySha256, preflight: preflight("2026-09-23T02:00:00.000Z"),
+    reason: "reviewed display startup failure; all gates must rerun", reservationId: hex("f", 32), baseSha: hex("e", 40),
+  };
+  const operatorRetry = applyReleaseStateIntent(gateBlocked,
+    intent("reviewed-retry", 4, "retry-blocked-qualification", operatorPayload) as never).state;
+  assert.equal(operatorRetry.phase, "ready");
+  assert.deepEqual(operatorRetry.outputs, {});
+  assert.equal(operatorRetry.reservationId, hex("f", 32));
+  assert.equal(operatorRetry.history.at(-1)?.from, "blocked");
+  assert.equal(decideReleaseResume(operatorRetry).action, "prepare");
+  assert.throws(() => applyReleaseStateIntent(gateBlocked,
+    intent("wrong-evidence", 4, "retry-blocked-qualification",
+      { ...operatorPayload, failureEvidenceSha256: hex("0", 64) }) as never), /structured pre-gate/u);
+  const changedIdentity = structuredClone(operatorPayload);
+  changedIdentity.preflight.proposed.image.linuxAmd64Digest = `sha256:${hex("0", 64)}`;
+  assert.throws(() => applyReleaseStateIntent(gateBlocked,
+    intent("changed-upstream", 4, "retry-blocked-qualification", changedIdentity) as never), /structured pre-gate/u);
+  assert.equal(applyReleaseStateIntent(gateBlocked,
+    intent("stale-review", 3, "retry-blocked-qualification", operatorPayload) as never).decision,
+  "compare-and-swap-mismatch");
   const cancelledRun = { ...run, conclusion: "cancelled" };
   const cancelledJobs = structuredClone(jobs);
   cancelledJobs.jobs[0].conclusion = "success";

@@ -200,5 +200,8 @@ For an automatic-lane failure, inspect its structured durable disposition.
 Only `retryable` pre-gate evidence may use the explicit
 `retry_pre_gate_failure` dispatch option, which collects a fresh upstream
 identity before creating a new reservation. `blocked` gate failures and
-`cancelled` runs require operator review and a new reviewed course of action;
-do not edit the state branch or convert their reason text into recovery proof.
+`cancelled` runs require operator review. After repairing a blocked failure,
+dispatch the controller with the exact version and `retry_blocked_failure=true`
+to rerun every gate under a new reservation. Close the superseded candidate PR.
+Cancelled runs remain terminal. Do not edit the state branch or convert reason
+text into recovery proof.

@@ -9,7 +9,7 @@ import { assessUpgradeEvidence, immutableReleaseIdentity, validateUpgradePreflig
 export const RELEASE_STATE_FORMAT = "thunderclaw-openclaw-autopilot-state-v1";
 export const RELEASE_INTENT_FORMAT = "thunderclaw-openclaw-autopilot-intent-v1";
 const phases = ["observed", "ready", "prepared", "qualifying", "retryable", "cancelled", "qualified", "merged", "tagged", "github-published", "clawhub-verified", "closeout-open", "complete", "blocked"];
-const intentTypes = ["reobserve", "waive-soak", "record-qualification-failure", "recover-qualification-automation", "record-preparation", "record-qualification-dispatch", "record-qualification", "record-merge", "record-tag", "record-github-publication", "record-clawhub-verification", "open-closeout", "complete-closeout", "block"];
+const intentTypes = ["reobserve", "waive-soak", "record-qualification-failure", "recover-qualification-automation", "retry-blocked-qualification", "record-preparation", "record-qualification-dispatch", "record-qualification", "record-merge", "record-tag", "record-github-publication", "record-clawhub-verification", "open-closeout", "complete-closeout", "block"];
 const sha40 = /^[a-f0-9]{40}$/u;
 const sha256 = /^[a-f0-9]{64}$/u;
 const hash = (value) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
@@ -111,11 +111,13 @@ export function applyReleaseStateIntent(stateValue, intentValue) {
   const replay = state.history.find((event) => event.intentId === intent.intentId);
   if (replay) { if (replay.type !== intent.type || replay.payloadSha256 !== payloadSha256) throw new Error("intent id was reused with different content"); return { decision: "already-applied", expectedRevision: state.revision, state }; }
   if (intent.expectedRevision !== state.revision) return { decision: "compare-and-swap-mismatch", expectedRevision: state.revision, state };
-  if (["complete", "cancelled", "blocked"].includes(state.phase)
+  if (["complete", "cancelled"].includes(state.phase)
+      || (state.phase === "blocked" && intent.type !== "retry-blocked-qualification")
       || (state.phase === "retryable" && intent.type !== "recover-qualification-automation")) return { decision: "terminal", expectedRevision: state.revision, state };
   const from = state.phase; const payload = intent.payload;
-  if (intent.type === "recover-qualification-automation") {
-    phase(state, "retryable", "qualification automation recovery");
+  if (["recover-qualification-automation", "retry-blocked-qualification"].includes(intent.type)) {
+    const operatorRetry = intent.type === "retry-blocked-qualification";
+    phase(state, operatorRetry ? "blocked" : "retryable", "qualification automation recovery");
     exact(payload, ["failedRunId", "failedRunAttempt", "failureEvidenceSha256", "identitySha256", "preflight", "reason", "reservationId", "baseSha"], "qualification automation recovery payload");
     if (!Number.isSafeInteger(payload.failedRunId) || payload.failedRunId < 1 || !Number.isSafeInteger(payload.failedRunAttempt) || payload.failedRunAttempt < 1) throw new Error("qualification automation recovery run identity is malformed");
     if (typeof payload.reason !== "string" || !payload.reason) throw new Error("qualification automation recovery reason is malformed");
@@ -123,7 +125,9 @@ export function applyReleaseStateIntent(stateValue, intentValue) {
     pattern(payload.reservationId, /^[a-f0-9]{32}$/u, "qualification automation recovery reservationId"); pattern(payload.baseSha, sha40, "qualification automation recovery baseSha");
     const failure = validateQualificationFailureEvidence(state.outputs.failure);
     const current = validateUpgradePreflight(payload.preflight); const reassessment = assessUpgradeEvidence({ baseline: state.baseline, current, now: intent.at });
-    if (!failure.classification.recoverable || failure.classification.disposition !== "retryable"
+    if ((operatorRetry
+          ? failure.classification.disposition !== "blocked" || failure.classification.stage !== "gate"
+          : !failure.classification.recoverable || failure.classification.disposition !== "retryable")
         || failure.run.id !== payload.failedRunId || failure.run.attempt !== payload.failedRunAttempt
         || failure.evidenceSha256 !== payload.failureEvidenceSha256 || payload.identitySha256 !== state.identitySha256
         || reassessment.identitySha256 !== state.identitySha256 || reassessment.blockers.length > 0
@@ -131,7 +135,7 @@ export function applyReleaseStateIntent(stateValue, intentValue) {
         || !state.outputs.qualificationDispatch || state.outputs.qualification) throw new Error("only exact structured pre-gate qualification evidence may be recovered");
     state.reservationId = payload.reservationId; state.baseSha = payload.baseSha; state.outputs = {}; state.blockers = [];
     state.lastObservedAt = current.observedAt; state.soakCompletesAt = reassessment.soakCompletesAt; state.advisories = reassessment.advisories;
-    state.advisories = [...new Set([...state.advisories, `qualification automation failure recovered: ${payload.reason}`])]; state.phase = "ready";
+    state.advisories = [...new Set([...state.advisories, `qualification ${operatorRetry ? "operator retry" : "automation failure recovered"}: ${payload.reason}`])]; state.phase = "ready";
   } else if (intent.type === "reobserve") {
     if (!["observed", "ready"].includes(state.phase)) throw new Error("reobservation may be recorded only from observed or ready");
     exact(payload, ["preflight", "baseSha"], "reobserve payload"); const current = validateUpgradePreflight(payload.preflight); pattern(payload.baseSha, sha40, "reobserve baseSha");
