@@ -629,9 +629,17 @@ jobs:
           private-key: ${{ secrets.OPENCLAW_AUTOPILOT_APP_PRIVATE_KEY }}
           permission-actions: write
           permission-contents: read
+      - name: Check out trusted recovery automation
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Install managed runtimes
+        uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4
       - name: Re-run the exact idempotent tag workflow when it is idle
         env:
           GH_TOKEN: ${{ steps.app.outputs.token }}
+          GH_REPO: ${{ github.repository }}
           EXPECTED_STATE_COMMIT: ${{ needs.reserve.outputs.state_commit }}
         shell: bash
         run: |
