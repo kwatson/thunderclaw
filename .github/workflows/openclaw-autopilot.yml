@@ -24,6 +24,11 @@ on:
         required: false
         default: false
         type: boolean
+      restart_completed_qualification:
+        description: After an automation repair, restart a completed unpublished qualification on trusted main
+        required: false
+        default: false
+        type: boolean
   workflow_run:
     workflows: ["Qualify OpenClaw autopilot candidate"]
     types: [completed]
@@ -79,6 +84,7 @@ jobs:
           REQUESTED_VERSION: ${{ inputs.version }}
           RETRY_PRE_GATE_FAILURE: ${{ github.event_name == 'workflow_dispatch' && inputs.retry_pre_gate_failure || false }}
           RETRY_BLOCKED_FAILURE: ${{ github.event_name == 'workflow_dispatch' && inputs.retry_blocked_failure || false }}
+          RESTART_COMPLETED_QUALIFICATION: ${{ github.event_name == 'workflow_dispatch' && inputs.restart_completed_qualification || false }}
         shell: bash
         run: |
           set -euo pipefail
@@ -92,6 +98,13 @@ jobs:
                 echo "version=$(jq -r .identity.version "$RUNNER_TEMP/openclaw-active-state.json")" >> "$GITHUB_OUTPUT"
                 echo "reuse_baseline=false" >> "$GITHUB_OUTPUT"
                 if [[ "$GITHUB_EVENT_NAME" == workflow_dispatch && "$RETRY_PRE_GATE_FAILURE" == true ]]; then echo "eligible=true" >> "$GITHUB_OUTPUT"; else echo "eligible=false" >> "$GITHUB_OUTPUT"; fi
+                exit 0
+              fi
+              if [[ "$phase" == qualifying && "$GITHUB_EVENT_NAME" == workflow_dispatch && "$RESTART_COMPLETED_QUALIFICATION" == true ]]; then
+                test "$REQUESTED_VERSION" = "$(jq -r .identity.version "$RUNNER_TEMP/openclaw-active-state.json")"
+                echo "version=$REQUESTED_VERSION" >> "$GITHUB_OUTPUT"
+                echo "reuse_baseline=false" >> "$GITHUB_OUTPUT"
+                echo "eligible=true" >> "$GITHUB_OUTPUT"
                 exit 0
               fi
               if [[ "$phase" == blocked && "$GITHUB_EVENT_NAME" == workflow_dispatch && "$RETRY_BLOCKED_FAILURE" == true ]]; then
@@ -206,6 +219,7 @@ jobs:
           EXPEDITE_SOAK: ${{ github.event_name == 'workflow_dispatch' && inputs.expedite_soak || false }}
           RETRY_PRE_GATE_FAILURE: ${{ github.event_name == 'workflow_dispatch' && inputs.retry_pre_gate_failure || false }}
           RETRY_BLOCKED_FAILURE: ${{ github.event_name == 'workflow_dispatch' && inputs.retry_blocked_failure || false }}
+          RESTART_COMPLETED_QUALIFICATION: ${{ github.event_name == 'workflow_dispatch' && inputs.restart_completed_qualification || false }}
         shell: bash
         run: |
           set -euo pipefail
@@ -230,7 +244,21 @@ jobs:
           else
             test "$(jq -r .identity.version "$work/state.json")" = "$VERSION"
             phase=$(jq -r .phase "$work/state.json")
-            if { [[ "$phase" == retryable && "$RETRY_PRE_GATE_FAILURE" == true ]]; } \
+            if [[ "$phase" == qualifying && "$RESTART_COMPLETED_QUALIFICATION" == true ]]; then
+              request_id=$(jq -r .outputs.qualificationDispatch.requestId "$work/state.json")
+              workflow_commit=$(jq -r .outputs.qualificationDispatch.workflowCommit "$work/state.json")
+              run_id=$(gh run list --workflow "$QUALIFICATION_WORKFLOW" --limit 100 --json databaseId,displayTitle,headSha,event \
+                | jq -er --arg request "$request_id" --arg sha "$workflow_commit" '[.[] | select((.displayTitle | endswith("(" + $request + ")")) and .headSha == $sha and .event == "workflow_dispatch")] | if length == 1 then .[0].databaseId else error("qualification run is not unique") end')
+              run=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id" \
+                --jq '{id,run_attempt,event,status,conclusion,head_sha,head_branch}')
+              jq -n --arg id "restart-$run_id-$GITHUB_RUN_ID" --argjson revision "$(jq -r .revision "$work/state.json")" \
+                --arg at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --argjson run "$run" --arg requestId "$request_id" \
+                --arg identitySha256 "$(jq -r .identitySha256 "$work/state.json")" \
+                --arg reason "operator-reviewed automation repair; all gates rerun" --arg reservationId "$(openssl rand -hex 16)" \
+                --arg baseSha "$base_sha" --slurpfile preflight evidence/preflight.json \
+                '{format:"thunderclaw-openclaw-autopilot-intent-v1",intentId:$id,expectedRevision:$revision,type:"restart-completed-qualification",at:$at,payload:{run:$run,requestId:$requestId,identitySha256:$identitySha256,preflight:$preflight[0],reason:$reason,reservationId:$reservationId,baseSha:$baseSha}}' > "$work/intent.json"
+              mise exec -- node scripts/openclaw-release-state.mjs apply --state "$work/state.json" --intent "$work/intent.json" | jq .state > "$work/next.json"
+            elif { [[ "$phase" == retryable && "$RETRY_PRE_GATE_FAILURE" == true ]]; } \
                 || { [[ "$phase" == blocked && "$RETRY_BLOCKED_FAILURE" == true ]]; }; then
               recovery_type=recover-qualification-automation
               recovery_reason="explicit retry after independently classified pre-gate failure"

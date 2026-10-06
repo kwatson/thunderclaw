@@ -300,6 +300,24 @@ test("release state provides strict CAS, replay, and safe resume through qualifi
   assert.equal(decideReleaseResume(prepared).action, "dispatch-qualification");
   const dispatch = { requestId: "request-1", workflow: "qualify-openclaw-autopilot.yml", workflowCommit: hex("b", 40), workflowSha256: automation.qualificationWorkflowSha, dispatchedAt: "2026-09-23T01:01:00.000Z" };
   const qualifying = applyReleaseStateIntent(prepared, intent("dispatch", 2, "record-qualification-dispatch", dispatch, dispatch.dispatchedAt) as never).state;
+  const restartPayload = {
+    run: { id: 123, run_attempt: 1, event: "workflow_dispatch", status: "completed", conclusion: "success",
+      head_sha: dispatch.workflowCommit, head_branch: "main" },
+    requestId: dispatch.requestId, identitySha256: qualifying.identitySha256,
+    preflight: preflight("2026-09-23T02:00:00.000Z"), reason: "reviewed evidence verifier repair",
+    reservationId: hex("f", 32), baseSha: hex("e", 40),
+  };
+  const restarted = applyReleaseStateIntent(qualifying,
+    intent("restart-completed", 3, "restart-completed-qualification", restartPayload) as never).state;
+  assert.equal(restarted.phase, "ready");
+  assert.deepEqual(restarted.outputs, {});
+  for (const invalid of [
+    { ...restartPayload, requestId: "wrong" },
+    { ...restartPayload, run: { ...restartPayload.run, status: "in_progress" } },
+    { ...restartPayload, run: { ...restartPayload.run, conclusion: "cancelled" } },
+    { ...restartPayload, run: { ...restartPayload.run, head_sha: hex("0", 40) } },
+  ]) assert.throws(() => applyReleaseStateIntent(qualifying,
+    intent("invalid-restart", 3, "restart-completed-qualification", invalid) as never), /completed active/u);
   const run = { id: 123, run_attempt: 1, event: "workflow_dispatch", conclusion: "failure", head_sha: dispatch.workflowCommit,
     head_branch: "main", path: ".github/workflows/qualify-openclaw-autopilot.yml@refs/heads/main" };
   const jobs = { jobs: [

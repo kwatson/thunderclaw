@@ -55,7 +55,9 @@ export function validateAutopilotQualificationResult(value) {
     throw new Error("qualification result identity is malformed");
   }
   exactKeys(value.candidate, ["ref", "sha", "tree"], "candidate identity");
-  if (typeof value.candidate.ref !== "string" || !/^automation\/openclaw-\d{4}\.\d{1,2}\.\d+$/u.test(value.candidate.ref)
+  const legacyRef = `automation/openclaw-${value.version}`;
+  const reservedRef = `${legacyRef}-${value.reservationId.slice(0, 8)}`;
+  if (typeof value.candidate.ref !== "string" || ![legacyRef, reservedRef].includes(value.candidate.ref)
       || !shaPattern.test(value.candidate.sha) || !shaPattern.test(value.candidate.tree)) {
     throw new Error("qualification candidate identity is malformed");
   }

@@ -482,6 +482,13 @@ jobs:
             --arg candidateArtifactSha256 "$CANDIDATE_ARTIFACT_SHA256" \
             '{format:"thunderclaw-openclaw-autopilot-result-v1",repository:$repository,repositoryId:$repositoryId,workflow:".github/workflows/qualify-openclaw-autopilot.yml",workflowCommit:$workflowCommit,workflowSha256:$workflowSha256,event:"workflow_dispatch",runId:$runId,runAttempt:$runAttempt,requestId:$requestId,reservationId:$reservationId,version:$version,identitySha256:$identitySha256,baseSha:$baseSha,tag:$tag,candidateArtifactSha256:$candidateArtifactSha256,candidate:{ref:$ref,sha:$sha,tree:$tree},counterpart:{repository:$repository,tag:$counterpartTag,name:$counterpartName,sha256:$counterpartSha256,size:$counterpartSize},classification:{decision:"compatibility-only",evidenceSha256:$classificationSha256},automation:{controllerWorkflowSha:$controllerWorkflowSha256,qualificationWorkflowSha:$qualificationWorkflowSha256,releaseWorkflowSha:$releaseWorkflowSha256,classifierSha:$classifierSha256},gates:{deterministic:"success","openclaw-integration":"success","pair-qualification":"success","thunderbird-linux":"success","native-windows":"success","native-macos":"success"},decision:"pass"}' \
             > result/result.json
+      - name: Validate qualification evidence before reporting success
+        run: |
+          mise exec -- node --input-type=module <<'NODE'
+          import { readFile } from "node:fs/promises";
+          import { validateAutopilotQualificationResult } from "./scripts/verify-openclaw-autopilot-result.mjs";
+          validateAutopilotQualificationResult(JSON.parse(await readFile("result/result.json", "utf8")));
+          NODE
       - name: Upload immutable qualification result
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
