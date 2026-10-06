@@ -44,6 +44,7 @@ jobs:
       sha256: ${{ steps.release.outputs.sha256 }}
       size: ${{ steps.release.outputs.size }}
       state_commit: ${{ steps.release.outputs.state_commit }}
+      already_published: ${{ steps.public.outputs.already_published }}
     steps:
       - name: Require protected automation source
         env:
@@ -93,6 +94,31 @@ jobs:
           echo "sha256=$(jq -r .sha256 <<<"$result")" >> "$GITHUB_OUTPUT"
           echo "size=$(jq -r .size <<<"$result")" >> "$GITHUB_OUTPUT"
           echo "state_commit=$state_commit" >> "$GITHUB_OUTPUT"
+      - name: Probe for an exact verified ClawHub publication
+        id: public
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+          RELEASE_COMMIT: ${{ steps.release.outputs.commit }}
+        run: |
+          set -euo pipefail
+          already_published=$(mise exec -- node --input-type=module <<'NODE'
+          import { verifyClawHubRelease } from './scripts/verify-marketplace-notes.mjs';
+          const tag = process.env.RELEASE_TAG;
+          const version = tag.slice('openclaw-plugin-v'.length);
+          const endpoint = `https://clawhub.ai/api/v1/packages/%40thunderclaw%2Fopenclaw-plugin/versions/${encodeURIComponent(version)}`;
+          const response = await fetch(endpoint);
+          if (response.status === 404) {
+            console.log('false');
+          } else {
+            if (!response.ok) throw new Error(`ClawHub publication probe returned HTTP ${response.status}`);
+            await verifyClawHubRelease({ packageName: '@thunderclaw/openclaw-plugin', version,
+              notesFile: 'release/release-notes.md', artifact: `release/thunderclaw-openclaw-plugin-${version}.tgz`,
+              repository: process.env.GITHUB_REPOSITORY, tag, commit: process.env.RELEASE_COMMIT, timeoutMs: 0 });
+            console.log('true');
+          }
+          NODE
+          )
+          echo "already_published=$already_published" >> "$GITHUB_OUTPUT"
 
   clawhub-auto:
     name: Dispatch and verify tokenless ClawHub promotion
@@ -113,6 +139,7 @@ jobs:
       - name: Install managed runtimes
         uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4
       - name: Mint the narrow workflow-dispatch token
+        if: needs.verify.outputs.already_published != 'true'
         id: app-token
         uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2.2.2
         with:
@@ -121,6 +148,7 @@ jobs:
           permission-actions: write
           permission-contents: read
       - name: Dispatch and await the exact protected-tag publisher
+        if: needs.verify.outputs.already_published != 'true'
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
           PUBLISHER_READ_TOKEN: ${{ github.token }}
