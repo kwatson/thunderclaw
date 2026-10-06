@@ -16,7 +16,7 @@ const automationPaths = {
   controllerWorkflowSha: ".github/workflows/openclaw-autopilot.yml",
   qualificationWorkflowSha: ".github/workflows/qualify-openclaw-autopilot.yml",
 };
-const publicationWorkflowPaths = [".github/workflows/release-openclaw-plugin.yml", ".github/workflows/publish-clawhub.yml"];
+const publicationWorkflowPaths = [".github/workflows/release-openclaw-plugin.yml", ".github/workflows/publish-clawhub.yml", ".github/workflows/complete-plugin-publication.yml"];
 const verifierPaths = ["scripts/classify-openclaw-release.mjs", "scripts/classify-openclaw-upgrade.mjs",
   "scripts/prepare-openclaw-upgrade.mjs", "scripts/openclaw-upgrade-policy.mjs", "scripts/openclaw-release-state.mjs",
   "scripts/verify-openclaw-autopilot-result.mjs", "scripts/openclaw-qualification.mjs",

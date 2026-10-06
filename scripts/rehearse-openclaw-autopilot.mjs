@@ -13,7 +13,7 @@ const classifierPaths = ["scripts/classify-openclaw-release.mjs", "scripts/class
   "scripts/verify-openclaw-autopilot-result.mjs", "scripts/openclaw-qualification.mjs",
   "scripts/assert-openclaw-autopilot-enabled.mjs", "scripts/classify-openclaw-qualification-failure.mjs",
   "scripts/verify-openclaw-foundation.mjs", "scripts/classify-change-scope.mjs"];
-const releasePaths = [".github/workflows/release-openclaw-plugin.yml", ".github/workflows/publish-clawhub.yml"];
+const releasePaths = [".github/workflows/release-openclaw-plugin.yml", ".github/workflows/publish-clawhub.yml", ".github/workflows/complete-plugin-publication.yml"];
 
 function run(program, args, options = {}) {
   const result = spawnSync(program, args, { encoding: "utf8", maxBuffer: 64 * 1024 * 1024, ...options });

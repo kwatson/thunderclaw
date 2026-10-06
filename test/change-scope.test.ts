@@ -9,7 +9,9 @@ import { assessPublishedPluginChanges, changedFiles, classifyChangeScope } from 
 test("internal automation repair requires checks without product qualification", () => {
   const scope = classifyChangeScope([".github/workflows/publish-clawhub.yml", "scripts/patch-clawhub-publisher.mjs",
     "scripts/classify-change-scope.mjs", "test/publisher.test.ts", "e2e/qualification/real-agent/run.mjs",
-    "e2e/qualification/counterpart-baselines.json", "docs/release.md"]);
+    "e2e/qualification/counterpart-baselines.json", "docs/release.md",
+    ".github/workflows/complete-plugin-publication.yml", "scripts/verify-plugin-publication-resume.mjs",
+    "scripts/verify-plugin-publication-resume.d.mts"]);
   assert.equal(scope.runChecks, true);
   assert.equal(scope.qualifyPlugin, false);
   assert.equal(scope.qualifyExtension, false);
