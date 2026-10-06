@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { CLAWHUB_PUBLICATION_TIMEOUT_MS } from "../scripts/verify-marketplace-notes.mjs";
 
 function workflowRunBlocks(workflow: string): Array<{ line: number; script: string }> {
   const lines = workflow.split("\n");
@@ -100,6 +101,17 @@ test("ClawHub publisher uses canonical notes and verifies the public catalog", a
   assert.match(workflow, /publicationStatus: "client-unconfirmed"/u);
   assert.doesNotMatch(workflow, /--wait(?:-timeout)?/u);
   assert.doesNotMatch(workflow, /publish_clawhub|submit_thunderbird|npm run pack/u);
+  assert.ok(workflow.indexOf("Retain sanitized publication result")
+    < workflow.indexOf("Verify public ClawHub artifact"), "retain the submission attempt before a slow public scan");
+  const budget = Number(/timeout-minutes: (\d+)/u.exec(workflow)?.[1]);
+  assert.ok(budget >= CLAWHUB_PUBLICATION_TIMEOUT_MS / 60_000 + 15,
+    "the publisher must allow its verification window plus setup");
+  const finalizer = await readFile(new URL("../.github/workflows/complete-plugin-publication.yml", import.meta.url), "utf8");
+  const polls = Number(/seq 1 (\d+)/u.exec(finalizer)?.[1]);
+  const interval = Number(/sleep (\d+)/u.exec(finalizer)?.[1]);
+  const finalizerBudget = Number(/clawhub-auto:[\s\S]*?timeout-minutes: (\d+)/u.exec(finalizer)?.[1]);
+  assert.ok(polls * interval >= budget * 60, "the parent must outwait the publisher job");
+  assert.ok(finalizerBudget * 60 > polls * interval, "the parent job must allow its poll window plus setup");
   verifyWorkflow(workflow, "publish-clawhub.yml");
 });
 
@@ -141,7 +153,7 @@ test("OpenClaw automatic release is selected only by the read-only durable-state
   assert.match(publisher, /GITHUB_WORKFLOW_REF/u);
   assert.match(finalizer, /clawhub-auto:[\s\S]*permission-actions: write[\s\S]*gh workflow run \.github\/workflows\/publish-clawhub\.yml --ref "\$RELEASE_TAG"/u);
   assert.match(finalizer, /displayTitle == \$title and \.headBranch == \$tag and \.headSha == \$commit/u);
-  assert.match(finalizer, /dispatch_status=\$\?[\s\S]*Publisher dispatch was not acknowledged[\s\S]*for _ in \$\(seq 1 240\)/u);
+  assert.match(finalizer, /dispatch_status=\$\?[\s\S]*Publisher dispatch was not acknowledged[\s\S]*for _ in \$\(seq 1 480\)/u);
   assert.match(finalizer, /test "\$\{run_path%@\*\}" = \.github\/workflows\/publish-clawhub\.yml/u);
   assert.match(release, /actual_workflow=\$\(\{ sha256sum \.github\/workflows\/release-openclaw-plugin\.yml \.github\/workflows\/publish-clawhub\.yml \.github\/workflows\/complete-plugin-publication\.yml;/u);
   assert.match(releaseClassifier, /publicationWorkflowPaths = \["\.github\/workflows\/release-openclaw-plugin\.yml", "\.github\/workflows\/publish-clawhub\.yml", "\.github\/workflows\/complete-plugin-publication\.yml"\]/u);
@@ -180,6 +192,10 @@ test("automatic publication probes external state and isolates App-powered one-f
   assert.ok(dispatch.indexOf("uses: actions/checkout@") < dispatch.indexOf("gh run list"));
   assert.ok(dispatch.indexOf("uses: jdx/mise-action@") < dispatch.indexOf("mise exec --"));
   assert.match(dispatch, /GH_REPO: \$\{\{ github\.repository \}\}/u);
+  assert.match(dispatch, /permissions:\n\s+actions: read\n\s+contents: read/u);
+  assert.match(dispatch, /PUBLISHER_READ_TOKEN: \$\{\{ github\.token \}\}/u);
+  assert.match(dispatch, /GH_TOKEN="\$PUBLISHER_READ_TOKEN" gh run list/u);
+  assert.match(dispatch, /GH_TOKEN="\$PUBLISHER_READ_TOKEN" gh api/u);
   assert.match(finalizer, /verify-plugin-publication-resume\.mjs[\s\S]*gh attestation verify/u);
   assert.match(finalizer, /test "\$REF" = refs\/heads\/main/u);
   assert.doesNotMatch(finalizer, /npm run pack|attest-build-provenance|gh release create/u);

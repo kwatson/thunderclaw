@@ -222,3 +222,10 @@ reservation and provenance, and verifies the original GitHub attestation before
 resuming the exact-tag ClawHub publisher and counterpart closeout. A cancelled
 publisher still requires an explicit operator retry. The resume workflow cannot
 build artifacts or create a GitHub release.
+
+ClawHub checks can take more than 30 minutes. Public verification waits up to
+60 minutes; the publisher job allows 75 minutes and the finalizer allows
+90 minutes for submission and runner delays. The submission result is retained
+before waiting, so an operator can inspect its attempt ID during a slow scan.
+A verification timeout does not cancel ClawHub's pending submission and does
+not justify a new product tag or release.
