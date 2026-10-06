@@ -49,7 +49,8 @@ export async function verifyClawHubRelease({ packageName, version, notesFile, ar
         throw new Error("ClawHub served artifact bytes do not match the qualified plugin archive");
       }
       const verification = payload?.version?.verification;
-      if (verification?.sourceRepo !== repository || verification?.sourceTag !== tag
+      const sourceTagMatches = verification?.sourceTag === tag || verification?.sourceTag === `refs/tags/${tag}`;
+      if (verification?.sourceRepo !== repository || !sourceTagMatches
           || verification?.sourceCommit !== commit || verification?.scanStatus !== "clean") {
         throw new Error("ClawHub public source or scan state does not match the qualified release");
       }

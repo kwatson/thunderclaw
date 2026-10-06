@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
-import { readFile } from "node:fs/promises";
+import { spawnSync, type SpawnSyncReturns } from "node:child_process";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import test from "node:test";
 import { CLAWHUB_PUBLICATION_TIMEOUT_MS } from "../scripts/verify-marketplace-notes.mjs";
 
@@ -248,4 +250,49 @@ test("manual publisher repairs use reviewed workflow source while automatic publ
   assert.match(workflow, /PUBLISHER_WORKFLOW_SHA: \$\{\{ github\.workflow_sha \}\}/u);
   assert.match(workflow, /RELEASE_LANE" == automatic && "\$PUBLISHER_WORKFLOW_SHA" != "\$RELEASE_COMMIT"[\s\S]*exit 1[\s\S]*git show "\$PUBLISHER_WORKFLOW_SHA:scripts\/patch-clawhub-publisher\.mjs"/u);
   assert.match(workflow, /ref: \$\{\{ inputs\.tag \}\}/u, "the candidate source remains the qualified release tag");
+});
+
+test("ClawHub submission uses the OIDC tag ref and stops permanent identity rejection before polling", async () => {
+  const workflow = await readFile(new URL("../.github/workflows/publish-clawhub.yml", import.meta.url), "utf8");
+  const submission = workflowRunBlocks(workflow).find((block) => block.script.includes("publisher_exit=${PIPESTATUS[0]}"));
+  assert.ok(submission);
+  const directory = await mkdtemp(path.join(os.tmpdir(), "thunderclaw-publish-shell-"));
+  try {
+    await mkdir(path.join(directory, "release/assets"), { recursive: true });
+    await writeFile(path.join(directory, "release/assets/release-notes.md"), "Synthetic qualified release.\n");
+    const mock = `
+      mise() { return 0; }
+      bun() {
+        while [[ $# -gt 0 ]]; do
+          if [[ "$1" == --source-ref ]]; then
+            [[ "$2" == "$EXPECTED_REF" ]] || { echo 'wrong source ref' >&2; return 2; }
+          fi
+          shift
+        done
+        case "$SUBMISSION_CASE" in
+          rejected) echo 'Error: Trusted publish source ref must match the authorized source ref (reset in 60s)' >&2; return 1 ;;
+          network) echo 'connection timed out' >&2; return 1 ;;
+          pending) echo '{"publicationStatus":"pending","attemptId":"synthetic-attempt"}'; return 0 ;;
+        esac
+      }
+    `;
+    for (const scenario of [
+      { lane: "automatic", mode: "pending", ref: "refs/tags/openclaw-plugin-v1.2.3", exit: 0, status: "pending" },
+      { lane: "manual", mode: "pending", ref: "openclaw-plugin-v1.2.3", exit: 0, status: "pending" },
+      { lane: "automatic", mode: "rejected", ref: "refs/tags/openclaw-plugin-v1.2.3", exit: 1, status: "client-rejected" },
+      { lane: "automatic", mode: "network", ref: "refs/tags/openclaw-plugin-v1.2.3", exit: 0, status: "client-unconfirmed" },
+    ]) {
+      const result: SpawnSyncReturns<string> = spawnSync("bash", ["-c", `${mock}\n${submission.script}`], {
+        cwd: directory, encoding: "utf8", env: { ...process.env,
+          GITHUB_WORKSPACE: directory, RUNNER_TEMP: directory, GITHUB_REPOSITORY: "owner/repo",
+          RELEASE_TAG: "openclaw-plugin-v1.2.3", RELEASE_COMMIT: "a".repeat(40),
+          RELEASE_LANE: scenario.lane, CLAWHUB_TOKEN: scenario.lane === "manual" ? "synthetic-token" : "",
+          PLUGIN_ARCHIVE: "synthetic.tgz", EXPECTED_REF: scenario.ref, SUBMISSION_CASE: scenario.mode,
+        },
+      });
+      assert.equal(result.status, scenario.exit, result.stderr);
+      const evidence = JSON.parse(await readFile(path.join(directory, "clawhub-publish.json"), "utf8"));
+      assert.equal(evidence.publicationStatus, scenario.status);
+    }
+  } finally { await rm(directory, { recursive: true, force: true }); }
 });

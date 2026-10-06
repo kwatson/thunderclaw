@@ -197,6 +197,7 @@ jobs:
           fi
 
       - name: Publish exact archive with canonical changelog
+        id: publish
         env:
           GH_TOKEN: ${{ github.token }}
           CLAWHUB_TOKEN: ${{ secrets.CLAWHUB_TOKEN }}
@@ -209,8 +210,11 @@ jobs:
           set -euo pipefail
           cli="$GITHUB_WORKSPACE/clawhub-source/packages/clawhub/src/cli.ts"
           result="$RUNNER_TEMP/clawhub-publish.json"
+          publisher_error="$RUNNER_TEMP/clawhub-publish.stderr.log"
           release_notes=$(<release/assets/release-notes.md)
           publish_auth_args=()
+          source_ref="$RELEASE_TAG"
+          if [[ "$RELEASE_LANE" == automatic ]]; then source_ref="refs/tags/$RELEASE_TAG"; fi
           if [[ -n "$CLAWHUB_TOKEN" ]]; then
             publish_auth_args=(--owner thunderclaw --manual-override-reason "GitHub Actions publication of qualified ${RELEASE_TAG}")
           fi
@@ -219,15 +223,22 @@ jobs:
           bun "$cli" package publish "$PLUGIN_ARCHIVE" \
             --family code-plugin \
             --source-repo "https://github.com/$GITHUB_REPOSITORY" \
-            --source-ref "$RELEASE_TAG" \
+            --source-ref "$source_ref" \
             --source-commit "$RELEASE_COMMIT" \
             --changelog "$release_notes" \
             "${publish_auth_args[@]}" \
-            --json | tee "$result"
+            --json 2> "$publisher_error" | tee "$result"
           publisher_exit=${PIPESTATUS[0]}
+          cat "$publisher_error" >&2
           set -e
           if [[ "$publisher_exit" -eq 0 ]] && jq -e 'type == "object"' "$result" >/dev/null; then
             exit 0
+          fi
+          if [[ "$publisher_exit" -ne 0 ]] && grep -Eq 'Trusted publish source (ref|commit|repo) must match|Trusted publisher config is not set' "$publisher_error"; then
+            jq -n --argjson publisherExitCode "$publisher_exit" \
+              '{publicationStatus: "client-rejected", reason: "trusted-publisher-source", publisherExitCode: $publisherExitCode}' > "$result"
+            echo "::error::ClawHub rejected the publishing identity before accepting the submission."
+            exit 1
           fi
           jq -n \
             --argjson publisherExitCode "$publisher_exit" \
@@ -235,11 +246,12 @@ jobs:
           echo "::warning::ClawHub client did not confirm submission; exact public verification will determine the release outcome."
 
       - name: Retain sanitized publication result
+        if: always() && steps.publish.outcome != 'skipped'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: thunderclaw-clawhub-publication-${{ steps.release.outputs.version }}
           path: ${{ runner.temp }}/clawhub-publish.json
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 30
 
       - name: Verify public ClawHub artifact, source, scan state, and changelog

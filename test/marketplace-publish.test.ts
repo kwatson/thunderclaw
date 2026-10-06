@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { createHash, createHmac } from "node:crypto";
-import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import os from "node:os";
 import path from "node:path";
@@ -217,6 +217,30 @@ test("ATN public verification binds canonical notes and downloads API-advertised
     reviewerSourceVerification: "manual",
     reviewerTestingNotesVerification: "manual",
   });
+});
+
+test("ClawHub verification accepts the exact full tag ref but rejects branch refs and other tags", async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "thunderclaw-source-ref-"));
+  const artifact = path.join(directory, "plugin.tgz");
+  const notesFile = path.join(directory, "notes.md");
+  const bytes = Buffer.from("synthetic qualified plugin");
+  await writeFile(artifact, bytes); await writeFile(notesFile, "Synthetic release.\n");
+  try {
+    for (const sourceTag of ["refs/tags/openclaw-plugin-v1.2.3", "refs/heads/openclaw-plugin-v1.2.3", "refs/tags/openclaw-plugin-v1.2.4"]) {
+      const verification = verifyClawHubReleaseNotes({ packageName: "@thunderclaw/openclaw-plugin", version: "1.2.3",
+        notesFile, artifact, repository: "owner/repo", tag: "openclaw-plugin-v1.2.3", commit: "a".repeat(40),
+        timeoutMs: 0, pollIntervalMs: 0, fetchImpl: async (url) => String(url).endsWith("/artifact/download")
+          ? new Response(bytes)
+          : new Response(JSON.stringify({ package: { name: "@thunderclaw/openclaw-plugin" }, version: {
+            version: "1.2.3", changelog: "Synthetic release.",
+            artifact: { sha256: createHash("sha256").update(bytes).digest("hex"), size: bytes.length },
+            verification: { sourceRepo: "owner/repo", sourceTag, sourceCommit: "a".repeat(40), scanStatus: "clean" },
+          } })),
+      });
+      if (sourceTag === "refs/tags/openclaw-plugin-v1.2.3") assert.equal((await verification).sourceVerified, true);
+      else await assert.rejects(verification, /public source or scan state/u);
+    }
+  } finally { await rm(directory, { recursive: true, force: true }); }
 });
 
 test("ATN public XPI payload accepts identical bytes or complete signature metadata only", async () => {
