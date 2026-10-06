@@ -77,6 +77,8 @@ const internalScripts = new Set([
   "verify-openclaw-foundation.d.mts",
   "verify-openclaw-foundation.mjs",
   "verify-openclaw-qualification.mjs",
+  "verify-plugin-publication-resume.d.mts",
+  "verify-plugin-publication-resume.mjs",
   "classify-change-scope.mjs",
   "classify-change-scope.d.mts"
 ]);
