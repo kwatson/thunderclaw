@@ -36,6 +36,20 @@ function verifyWorkflow(workflow: string, filename: string) {
   }
 }
 
+test("recovery jobs run trusted main automation with managed runtimes and repository binding", async () => {
+  const controller = await readFile(new URL("../.github/workflows/openclaw-autopilot.yml", import.meta.url), "utf8");
+  const recovery = controller.slice(controller.indexOf("  resume-tag-release:"), controller.indexOf("  verify-result:"));
+  assert.match(recovery, /uses: actions\/checkout@[a-f0-9]{40}[\s\S]*ref: main[\s\S]*uses: jdx\/mise-action@[a-f0-9]{40}[\s\S]*Re-run the exact/u);
+  assert.match(recovery, /GH_REPO: \$\{\{ github\.repository \}\}/u);
+  const closeout = await readFile(new URL("../.github/workflows/complete-openclaw-autopilot-closeout.yml", import.meta.url), "utf8");
+  assert.match(closeout, /on:\n  pull_request_target:\n    types: \[closed\]/u);
+  assert.match(closeout, /github\.event\.pull_request\.merged == true/u);
+  assert.match(closeout, /uses: actions\/checkout@[a-f0-9]{40}[\s\S]*ref: main/u);
+  assert.doesNotMatch(closeout, /ref: \$\{\{ github\.event\.pull_request\.head/u);
+  verifyWorkflow(recovery, "autopilot recovery");
+  verifyWorkflow(closeout, "autopilot closeout");
+});
+
 test("component release tags build, qualify, and publish only their own artifacts", async () => {
   const plugin = await readFile(new URL("../.github/workflows/release-openclaw-plugin.yml", import.meta.url), "utf8");
   const extension = await readFile(new URL("../.github/workflows/release.yml", import.meta.url), "utf8");

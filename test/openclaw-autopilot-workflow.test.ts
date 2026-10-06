@@ -142,7 +142,7 @@ test("autopilot controller is a short trusted-main state machine with isolated m
 
 test("merged counterpart closeout completes only the exact durable reservation", async () => {
   const workflow = await readFile(new URL("../.github/workflows/complete-openclaw-autopilot-closeout.yml", import.meta.url), "utf8");
-  assert.match(workflow, /pull_request:\n\s+types: \[closed\]/u);
+  assert.match(workflow, /pull_request_target:\n\s+types: \[closed\]/u);
   assert.match(workflow, /github\.event\.pull_request\.merged == true/u);
   assert.match(workflow, /ref: main/u);
   assert.match(workflow, /refs\/heads\/automation\/openclaw-autopilot-state/u);
