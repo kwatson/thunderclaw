@@ -465,8 +465,27 @@ async function main() {
         await waitForGateway(token);
       }
       const trialArtifacts = `/work/artifacts/trials/${suffix}`;
-      command("docker", [...dockerArgs, "--artifacts", trialArtifacts, "--gateway-port", String(relayPort),
-        "--nonce", qualificationNonce, "--trial", suffix]);
+      // Host networking shares X11 abstract sockets across containers. Give each
+      // launch its own display and retain Xvfb errors rather than discarding them.
+      for (let attempt = 1; attempt <= 2; attempt++) {
+        const trialDirectory = join(artifacts, "trials", suffix);
+        await mkdir(trialDirectory, { recursive: true });
+        const launchArgs = [...dockerArgs];
+        const xvfbIndex = launchArgs.indexOf("-a");
+        launchArgs.splice(xvfbIndex, 0, "--server-num", String(1000 + randomBytes(2).readUInt16BE()),
+          "--error-file", `${trialArtifacts}/xvfb-${attempt}.log`);
+        const result = spawnSync("docker", [...launchArgs, "--artifacts", trialArtifacts,
+          "--gateway-port", String(relayPort), "--nonce", qualificationNonce, "--trial", suffix],
+        { cwd: root, stdio: "inherit" });
+        if (result.status === 0) break;
+        const failure = JSON.parse(await readFile(join(trialDirectory, "result.json"), "utf8"));
+        const log = await readFile(join(trialDirectory, "thunderbird.log"), "utf8");
+        if (attempt === 2 || failure.stage !== "startup" || !log.includes("Error: cannot open display:")) {
+          throw new Error(`fresh-profile trial ${suffix} failed; see retained qualification evidence`);
+        }
+        await rename(join(trialDirectory, "result.json"), join(trialDirectory, "startup-failure.json"));
+        await rename(join(trialDirectory, "thunderbird.log"), join(trialDirectory, "startup-thunderbird.log"));
+      }
       const trial = JSON.parse(await readFile(join(artifacts, "trials", suffix, "result.json"), "utf8"));
       assert(trial.status === "passed" && trial.trial === suffix, `fresh-profile trial ${suffix} failed`);
       trialResults.push(trial);
