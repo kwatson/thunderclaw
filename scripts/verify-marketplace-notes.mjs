@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
-export const CLAWHUB_PUBLICATION_TIMEOUT_MS = 25 * 60_000;
+export const CLAWHUB_PUBLICATION_TIMEOUT_MS = 60 * 60_000;
 
 export function normalizeMarketplaceNotes(value) {
   if (typeof value !== "string") throw new Error("Marketplace release notes must be a string");

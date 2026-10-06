@@ -45,7 +45,7 @@ jobs:
   publish-clawhub:
     name: Publish and verify exact plugin release
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 75
     environment:
       name: ${{ inputs.release_lane == 'automatic' && 'clawhub-auto' || 'clawhub' }}
     permissions:
@@ -234,6 +234,14 @@ jobs:
             '{publicationStatus: "client-unconfirmed", publisherExitCode: $publisherExitCode}' > "$result"
           echo "::warning::ClawHub client did not confirm submission; exact public verification will determine the release outcome."
 
+      - name: Retain sanitized publication result
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: thunderclaw-clawhub-publication-${{ steps.release.outputs.version }}
+          path: ${{ runner.temp }}/clawhub-publish.json
+          if-no-files-found: error
+          retention-days: 30
+
       - name: Verify public ClawHub artifact, source, scan state, and changelog
         run: |
           mise exec -- node scripts/verify-marketplace-notes.mjs \
@@ -244,11 +252,3 @@ jobs:
             --repository "$GITHUB_REPOSITORY" \
             --tag '${{ inputs.tag }}' \
             --commit '${{ steps.release.outputs.commit }}'
-
-      - name: Retain sanitized publication result
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: thunderclaw-clawhub-publication-${{ steps.release.outputs.version }}
-          path: ${{ runner.temp }}/clawhub-publish.json
-          if-no-files-found: error
-          retention-days: 30

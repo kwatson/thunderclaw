@@ -148,7 +148,7 @@ test("frozen v1 verifier remains limited to the two legacy shared tags", async (
 });
 
 test("marketplace notes compare exactly after transport normalization", async () => {
-  assert.equal(CLAWHUB_PUBLICATION_TIMEOUT_MS, 25 * 60_000);
+  assert.ok(CLAWHUB_PUBLICATION_TIMEOUT_MS >= 60 * 60_000, "allow ClawHub scans that take more than 30 minutes");
   assert.equal(normalizeMarketplaceNotes("Cafe\u0301\r\n\r\n"), "Café");
   assert.equal(verifyMarketplaceNotes("One\nTwo\n", "One\r\nTwo", "fixture"), "One\nTwo");
   assert.throws(() => verifyMarketplaceNotes("One two", "One  two", "fixture"), /exactly match/u);

@@ -98,7 +98,7 @@ jobs:
     name: Dispatch and verify tokenless ClawHub promotion
     needs: verify
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 90
     environment:
       name: autopilot-closeout
     permissions:
@@ -156,7 +156,7 @@ jobs:
             fi
             run=""
           fi
-          for _ in $(seq 1 240); do
+          for _ in $(seq 1 480); do
             if [[ -z "$run" ]]; then run=$(find_run); fi
             if [[ -n "$run" && "$(jq -r .status <<<"$run")" == completed ]]; then
               if [[ "$(jq -r .conclusion <<<"$run")" == success ]]; then
