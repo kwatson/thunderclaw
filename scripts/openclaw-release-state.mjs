@@ -9,7 +9,7 @@ import { assessUpgradeEvidence, immutableReleaseIdentity, validateUpgradePreflig
 export const RELEASE_STATE_FORMAT = "thunderclaw-openclaw-autopilot-state-v1";
 export const RELEASE_INTENT_FORMAT = "thunderclaw-openclaw-autopilot-intent-v1";
 const phases = ["observed", "ready", "prepared", "qualifying", "retryable", "cancelled", "qualified", "merged", "tagged", "github-published", "clawhub-verified", "closeout-open", "complete", "blocked"];
-const intentTypes = ["reobserve", "waive-soak", "record-qualification-failure", "recover-qualification-automation", "retry-blocked-qualification", "record-preparation", "record-qualification-dispatch", "record-qualification", "record-merge", "record-tag", "record-github-publication", "record-clawhub-verification", "open-closeout", "complete-closeout", "block"];
+const intentTypes = ["reobserve", "waive-soak", "record-qualification-failure", "recover-qualification-automation", "retry-blocked-qualification", "restart-completed-qualification", "record-preparation", "record-qualification-dispatch", "record-qualification", "record-merge", "record-tag", "record-github-publication", "record-clawhub-verification", "open-closeout", "complete-closeout", "block"];
 const sha40 = /^[a-f0-9]{40}$/u;
 const sha256 = /^[a-f0-9]{64}$/u;
 const hash = (value) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
@@ -115,7 +115,29 @@ export function applyReleaseStateIntent(stateValue, intentValue) {
       || (state.phase === "blocked" && intent.type !== "retry-blocked-qualification")
       || (state.phase === "retryable" && intent.type !== "recover-qualification-automation")) return { decision: "terminal", expectedRevision: state.revision, state };
   const from = state.phase; const payload = intent.payload;
-  if (["recover-qualification-automation", "retry-blocked-qualification"].includes(intent.type)) {
+  if (intent.type === "restart-completed-qualification") {
+    phase(state, "qualifying", "operator qualification restart");
+    exact(payload, ["run", "requestId", "identitySha256", "preflight", "reason", "reservationId", "baseSha"], "qualification restart payload");
+    exact(payload.run, ["id", "run_attempt", "event", "status", "conclusion", "head_sha", "head_branch"], "completed qualification run");
+    const dispatch = state.outputs.qualificationDispatch;
+    if (!Number.isSafeInteger(payload.run.id) || payload.run.id < 1
+        || !Number.isSafeInteger(payload.run.run_attempt) || payload.run.run_attempt < 1
+        || payload.run.event !== "workflow_dispatch" || payload.run.status !== "completed"
+        || !["success", "failure", "timed_out"].includes(payload.run.conclusion)
+        || payload.run.head_sha !== dispatch.workflowCommit || payload.run.head_branch !== "main"
+        || payload.requestId !== dispatch.requestId || payload.identitySha256 !== state.identitySha256
+        || typeof payload.reason !== "string" || !payload.reason) throw new Error("restart must identify the completed active qualification");
+    pattern(payload.reservationId, /^[a-f0-9]{32}$/u, "restart reservationId");
+    pattern(payload.baseSha, sha40, "restart baseSha");
+    const current = validateUpgradePreflight(payload.preflight);
+    const assessment = assessUpgradeEvidence({ baseline: state.baseline, current, now: intent.at });
+    if (assessment.identitySha256 !== state.identitySha256 || assessment.blockers.length) throw new Error("restart upstream identity changed or is blocked");
+    state.reservationId = payload.reservationId; state.baseSha = payload.baseSha;
+    state.outputs = {}; state.blockers = []; state.lastObservedAt = current.observedAt;
+    state.soakCompletesAt = assessment.soakCompletesAt;
+    state.advisories = [...new Set([...assessment.advisories, `operator qualification restart: ${payload.reason}`])];
+    state.phase = assessment.decision === "ready" ? "ready" : "observed";
+  } else if (["recover-qualification-automation", "retry-blocked-qualification"].includes(intent.type)) {
     const operatorRetry = intent.type === "retry-blocked-qualification";
     phase(state, operatorRetry ? "blocked" : "retryable", "qualification automation recovery");
     exact(payload, ["failedRunId", "failedRunAttempt", "failureEvidenceSha256", "identitySha256", "preflight", "reason", "reservationId", "baseSha"], "qualification automation recovery payload");

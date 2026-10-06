@@ -205,3 +205,9 @@ dispatch the controller with the exact version and `retry_blocked_failure=true`
 to rerun every gate under a new reservation. Close the superseded candidate PR.
 Cancelled runs remain terminal. Do not edit the state branch or convert reason
 text into recovery proof.
+
+If qualification completed but a controller repair requires a fresh candidate,
+use `restart_completed_qualification=true` for the exact active version. The
+controller authenticates the unique completed run for the active request before
+starting a fresh reservation on trusted main. Running and cancelled runs cannot
+use this option, and every gate must run again before publication.

@@ -64,6 +64,18 @@ test("autopilot result requires every exact successful gate", () => {
   assert.throws(() => validateAutopilotQualificationResult(missingGate), /strict autopilot result schema/u);
 });
 
+test("qualification evidence accepts the controller reservation branch and rejects another reservation or version", () => {
+  const result = validResult();
+  result.candidate.ref = `automation/openclaw-${result.version}-${result.reservationId.slice(0, 8)}`;
+  assert.equal(validateAutopilotQualificationResult(result).candidate.ref, result.candidate.ref);
+  assert.throws(() => validateAutopilotQualificationResult({ ...result,
+    candidate: { ...result.candidate, ref: `automation/openclaw-${result.version}-00000000` },
+  }), /candidate identity/u);
+  assert.throws(() => validateAutopilotQualificationResult({ ...result,
+    candidate: { ...result.candidate, ref: "automation/openclaw-2026.9.7" },
+  }), /candidate identity/u);
+});
+
 test("autopilot result verification binds the reserved run, attempt, source tree, and counterpart", () => {
   const result = validResult();
   assert.equal(verifyAutopilotQualificationResult(result, {
