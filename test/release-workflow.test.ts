@@ -250,6 +250,8 @@ test("manual publisher repairs use reviewed workflow source while automatic publ
   assert.match(workflow, /PUBLISHER_WORKFLOW_SHA: \$\{\{ github\.workflow_sha \}\}/u);
   assert.match(workflow, /RELEASE_LANE" == automatic && "\$PUBLISHER_WORKFLOW_SHA" != "\$RELEASE_COMMIT"[\s\S]*exit 1[\s\S]*git show "\$PUBLISHER_WORKFLOW_SHA:scripts\/patch-clawhub-publisher\.mjs"/u);
   assert.match(workflow, /ref: \$\{\{ inputs\.tag \}\}/u, "the candidate source remains the qualified release tag");
+  assert.match(workflow, /git show "\$PUBLISHER_WORKFLOW_SHA:scripts\/verify-marketplace-notes\.mjs"[\s\S]*node "\$RUNNER_TEMP\/verify-marketplace-notes\.mjs"/u,
+    "manual verification repairs must use reviewed automation without moving the qualified tag");
 });
 
 test("ClawHub submission uses the OIDC tag ref and stops permanent identity rejection before polling", async () => {
