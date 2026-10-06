@@ -255,8 +255,12 @@ jobs:
           retention-days: 30
 
       - name: Verify public ClawHub artifact, source, scan state, and changelog
+        env:
+          PUBLISHER_WORKFLOW_SHA: ${{ github.workflow_sha }}
         run: |
-          mise exec -- node scripts/verify-marketplace-notes.mjs \
+          set -euo pipefail
+          git show "$PUBLISHER_WORKFLOW_SHA:scripts/verify-marketplace-notes.mjs" > "$RUNNER_TEMP/verify-marketplace-notes.mjs"
+          mise exec -- node "$RUNNER_TEMP/verify-marketplace-notes.mjs" \
             --package @thunderclaw/openclaw-plugin \
             --version '${{ steps.release.outputs.version }}' \
             --notes-file release/assets/release-notes.md \
