@@ -402,8 +402,10 @@ jobs:
         if: always()
         shell: bash
         run: |
-          find . -maxdepth 1 -name '.env.openclaw.local' -delete
-          docker compose -f compose.spike.yaml down
+          trap 'find . -maxdepth 1 -name ".env.openclaw.local" -delete' EXIT
+          if [[ -f .env.openclaw.local ]]; then
+            docker compose -f compose.spike.yaml down
+          fi
 
   result:
     name: Bind successful qualification result
