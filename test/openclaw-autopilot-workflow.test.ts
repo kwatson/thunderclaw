@@ -88,6 +88,12 @@ test("autopilot qualification result binds exact run, attempt, tree, counterpart
   assert.match(workflow, /sha256sum \.github\/workflows\/release-openclaw-plugin\.yml \.github\/workflows\/publish-clawhub\.yml/u);
   assert.doesNotMatch(workflow, /continue-on-error:|allow-failure/iu);
   assert.match(workflow, /openclaw-autopilot-result-\$\{\{ inputs\.request_id \}\}-\$\{\{ github\.run_attempt \}\}/u);
+  const resultJob = workflow.slice(workflow.indexOf("\n  result:\n"));
+  assert.match(resultJob, /ref: \$\{\{ inputs\.source_sha \}\}/u);
+  assert.ok(resultJob.indexOf("uses: actions/checkout@") < resultJob.indexOf("mise exec --"));
+  assert.ok(resultJob.indexOf("uses: jdx/mise-action@") >= 0
+    && resultJob.indexOf("uses: jdx/mise-action@") < resultJob.indexOf("mise exec --"),
+  "the separate evidence job must install managed runtimes before validation");
 });
 
 test("autopilot controller is a short trusted-main state machine with isolated mutations", async () => {
