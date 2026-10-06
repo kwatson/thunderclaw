@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
-import { readFile } from "node:fs/promises";
+import { spawnSync, type SpawnSyncReturns } from "node:child_process";
+import { readFile, mkdtemp, mkdir, writeFile, stat, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 
 function runBlocks(workflow: string): string[] {
@@ -30,6 +32,30 @@ function verifyPinnedActionsAndShell(workflow: string, name: string) {
     assert.equal(result.status, 0, `${name} contains invalid shell:\n${result.stderr}`);
   }
 }
+
+test("qualification cleanup keeps Compose configuration until shutdown and always removes credentials", async () => {
+  const workflow = await readFile(new URL("../.github/workflows/qualify-openclaw-autopilot.yml", import.meta.url), "utf8");
+  const cleanup = runBlocks(workflow).find((script) => script.includes("docker compose -f compose.spike.yaml down"));
+  assert.ok(cleanup);
+  const directory = await mkdtemp(join(tmpdir(), "thunderclaw-cleanup-"));
+  try {
+    await mkdir(join(directory, "bin"));
+    await writeFile(join(directory, "bin/docker"), '#!/bin/bash\ntest -f .env.openclaw.local || exit 42\nexit "${FAKE_DOCKER_EXIT:-0}"\n', { mode: 0o755 });
+    for (const exit of [0, 9]) {
+      await writeFile(join(directory, ".env.openclaw.local"), "SYNTHETIC_TEST_VALUE=placeholder\n");
+      const result: SpawnSyncReturns<string> = spawnSync("bash", ["-e", "-o", "pipefail", "-c", cleanup], {
+        cwd: directory, encoding: "utf8",
+        env: { ...process.env, PATH: `${join(directory, "bin")}:${process.env.PATH}`, FAKE_DOCKER_EXIT: String(exit) },
+      });
+      assert.equal(result.status, exit, result.stderr);
+      await assert.rejects(stat(join(directory, ".env.openclaw.local")), { code: "ENOENT" });
+    }
+    const absent = spawnSync("bash", ["-e", "-c", cleanup], { cwd: directory, encoding: "utf8" });
+    assert.equal(absent.status, 0, absent.stderr);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
 
 test("autopilot qualification checks out only an explicit candidate and exposes only its dedicated provider secret", async () => {
   const workflow = await readFile(new URL("../.github/workflows/qualify-openclaw-autopilot.yml", import.meta.url), "utf8");
