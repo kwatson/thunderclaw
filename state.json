@@ -1,9 +1,9 @@
 {
   "format": "thunderclaw-openclaw-autopilot-state-v1",
-  "revision": 20,
-  "phase": "blocked",
-  "reservationId": "fa6e098eb307908c08fbd821d949f3af",
-  "baseSha": "54acc944775dc9cbed81d88c18ae51c4da91c619",
+  "revision": 21,
+  "phase": "ready",
+  "reservationId": "a9320b47570b374fecb481fe7014b3a8",
+  "baseSha": "5932512f9617324e0c8135e54ee5fb4c4a8b6064",
   "baseline": {
     "format": "thunderclaw-openclaw-upgrade-preflight-v2",
     "observedAt": "2026-10-05T19:19:40.390Z",
@@ -120,81 +120,13 @@
   },
   "identitySha256": "b8528594970cae1231bd30e28f460ef36d8caccb332bce01963074bbd7827050",
   "firstObservedAt": "2026-10-05T19:19:40.390Z",
-  "lastObservedAt": "2026-10-06T20:37:03.125Z",
+  "lastObservedAt": "2026-10-06T20:48:59.794Z",
   "soakCompletesAt": "2026-10-06T01:19:40.390Z",
   "advisories": [
     "qualification operator retry: operator-reviewed failure; rerun every gate on trusted main"
   ],
-  "blockers": [
-    "ThunderClaw qualification run 37527992338 attempt 1 ended as blocked at gate"
-  ],
-  "outputs": {
-    "preparation": {
-      "reservationId": "fa6e098eb307908c08fbd821d949f3af",
-      "pluginVersion": "0.1.16",
-      "preparedDate": "2026-10-03",
-      "baseSha": "54acc944775dc9cbed81d88c18ae51c4da91c619",
-      "branch": "automation/openclaw-2026.9.8-fa6e098e",
-      "prNumber": 22,
-      "candidateSha": "ce244e104a4b6b0d13bd96a25bbde4bb84f46ef5",
-      "candidateTree": "bb378d6e7d1737adb49714a1ce2de0dc33912701",
-      "tag": "openclaw-plugin-v0.1.16",
-      "classificationEvidenceSha256": "d53c0405c5e323f1e3adcecc00f35b438b539a260b7f6e76fdb8d0906daaada0",
-      "counterpart": {
-        "tag": "thunderbird-extension-v0.1.2",
-        "name": "thunderclaw-thunderbird-0.1.2.xpi",
-        "sha256": "24bd448bb0d364184e3f72958564ef12bdcbac2c9aae568e353c64209e4bd497",
-        "size": 119484,
-        "repository": "kwatson/thunderclaw"
-      },
-      "automation": {
-        "controllerWorkflowSha": "56541be724128a3706a3f5dde3b807754416b04daa9caabb49de9c274a83eb6c",
-        "qualificationWorkflowSha": "2fc2f01381d7298970fa23dadaaff3d6b3aeac6aadb010351b5411e8855a0010",
-        "classifierSha": "f1de607e83439f1d9efe37b6d59d8ce1579d7c789854322af9f264c3d6132e08",
-        "releaseWorkflowSha": "f01faf83c0011aa39e96d2146578141c7627b8014d96117b2c42496e94afd056"
-      }
-    },
-    "qualificationDispatch": {
-      "requestId": "ec98e5f8b6a25ebd31b1e01709444b31",
-      "workflow": ".github/workflows/qualify-openclaw-autopilot.yml",
-      "workflowCommit": "54acc944775dc9cbed81d88c18ae51c4da91c619",
-      "workflowSha256": "2fc2f01381d7298970fa23dadaaff3d6b3aeac6aadb010351b5411e8855a0010",
-      "dispatchedAt": "2026-10-06T20:38:29Z"
-    },
-    "failure": {
-      "format": "thunderclaw-openclaw-qualification-failure-v1",
-      "run": {
-        "id": 37527992338,
-        "attempt": 1,
-        "event": "workflow_dispatch",
-        "conclusion": "failure",
-        "workflowCommit": "54acc944775dc9cbed81d88c18ae51c4da91c619",
-        "workflowPath": ".github/workflows/qualify-openclaw-autopilot.yml"
-      },
-      "reservation": {
-        "reservationId": "fa6e098eb307908c08fbd821d949f3af",
-        "identitySha256": "b8528594970cae1231bd30e28f460ef36d8caccb332bce01963074bbd7827050",
-        "requestId": "ec98e5f8b6a25ebd31b1e01709444b31",
-        "candidateSha": "ce244e104a4b6b0d13bd96a25bbde4bb84f46ef5"
-      },
-      "jobs": {
-        "binding": "success",
-        "deterministic": "success",
-        "openclawIntegration": "success",
-        "thunderbirdLinux": "success",
-        "nativeWindows": "success",
-        "nativeMacos": "failure",
-        "pairQualification": "success",
-        "result": "failure"
-      },
-      "classification": {
-        "stage": "gate",
-        "disposition": "blocked",
-        "recoverable": false
-      },
-      "evidenceSha256": "5a97ed409fa1fd3e7a71c7d62d04b84d8cb69d848c72dd5b303a25aaaeac20e3"
-    }
-  },
+  "blockers": [],
+  "outputs": {},
   "history": [
     {
       "intentId": "reobserve-37391617511-1",
@@ -375,6 +307,15 @@
       "from": "qualifying",
       "to": "blocked",
       "revision": 20
+    },
+    {
+      "intentId": "recover-37527992338-1-1",
+      "type": "retry-blocked-qualification",
+      "at": "2026-10-06T20:49:19Z",
+      "payloadSha256": "8814c48ea30a2272ac19e74922dcb1ce511350f95dc80703d7dc521a00a0685a",
+      "from": "blocked",
+      "to": "ready",
+      "revision": 21
     }
   ]
 }
