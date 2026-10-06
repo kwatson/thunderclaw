@@ -1,9 +1,9 @@
 {
   "format": "thunderclaw-counterpart-baselines-v1",
   "openclaw-plugin": {
-    "tag": "openclaw-plugin-v0.1.15",
-    "name": "thunderclaw-openclaw-plugin-0.1.15.tgz",
-    "sha256": "a008b50a1c337c68fe86db05b073380cd910cf1f10fcaecd75d957d069c46f6d",
+    "tag": "openclaw-plugin-v0.1.16",
+    "name": "thunderclaw-openclaw-plugin-0.1.16.tgz",
+    "sha256": "750d926ada1da59454282dc2b1ba0ee6e1233a9319d60f5ec06aa29fed45ac28",
     "size": 108495
   },
   "thunderbird-extension": {
