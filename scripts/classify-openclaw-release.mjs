@@ -1,3 +1,4 @@
+import { calculateAutomationFingerprint } from "./release-automation-fingerprint.mjs";
 import { assessPublishedPluginChanges } from "./classify-change-scope.mjs";
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
@@ -12,17 +13,6 @@ import { verifyAutopilotQualificationResult } from "./verify-openclaw-autopilot-
 const sha40 = /^[a-f0-9]{40}$/u;
 const sha256 = /^[a-f0-9]{64}$/u;
 const automaticPhases = new Set(["tagged", "github-published", "clawhub-verified", "closeout-open", "complete"]);
-const automationPaths = {
-  controllerWorkflowSha: ".github/workflows/openclaw-autopilot.yml",
-  qualificationWorkflowSha: ".github/workflows/qualify-openclaw-autopilot.yml",
-};
-const publicationWorkflowPaths = [".github/workflows/release-openclaw-plugin.yml", ".github/workflows/publish-clawhub.yml", ".github/workflows/complete-plugin-publication.yml"];
-const verifierPaths = ["scripts/classify-openclaw-release.mjs", "scripts/classify-openclaw-upgrade.mjs",
-  "scripts/prepare-openclaw-upgrade.mjs", "scripts/openclaw-upgrade-policy.mjs", "scripts/openclaw-release-state.mjs",
-  "scripts/verify-openclaw-autopilot-result.mjs", "scripts/openclaw-qualification.mjs",
-  "scripts/assert-openclaw-autopilot-enabled.mjs", "scripts/classify-openclaw-qualification-failure.mjs",
-  "scripts/verify-openclaw-foundation.mjs", "scripts/classify-change-scope.mjs",
-  "scripts/openclaw-controller-recovery.mjs", "scripts/clawhub-publication-recovery.mjs"];
 
 function digest(contents) {
   return createHash("sha256").update(contents).digest("hex");
@@ -180,9 +170,10 @@ async function main(args) {
   const releaseBaseRef = baselines["openclaw-plugin"]?.tag;
   if (typeof releaseBaseRef !== "string" || !releaseBaseRef) throw new Error("published plugin release baseline is missing");
   const classification = await classifyRange(root, state, releaseBaseRef, options.commit);
-  const automation = Object.fromEntries(Object.entries(automationPaths).map(([name, file]) => [name, digest(readAt(root, options.commit, file))]));
-  automation.releaseWorkflowSha = digest(publicationWorkflowPaths.map((file) => `${digest(readAt(root, options.commit, file))}  ${file}\n`).join(""));
-  automation.classifierSha = digest(verifierPaths.map((file) => `${digest(readAt(root, options.commit, file))}  ${file}\n`).join(""));
+  const fingerprint = calculateAutomationFingerprint((file) => readAt(root, options.commit, file));
+  const automation = { controllerWorkflowSha: fingerprint.controllerWorkflowSha256,
+    qualificationWorkflowSha: fingerprint.qualificationWorkflowSha256,
+    releaseWorkflowSha: fingerprint.releaseWorkflowSha256, classifierSha: fingerprint.classifierSha256 };
   const counterpart = { repository: options.repository, ...baselines["thunderbird-extension"] };
   const plugin = JSON.parse(readAt(root, options.commit, "packages/openclaw-plugin/package.json"));
   return classifyOpenClawRelease({ state, stateCommit: options["state-commit"], result, resultSha256: digest(resultBytes), run,

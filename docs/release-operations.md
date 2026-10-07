@@ -21,7 +21,9 @@ does not by itself prove public completion.
 | Evidence | Next action |
 | --- | --- |
 | No candidate yet; state is `observed` | Check immutable upstream identities and observation times. Wait for the six-hour observation window. |
-| Prepared or qualifying candidate, no tag | Follow the exact active request and gate results. Avoid duplicate dispatches. |
+| Prepared or qualifying candidate, no tag | Follow the exact active request and gate results. Hourly reconciliation consumes completed evidence if its callback failed. Avoid duplicate dispatches. |
+| Candidate became stale because main advanced | Reconciliation creates a fresh reservation with the same unchanged upstream identity and reruns qualification. This differs from a failed-gate retry. |
+| State authorized a tag, but the exact tag ref is absent | Reconciliation creates only the already-authorized annotated identity. Existing refs are verified and never moved. |
 | Structured `retryable` or `blocked` qualification | Inspect the failure evidence. Use the documented explicit recovery input where applicable; a new reservation reruns all gates. |
 | Cancelled qualification or publisher | Treat cancellation as intentional. Resume only with explicit operator direction; elapsed time is not authorization. |
 | Tag exists, GitHub release not yet published | Inspect successful and failed jobs before retrying. Reruns use the tag's old workflow; a fix on main does not modify that workflow. Preserve any existing candidate bytes and check for public attestations. |
@@ -60,7 +62,9 @@ results so that an accepted pending submission is not duplicated. Controller rec
 infrastructure retries and explicit `retry_publication` for other failed
 finalizers. Publisher cancellation and known rejection stop immediately.
 Accepted or ambiguous uploads authorize only further public verification;
-waiting and verification share a bounded budget. See [unfinished work](roadmap.md)
+waiting and verification share a bounded per-run budget. Retained pending evidence
+permits hourly read-only reconciliation beyond that budget; terminal integrity
+failures and cancellations still require operator intervention. See [unfinished work](roadmap.md)
 for live sandbox and automatic OIDC validation still required.
 
 ## ClawHub evidence and waiting
@@ -74,7 +78,8 @@ for live sandbox and automatic OIDC validation still required.
   Distinguish permanent rejection from ambiguous client/network failure.
 - Scans can take 30 minutes or longer. Public verification currently allows
   60 minutes, the publisher job 75 minutes, and the finalizer job 90 minutes.
-  Timeout does not cancel an accepted ClawHub submission.
+  Timeout does not cancel an accepted ClawHub submission. Public requests have
+  individual deadlines; permanent identity or byte mismatches fail immediately.
 - Require canonical notes, source repository/tag/commit, clean scan state,
   exact archive size and SHA-256, and the corresponding GitHub attestation.
   The public verifier accepts the exact short tag or full `refs/tags/` form;
@@ -110,7 +115,8 @@ Retain the original qualification/release run, successful publisher/finalizer
 runs, GitHub release, public ClawHub version verification, and baseline PR.
 Report what was actually exercised: manual recovery is not an end-to-end test of
 automatic publishing. Require green baseline CI and signoffs as well as durable `complete`; GitHub
-merge controls and completion checks enforce both checks. Inspect live settings
+merge controls and the shared completion verifier enforce CI, signoffs, and
+release-automation validation across every completion entry point. Inspect live settings
 rather than assuming this document proves their configuration. Do not claim a
 completion notification was sent unless a real notification exists.
 Keep sensitive configuration and provider credentials out of logs and documents.

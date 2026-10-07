@@ -97,6 +97,12 @@ jobs:
             phase=$(jq -r .phase "$RUNNER_TEMP/openclaw-active-state.json")
             if ! mise exec -- node scripts/verify-openclaw-foundation.mjs --root "$GITHUB_WORKSPACE" \
                 --closeout-state "$RUNNER_TEMP/openclaw-active-state.json" >/dev/null 2>&1; then
+              if [[ "$phase" == blocked ]] && [[ "$(mise exec -- node scripts/openclaw-qualification-reconciliation.mjs stale "$RUNNER_TEMP/openclaw-active-state.json" | jq -r .recoverable)" == true ]]; then
+                echo "version=$(jq -r .identity.version "$RUNNER_TEMP/openclaw-active-state.json")" >> "$GITHUB_OUTPUT"
+                echo "reuse_baseline=false" >> "$GITHUB_OUTPUT"
+                echo "eligible=true" >> "$GITHUB_OUTPUT"
+                exit 0
+              fi
               if [[ "$phase" == retryable ]]; then
                 echo "version=$(jq -r .identity.version "$RUNNER_TEMP/openclaw-active-state.json")" >> "$GITHUB_OUTPUT"
                 echo "reuse_baseline=false" >> "$GITHUB_OUTPUT"
@@ -257,7 +263,13 @@ jobs:
           else
             test "$(jq -r .identity.version "$work/state.json")" = "$VERSION"
             phase=$(jq -r .phase "$work/state.json")
-            if [[ "$phase" == qualifying && "$RESTART_COMPLETED_QUALIFICATION" == true ]]; then
+            if [[ "$phase" == blocked ]] && [[ "$(mise exec -- node scripts/openclaw-qualification-reconciliation.mjs stale "$work/state.json" | jq -r .recoverable)" == true ]]; then
+              jq -n --arg id "reset-stale-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" --argjson revision "$(jq -r .revision "$work/state.json")" \
+                --arg at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg identitySha256 "$(jq -r .identitySha256 "$work/state.json")" \
+                --arg reservationId "$(openssl rand -hex 16)" --arg baseSha "$base_sha" --slurpfile preflight evidence/preflight.json \
+                '{format:"thunderclaw-openclaw-autopilot-intent-v1",intentId:$id,expectedRevision:$revision,type:"reset-stale-candidate",at:$at,payload:{preflight:$preflight[0],identitySha256:$identitySha256,reservationId:$reservationId,baseSha:$baseSha}}' > "$work/intent.json"
+              mise exec -- node scripts/openclaw-release-state.mjs apply --state "$work/state.json" --intent "$work/intent.json" | jq .state > "$work/next.json"
+            elif [[ "$phase" == qualifying && "$RESTART_COMPLETED_QUALIFICATION" == true ]]; then
               request_id=$(jq -r .outputs.qualificationDispatch.requestId "$work/state.json")
               workflow_commit=$(jq -r .outputs.qualificationDispatch.workflowCommit "$work/state.json")
               run_id=$(gh run list --workflow "$QUALIFICATION_WORKFLOW" --limit 100 --json databaseId,displayTitle,headSha,event \
@@ -437,8 +449,8 @@ jobs:
           automation=$(jq -n \
             --arg controller "$(sha256sum .github/workflows/openclaw-autopilot.yml | cut -d ' ' -f1)" \
             --arg qualification "$(sha256sum .github/workflows/qualify-openclaw-autopilot.yml | cut -d ' ' -f1)" \
-            --arg classifier "$({ sha256sum scripts/classify-openclaw-release.mjs scripts/classify-openclaw-upgrade.mjs scripts/prepare-openclaw-upgrade.mjs scripts/openclaw-upgrade-policy.mjs scripts/openclaw-release-state.mjs scripts/verify-openclaw-autopilot-result.mjs scripts/openclaw-qualification.mjs scripts/assert-openclaw-autopilot-enabled.mjs scripts/classify-openclaw-qualification-failure.mjs scripts/verify-openclaw-foundation.mjs scripts/classify-change-scope.mjs scripts/openclaw-controller-recovery.mjs scripts/clawhub-publication-recovery.mjs; } | sha256sum | cut -d ' ' -f1)" \
-            --arg release "$({ sha256sum .github/workflows/release-openclaw-plugin.yml .github/workflows/publish-clawhub.yml .github/workflows/complete-plugin-publication.yml; } | sha256sum | cut -d ' ' -f1)" \
+            --arg classifier "$(mise exec -- node scripts/release-automation-fingerprint.mjs classifier)" \
+            --arg release "$(mise exec -- node scripts/release-automation-fingerprint.mjs release)" \
             '{controllerWorkflowSha:$controller,qualificationWorkflowSha:$qualification,classifierSha:$classifier,releaseWorkflowSha:$release}')
           jq -n --arg id "prepare-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
             --argjson revision "$(jq -r .revision "$work/state.json")" --arg at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
@@ -462,6 +474,10 @@ jobs:
     if: always() && (needs.prepare.result == 'success' || contains(fromJSON('["dispatch-qualification","await-qualification"]'), needs.reserve.outputs.action))
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    outputs:
+      run_id: ${{ steps.dispatch.outputs.run_id }}
+      run_attempt: ${{ steps.dispatch.outputs.run_attempt }}
+      conclusion: ${{ steps.dispatch.outputs.conclusion }}
     environment:
       name: openclaw-autopilot-mutation
     permissions:
@@ -485,6 +501,7 @@ jobs:
       - name: Install managed runtimes
         uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4
       - name: Record and dispatch one exact qualification request
+        id: dispatch
         env:
           GH_TOKEN: ${{ steps.app.outputs.token }}
           EXPECTED_STATE_COMMIT: ${{ needs.prepare.outputs.state_commit || needs.reserve.outputs.state_commit }}
@@ -498,7 +515,11 @@ jobs:
           phase=$(jq -r .phase "$work/state.json"); [[ "$phase" == prepared || "$phase" == qualifying ]]
           workflow_commit=$(git rev-parse HEAD)
           workflow_sha=$(sha256sum "$QUALIFICATION_WORKFLOW" | cut -d ' ' -f1)
-          test "$workflow_sha" = "$(jq -r .outputs.preparation.automation.qualificationWorkflowSha "$work/state.json")"
+          if [[ "$phase" == prepared ]]; then
+            test "$workflow_sha" = "$(jq -r .outputs.preparation.automation.qualificationWorkflowSha "$work/state.json")"
+          else
+            workflow_commit=$(jq -r .outputs.qualificationDispatch.workflowCommit "$work/state.json")
+          fi
           request_id=$(printf '%s:%s' "$(jq -r .reservationId "$work/state.json")" "$(jq -r .outputs.preparation.candidateSha "$work/state.json")" | sha256sum | cut -c1-32)
           if [[ "$phase" == prepared ]]; then
             jq -n --arg id "dispatch-$request_id" --argjson revision "$(jq -r .revision "$work/state.json")" \
@@ -517,18 +538,49 @@ jobs:
             test "$(jq -r .outputs.qualificationDispatch.workflowCommit "$work/next.json")" = "$workflow_commit"
           fi
           preparation=$(jq -c .outputs.preparation "$work/next.json")
-          title="Qualify OpenClaw $(jq -r .identity.version "$work/next.json") ($request_id)"
           find_run() {
-            gh run list --workflow "$QUALIFICATION_WORKFLOW" --event workflow_dispatch --limit 100 \
-              --json databaseId,displayTitle,headBranch,headSha,status,conclusion \
-              | jq -c --arg title "$title" --arg commit "$workflow_commit" \
-                '[.[] | select(.displayTitle == $title and .headBranch == "main" and .headSha == $commit)] | first // empty'
+            gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/actions/workflows/qualify-openclaw-autopilot.yml/runs?event=workflow_dispatch&per_page=100" \
+              | jq '[.[].workflow_runs[]]' > "$work/runs.json"
+            jq -n --slurpfile state "$work/next.json" --slurpfile runs "$work/runs.json" --arg repository "$GITHUB_REPOSITORY" \
+              '{state:$state[0],repository:$repository,runs:$runs[0]}' > "$work/selection.json"
+            mise exec -- node scripts/openclaw-qualification-reconciliation.mjs select "$work/selection.json"
           }
-          run=$(find_run)
-          if [[ -n "$run" ]]; then
-            echo "Exact qualification dispatch already exists as run $(jq -r .databaseId <<<"$run"); no redispatch."
-            exit 0
-          fi
+          process_run() {
+            local plan=$1
+            local action
+            action=$(jq -r .action <<<"$plan")
+            [[ "$action" != dispatch ]] || return 1
+            if [[ "$action" == completed ]]; then
+              echo "run_id=$(jq -r .run.id <<<"$plan")" >> "$GITHUB_OUTPUT"
+              echo "run_attempt=$(jq -r .run.run_attempt <<<"$plan")" >> "$GITHUB_OUTPUT"
+              echo "conclusion=$(jq -r .run.conclusion <<<"$plan")" >> "$GITHUB_OUTPUT"
+            elif [[ "$action" == admission-mismatch ]]; then
+              run_id=$(jq -r .run.id <<<"$plan")
+              run_attempt=$(jq -r .run.run_attempt <<<"$plan")
+              gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id/attempts/$run_attempt/jobs?per_page=100" > "$work/jobs.json"
+              jq -n --arg id "admission-$run_id-$run_attempt" --argjson revision "$(jq -r .revision "$work/next.json")" \
+                --arg at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg repository "$GITHUB_REPOSITORY" \
+                --argjson run "$(jq .run <<<"$plan")" --slurpfile jobs "$work/jobs.json" \
+                '{format:"thunderclaw-openclaw-autopilot-intent-v1",intentId:$id,expectedRevision:$revision,type:"record-dispatch-admission-mismatch",at:$at,payload:{repository:$repository,run:$run,jobs:$jobs[0]}}' > "$work/intent.json"
+              if [[ "$(jq -r .run.conclusion <<<"$plan")" == cancelled ]]; then
+                jq '.type = "block" | .payload = {reason:"Qualification dispatch was intentionally cancelled; operator review required"}' "$work/intent.json" > "$work/cancel-intent.json"
+                mv "$work/cancel-intent.json" "$work/intent.json"
+              fi
+              mise exec -- node scripts/openclaw-release-state.mjs apply --state "$work/next.json" --intent "$work/intent.json" | jq .state > "$work/mismatch.json"
+              git fetch --no-tags origin "+$STATE_REF:refs/remotes/origin/openclaw-autopilot-state"
+              current_state_commit=$(git rev-parse refs/remotes/origin/openclaw-autopilot-state)
+              test "$current_state_commit" = "${state_commit:-$old_state_commit}"
+              blob=$(git hash-object -w "$work/mismatch.json"); tree=$(printf '100644 blob %s\tstate.json\n' "$blob" | git mktree)
+              mismatch_commit=$(printf 'Record qualification dispatch admission mismatch\n' | git commit-tree "$tree" -p "$current_state_commit")
+              mise exec -- node scripts/assert-openclaw-autopilot-enabled.mjs >/dev/null
+              auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+              git -c "http.extraheader=AUTHORIZATION: basic $auth" push origin --force-with-lease="$STATE_REF:$current_state_commit" "$mismatch_commit:$STATE_REF"
+            fi
+            echo "Exact qualification request already exists; reconcile its recorded result without redispatch."
+            return 0
+          }
+          plan=$(find_run)
+          if [[ "$(jq -r .action <<<"$plan")" != dispatch ]]; then process_run "$plan"; exit 0; fi
           mise exec -- node scripts/assert-openclaw-autopilot-enabled.mjs >/dev/null
           set +e
           gh workflow run "$QUALIFICATION_WORKFLOW" --ref main \
@@ -546,8 +598,8 @@ jobs:
           dispatch_status=$?
           set -e
           for _ in $(seq 1 6); do
-            run=$(find_run)
-            [[ -n "$run" ]] && exit 0
+            plan=$(find_run)
+            if [[ "$(jq -r .action <<<"$plan")" != dispatch ]]; then process_run "$plan"; exit 0; fi
             sleep 5
           done
           test "$dispatch_status" -eq 0 || echo "Qualification dispatch was not acknowledged and no exact run appeared" >&2
@@ -599,42 +651,26 @@ jobs:
           test "$state_commit" = "$EXPECTED_STATE_COMMIT"
           git show "$state_commit:state.json" > "$work/state.json"
           test "$(jq -r .phase "$work/state.json")" = closeout-open
-          closeout=$(jq -c .outputs.closeout "$work/state.json")
-          pr=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$(jq -r .prNumber <<<"$closeout")")
-          test "$(jq -r .base.ref <<<"$pr")" = main
-          test "$(jq -r .head.ref <<<"$pr")" = "$(jq -r .branch <<<"$closeout")"
-          test "$(jq -r .head.sha <<<"$pr")" = "$(jq -r .headSha <<<"$closeout")"
-          GH_TOKEN="$CLOSEOUT_READ_TOKEN" gh pr checks "$(jq -r .prNumber <<<"$closeout")" --json name,state,workflow > "$work/checks.json" || checks_status=$?
-          # gh returns 8 while checks are pending; evidence still determines admission.
-          [[ "${checks_status:-0}" == 0 || "${checks_status:-0}" == 8 ]] || exit "$checks_status"
-          checks=$(mise exec -- node scripts/openclaw-controller-recovery.mjs checks "$work/checks.json")
-          [[ "$(jq -r .passed <<<"$checks")" == true ]] || { echo 'Closeout awaits green CI, signoffs and automation validation' >> "$GITHUB_STEP_SUMMARY"; exit 0; }
-          if [[ "$(jq -r .merged <<<"$pr")" != true ]]; then
-            test "$(jq -r .state <<<"$pr")" = open
+          result=$(mise exec -- node scripts/openclaw-controller-recovery.mjs closeout "$work/state.json" "$GITHUB_REPOSITORY")
+          action=$(jq -r .action <<<"$result")
+          [[ "$action" != wait ]] || exit 0
+          if [[ "$action" == open ]]; then
             mise exec -- node scripts/assert-openclaw-autopilot-enabled.mjs >/dev/null
-            gh pr merge "$(jq -r .prNumber <<<"$closeout")" --auto --squash --match-head-commit "$(jq -r .headSha <<<"$closeout")"
+            gh pr merge "$(jq -r .prNumber <<<"$result")" --auto --squash --match-head-commit "$(jq -r .headSha <<<"$result")"
             exit 0
           fi
-          merge_sha=$(jq -r .merge_commit_sha <<<"$pr")
-          merge_tree=$(gh api "repos/$GITHUB_REPOSITORY/git/commits/$merge_sha" --jq .tree.sha)
-          git fetch --no-tags origin "$merge_sha"
-          test "$(git diff-tree --no-commit-id --name-only -r "$merge_sha")" = e2e/qualification/counterpart-baselines.json
-          git show "$merge_sha:e2e/qualification/counterpart-baselines.json" > "$work/baselines.json"
-          jq -e --argjson expected "$(jq -c .baseline <<<"$closeout")" '."openclaw-plugin" == ($expected | del(.repository))' "$work/baselines.json" >/dev/null
+          merge_sha=$(jq -r .mergeSha <<<"$result")
+          merge_tree=$(jq -r .mergeTree <<<"$result")
           jq -n --arg id "complete-$merge_sha" --argjson revision "$(jq -r .revision "$work/state.json")" \
             --arg at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg mergeSha "$merge_sha" --arg mergeTree "$merge_tree" \
             '{format:"thunderclaw-openclaw-autopilot-intent-v1",intentId:$id,expectedRevision:$revision,type:"complete-closeout",at:$at,payload:{mergeSha:$mergeSha,mergeTree:$mergeTree}}' > "$work/intent.json"
-          mise exec -- node scripts/openclaw-release-state.mjs apply --state "$work/state.json" --intent "$work/intent.json" | jq .state > "$work/next.json"
-          blob=$(git hash-object -w "$work/next.json"); tree=$(printf '100644 blob %s\tstate.json\n' "$blob" | git mktree)
-          next_commit=$(printf 'Complete recovered OpenClaw closeout\n' | git commit-tree "$tree" -p "$state_commit")
-          mise exec -- node scripts/assert-openclaw-autopilot-enabled.mjs >/dev/null
-          auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
-          git -c "http.extraheader=AUTHORIZATION: basic $auth" push origin --force-with-lease="$STATE_REF:$state_commit" "$next_commit:$STATE_REF"
+          mise exec -- node scripts/persist-openclaw-release-state.mjs "$work/state.json" "$work/intent.json" "$state_commit" "Complete recovered OpenClaw closeout"
+
 
   resume-tag-release:
     name: Resume idempotent tagged publication
-    needs: [reserve, revalidate-upstream]
-    if: always() && ((needs.reserve.outputs.action == 'publish-github' && needs.revalidate-upstream.result == 'success') || (contains(fromJSON('["verify-clawhub","open-closeout"]'), needs.reserve.outputs.action) && needs.revalidate-upstream.result == 'skipped'))
+    needs: [reserve, revalidate-upstream, merge-and-tag]
+    if: always() && ((needs.reserve.outputs.action == 'publish-github' && needs.revalidate-upstream.result == 'success' && needs.merge-and-tag.result == 'success') || (contains(fromJSON('["verify-clawhub","open-closeout"]'), needs.reserve.outputs.action) && needs.revalidate-upstream.result == 'skipped'))
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     environment:
@@ -679,10 +715,32 @@ jobs:
           else
             printf 'null\n' > "$work/release.json"
           fi
+          # Accepted and ambiguous submissions authorize public reads across long scans.
+          publisher=$(mise exec -- node scripts/clawhub-publication-recovery.mjs find "$GITHUB_REPOSITORY" "$tag" "$commit")
+          printf 'null\n' > "$work/publisher.json"
+          printf 'null\n' > "$work/reconciliation.json"
+          if [[ "$publisher" != null ]]; then
+            publisher_id=$(jq -r .id <<<"$publisher")
+            gh api "repos/$GITHUB_REPOSITORY/actions/runs/$publisher_id" > "$work/publisher-run.json"
+            gh run download "$publisher_id" --name "thunderclaw-clawhub-publication-${tag#openclaw-plugin-v}" --dir "$work/publisher" || true
+            if [[ -f "$work/publisher/clawhub-publish.json" ]]; then
+              jq -n --slurpfile run "$work/publisher-run.json" --slurpfile submission "$work/publisher/clawhub-publish.json" '{run:$run[0],submission:$submission[0]}' > "$work/publisher.json"
+            else
+              jq -n --slurpfile run "$work/publisher-run.json" '{run:$run[0]}' > "$work/publisher.json"
+            fi
+            latest=$(jq -r --arg tag "$tag" '[.[] | select(.display_title == ("Complete publication " + $tag))] | sort_by(.id) | last | .id // empty' "$work/recovery-runs.json")
+            if [[ -n "$latest" ]]; then
+              gh run download "$latest" --name "thunderclaw-publication-reconciliation-$tag" --dir "$work/reconciliation" || true
+              gh run download "$latest" --name "thunderclaw-publication-probe-$tag" --dir "$work/probe" || true
+              if [[ -f "$work/probe/reconciliation.json" ]]; then cp "$work/probe/reconciliation.json" "$work/reconciliation.json"; fi
+              if [[ -f "$work/reconciliation/reconciliation.json" ]]; then cp "$work/reconciliation/reconciliation.json" "$work/reconciliation.json"; fi
+            fi
+          fi
           jq -n --arg repository "$GITHUB_REPOSITORY" --argjson state "$state" \
             --slurpfile sourceRuns "$work/source-runs.json" --slurpfile recoveryRuns "$work/recovery-runs.json" \
+            --slurpfile publisher "$work/publisher.json" --slurpfile reconciliation "$work/reconciliation.json" \
             --slurpfile release "$work/release.json" --argjson operatorRetry "$OPERATOR_RETRY" \
-            '{repository:$repository,state:$state,sourceRuns:$sourceRuns[0],recoveryRuns:$recoveryRuns[0],release:$release[0],operatorRetry:$operatorRetry}' > "$work/evidence.json"
+            '{repository:$repository,state:$state,sourceRuns:$sourceRuns[0],recoveryRuns:$recoveryRuns[0],release:$release[0],operatorRetry:$operatorRetry,publisher:$publisher[0],reconciliation:$reconciliation[0]}' > "$work/evidence.json"
           plan=$(mise exec -- node scripts/openclaw-controller-recovery.mjs plan "$work/evidence.json")
           printf '### Existing release recovery\n\n%s\n' "$(jq -r .reason <<<"$plan")" >> "$GITHUB_STEP_SUMMARY"
           [[ "$(jq -r .action <<<"$plan")" == dispatch ]] || exit 0
@@ -694,7 +752,8 @@ jobs:
 
   verify-result:
     name: Verify the exact completed qualification
-    if: github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success'
+    needs: dispatch
+    if: always() && ((github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') || needs.dispatch.outputs.conclusion == 'success')
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -702,6 +761,8 @@ jobs:
       contents: read
     outputs:
       state_commit: ${{ steps.verify.outputs.state_commit }}
+      run_id: ${{ steps.verify.outputs.run_id }}
+      run_attempt: ${{ steps.verify.outputs.run_attempt }}
     steps:
       - name: Check out the trusted workflow commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -715,8 +776,8 @@ jobs:
         id: verify
         env:
           GH_TOKEN: ${{ github.token }}
-          RUN_ID: ${{ github.event.workflow_run.id }}
-          RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
+          RUN_ID: ${{ github.event.workflow_run.id || needs.dispatch.outputs.run_id }}
+          RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt || needs.dispatch.outputs.run_attempt }}
         shell: bash
         run: |
           set -euo pipefail
@@ -726,6 +787,9 @@ jobs:
           git show "$state_commit:state.json" > "$work/state.json"; test "$(jq -r .phase "$work/state.json")" = qualifying
           dispatch=$(jq -c .outputs.qualificationDispatch "$work/state.json"); preparation=$(jq -c .outputs.preparation "$work/state.json")
           run=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID")
+          jq -n --slurpfile state "$work/state.json" --arg repository "$GITHUB_REPOSITORY" --argjson run "$run" \
+            '{state:$state[0],repository:$repository,runs:[$run]}' > "$work/selection.json"
+          test "$(mise exec -- node scripts/openclaw-qualification-reconciliation.mjs select "$work/selection.json" | jq -r .action)" = completed
           test "$(jq -r .event <<<"$run")" = workflow_dispatch
           test "$(jq -r .conclusion <<<"$run")" = success
           test "$(jq -r .run_attempt <<<"$run")" = "$RUN_ATTEMPT"
@@ -751,10 +815,12 @@ jobs:
           cp "$work/result/result.json" "$RUNNER_TEMP/openclaw-result.json"
           cp "$work/state.json" "$RUNNER_TEMP/openclaw-state.json"
           echo "state_commit=$state_commit" >> "$GITHUB_OUTPUT"
+          echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
+          echo "run_attempt=$RUN_ATTEMPT" >> "$GITHUB_OUTPUT"
       - name: Upload verified handoff
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: openclaw-autopilot-verified-${{ github.event.workflow_run.id }}-${{ github.event.workflow_run.run_attempt }}
+          name: openclaw-autopilot-verified-${{ steps.verify.outputs.run_id }}-${{ steps.verify.outputs.run_attempt }}
           path: |
             ${{ runner.temp }}/openclaw-result.json
             ${{ runner.temp }}/openclaw-state.json
@@ -763,7 +829,8 @@ jobs:
 
   report-qualification-failure:
     name: Classify and record a qualification failure once
-    if: github.event_name == 'workflow_run' && contains(fromJSON('["failure","cancelled","timed_out","action_required"]'), github.event.workflow_run.conclusion) && vars.OPENCLAW_AUTOPILOT_ENABLED == 'true'
+    needs: dispatch
+    if: always() && vars.OPENCLAW_AUTOPILOT_ENABLED == 'true' && ((github.event_name == 'workflow_run' && contains(fromJSON('["failure","cancelled","timed_out","action_required"]'), github.event.workflow_run.conclusion)) || contains(fromJSON('["failure","cancelled","timed_out","action_required"]'), needs.dispatch.outputs.conclusion))
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     environment:
@@ -791,10 +858,8 @@ jobs:
       - name: Bind structured run evidence, record its disposition, and deduplicate its issue
         env:
           GH_TOKEN: ${{ steps.app.outputs.token }}
-          RUN_ID: ${{ github.event.workflow_run.id }}
-          RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
-          RUN_TITLE: ${{ github.event.workflow_run.display_title }}
-          RUN_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          RUN_ID: ${{ github.event.workflow_run.id || needs.dispatch.outputs.run_id }}
+          RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt || needs.dispatch.outputs.run_attempt }}
         shell: bash
         run: |
           set -euo pipefail
@@ -812,10 +877,12 @@ jobs:
           fi
           request_id=$(jq -r .outputs.qualificationDispatch.requestId "$work/state.json")
           version=$(jq -r .identity.version "$work/state.json")
-          test "$RUN_TITLE" = "Qualify OpenClaw $version ($request_id)"
-          test "$RUN_HEAD_SHA" = "$(jq -r .outputs.qualificationDispatch.workflowCommit "$work/state.json")"
           gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID" > "$work/run.json"
-          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/jobs?filter=latest&per_page=100" > "$work/jobs.json"
+          test "$(jq -r .run_attempt "$work/run.json")" = "$RUN_ATTEMPT"
+          jq -n --slurpfile state "$work/state.json" --arg repository "$GITHUB_REPOSITORY" --slurpfile run "$work/run.json" \
+            '{state:$state[0],repository:$repository,runs:[$run[0]]}' > "$work/selection.json"
+          test "$(mise exec -- node scripts/openclaw-qualification-reconciliation.mjs select "$work/selection.json" | jq -r .action)" = completed
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/attempts/$RUN_ATTEMPT/jobs?per_page=100" > "$work/jobs.json"
           mise exec -- node scripts/classify-openclaw-qualification-failure.mjs \
             --state "$work/state.json" --run "$work/run.json" --jobs "$work/jobs.json" > "$work/failure.json"
           jq -n --arg id "qualification-failed-$RUN_ID-$RUN_ATTEMPT" --argjson revision "$(jq -r .revision "$work/state.json")" \
@@ -882,6 +949,8 @@ jobs:
       name: openclaw-autopilot-mutation
     permissions:
       contents: read
+      checks: read
+      pull-requests: read
     steps:
       - name: Mint the narrow automation token
         id: app
@@ -901,20 +970,21 @@ jobs:
       - name: Install managed runtimes
         uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4
       - name: Download verified handoff
-        if: github.event_name == 'workflow_run'
+        if: needs.verify-result.result == 'success'
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: openclaw-autopilot-verified-${{ github.event.workflow_run.id }}-${{ github.event.workflow_run.run_attempt }}
+          name: openclaw-autopilot-verified-${{ needs.verify-result.outputs.run_id }}-${{ needs.verify-result.outputs.run_attempt }}
           path: handoff
       - name: Record qualification, merge, authorize, and create tag
         env:
           GH_TOKEN: ${{ steps.app.outputs.token }}
+          CANDIDATE_READ_TOKEN: ${{ github.token }}
           EXPECTED_STATE_COMMIT: ${{ needs.verify-result.outputs.state_commit }}
         shell: bash
         run: |
           set -euo pipefail
           work=$(mktemp -d "$RUNNER_TEMP/openclaw-release.XXXXXX"); trap 'find "$work" -depth -delete' EXIT
-          if [[ "$GITHUB_EVENT_NAME" == workflow_run ]]; then
+          if [[ -n "$EXPECTED_STATE_COMMIT" ]]; then
             cp handoff/openclaw-state.json "$work/state.json"
             result=handoff/openclaw-result.json
             EXPECTED_STATE_COMMIT='${{ needs.verify-result.outputs.state_commit }}'
@@ -925,17 +995,12 @@ jobs:
           fi
           update_state() {
             local intent=$1 message=$2
-            mise exec -- node scripts/openclaw-release-state.mjs apply --state "$work/state.json" --intent "$intent" | jq .state > "$work/next.json"
-            blob=$(git hash-object -w "$work/next.json"); tree=$(printf '100644 blob %s\tstate.json\n' "$blob" | git mktree)
-            new_commit=$(printf '%s\n' "$message" | git commit-tree "$tree" -p "$EXPECTED_STATE_COMMIT")
-            mise exec -- node scripts/assert-openclaw-autopilot-enabled.mjs >/dev/null
-            auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
-            git -c "http.extraheader=AUTHORIZATION: basic $auth" push origin --force-with-lease="$STATE_REF:$EXPECTED_STATE_COMMIT" "$new_commit:$STATE_REF"
-            EXPECTED_STATE_COMMIT=$new_commit; mv "$work/next.json" "$work/state.json"
+            persisted=$(mise exec -- node scripts/persist-openclaw-release-state.mjs "$work/state.json" "$intent" "$EXPECTED_STATE_COMMIT" "$message")
+            EXPECTED_STATE_COMMIT=$(jq -r .commit <<<"$persisted")
           }
           if [[ "$(jq -r .phase "$work/state.json")" == qualifying ]]; then
             counterpart=$(jq -c .counterpart "$result")
-            jq -n --arg id "qualification-${{ github.event.workflow_run.id }}-${{ github.event.workflow_run.run_attempt }}" \
+            jq -n --arg id "qualification-$(jq -r .runId "$result")-$(jq -r .runAttempt "$result")" \
             --argjson revision "$(jq -r .revision "$work/state.json")" --arg at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             --arg requestId "$(jq -r .requestId "$result")" --arg workflow "$(jq -r .workflow "$result")" \
             --arg workflowCommit "$(jq -r .workflowCommit "$result")" --arg workflowSha256 "$(jq -r .workflowSha256 "$result")" \
@@ -964,12 +1029,12 @@ jobs:
                   --arg at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg reason "$reason" \
                   '{format:"thunderclaw-openclaw-autopilot-intent-v1",intentId:$id,expectedRevision:$revision,type:"block",at:$at,payload:{reason:$reason}}' > "$work/intent.json"
                 update_state "$work/intent.json" "Block stale OpenClaw candidate"
-                title="[OpenClaw autopilot] $(jq -r .identity.version "$work/state.json") blocked"
-                number=$(gh issue list --state open --search "in:title $title" --json number,title --jq ".[] | select(.title == \"$title\") | .number" | head -1)
-                mise exec -- node scripts/assert-openclaw-autopilot-enabled.mjs >/dev/null
-                if [[ -n "$number" ]]; then gh issue edit "$number" --body "$reason"; else gh issue create --title "$title" --body "$reason"; fi
                 exit 0
               fi
+              GH_TOKEN="$CANDIDATE_READ_TOKEN" gh pr checks "$(jq -r .prNumber <<<"$preparation")" --json name,state,workflow > "$work/checks.json" || checks_status=$?
+              [[ "${checks_status:-0}" == 0 || "${checks_status:-0}" == 8 ]] || exit "$checks_status"
+              checks=$(mise exec -- node scripts/openclaw-controller-recovery.mjs checks "$work/checks.json")
+              [[ "$(jq -r .passed <<<"$checks")" == true ]] || { echo 'Qualified candidate awaits required main checks; the next controller run will reconcile it.' >> "$GITHUB_STEP_SUMMARY"; exit 0; }
               mise exec -- node scripts/assert-openclaw-autopilot-enabled.mjs >/dev/null
               merge=$(gh api --method PUT "repos/$GITHUB_REPOSITORY/pulls/$(jq -r .prNumber <<<"$preparation")/merge" \
                 -f merge_method=squash -f sha="$(jq -r .candidateSha <<<"$preparation")")
@@ -992,18 +1057,4 @@ jobs:
           fi
           test "$(jq -r .phase "$work/state.json")" = tagged
           mise exec -- node scripts/assert-openclaw-autopilot-enabled.mjs >/dev/null
-          tag_message="ThunderClaw OpenClaw plugin $(jq -r .pluginVersion <<<"$preparation")"
-          if existing=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$tag" 2>/dev/null); then
-            test "$(jq -r .object.type <<<"$existing")" = tag
-            existing_tag=$(gh api "repos/$GITHUB_REPOSITORY/git/tags/$(jq -r .object.sha <<<"$existing")")
-            test "$(jq -r .tag <<<"$existing_tag")" = "$tag"
-            test "$(jq -r .message <<<"$existing_tag")" = "$tag_message"
-            test "$(jq -r .object.type <<<"$existing_tag")" = commit
-            test "$(jq -r .object.sha <<<"$existing_tag")" = "$merge_sha"
-          else
-            mise exec -- node scripts/assert-openclaw-autopilot-enabled.mjs >/dev/null
-            tag_object=$(gh api --method POST "repos/$GITHUB_REPOSITORY/git/tags" \
-              -f tag="$tag" -f message="$tag_message" -f object="$merge_sha" -f type=commit --jq .sha)
-            mise exec -- node scripts/assert-openclaw-autopilot-enabled.mjs >/dev/null
-            gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" -f ref="refs/tags/$tag" -f sha="$tag_object" >/dev/null
-          fi
+          mise exec -- node scripts/reconcile-openclaw-authorized-tag.mjs "$work/state.json"

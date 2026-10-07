@@ -2,7 +2,7 @@ export function normalizeMarketplaceNotes(value: unknown): string;
 export const CLAWHUB_PUBLICATION_TIMEOUT_MS: number;
 export function parseMarketplaceVerificationArguments(argumentsList: string[]): {
   packageName: string; version: string; notesFile: string; artifact: string;
-  repository: string; tag: string; commit: string; apiBase?: string; timeoutMs?: number;
+  repository: string; tag: string; commit: string; apiBase?: string; timeoutMs?: number; requestTimeoutMs?: number;
 };
 
 export function verifyMarketplaceNotes(expected: unknown, actual: unknown, marketplace: string): string;
@@ -17,7 +17,7 @@ export function verifyClawHubRelease(options: {
   apiBase?: string;
   fetchImpl?: typeof fetch;
   pollIntervalMs?: number;
-  timeoutMs?: number;
+  timeoutMs?: number; requestTimeoutMs?: number;
 }): Promise<{
   packageName: string;
   version: string;
@@ -37,7 +37,7 @@ export function verifyClawHubReleaseNotes(options: {
   apiBase?: string;
   fetchImpl?: typeof fetch;
   pollIntervalMs?: number;
-  timeoutMs?: number;
+  timeoutMs?: number; requestTimeoutMs?: number;
 }): Promise<{
   packageName: string;
   version: string;
@@ -46,3 +46,5 @@ export function verifyClawHubReleaseNotes(options: {
   sourceVerified: true;
   endpoint: string;
 }>;
+
+export class ClawHubPendingError extends Error { retryable: boolean; }

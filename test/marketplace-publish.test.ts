@@ -169,7 +169,7 @@ test("marketplace notes compare exactly after transport normalization", async ()
     tag: "openclaw-plugin-v1.2.3",
     commit: "a".repeat(40),
     pollIntervalMs: 0,
-    timeoutMs: 1,
+    timeoutMs: 0,
     apiBase: "https://registry.example",
     fetchImpl: async (url) => {
       calls.push(String(url));

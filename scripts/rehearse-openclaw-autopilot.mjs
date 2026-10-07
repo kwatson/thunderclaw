@@ -1,6 +1,7 @@
+import { calculateAutomationFingerprint } from "./release-automation-fingerprint.mjs";
+import { readFileSync } from "node:fs";
 import { assessPublishedPluginChanges } from "./classify-change-scope.mjs";
 import { spawnSync } from "node:child_process";
-import { createHash } from "node:crypto";
 import { copyFile, mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -8,13 +9,6 @@ import { pathToFileURL } from "node:url";
 import { PREPARATION_FILES } from "./prepare-openclaw-upgrade.mjs";
 import { verifyFoundationMigration } from "./verify-openclaw-foundation.mjs";
 
-const classifierPaths = ["scripts/classify-openclaw-release.mjs", "scripts/classify-openclaw-upgrade.mjs",
-  "scripts/prepare-openclaw-upgrade.mjs", "scripts/openclaw-upgrade-policy.mjs", "scripts/openclaw-release-state.mjs",
-  "scripts/verify-openclaw-autopilot-result.mjs", "scripts/openclaw-qualification.mjs",
-  "scripts/assert-openclaw-autopilot-enabled.mjs", "scripts/classify-openclaw-qualification-failure.mjs",
-  "scripts/verify-openclaw-foundation.mjs", "scripts/classify-change-scope.mjs",
-  "scripts/openclaw-controller-recovery.mjs", "scripts/clawhub-publication-recovery.mjs"];
-const releasePaths = [".github/workflows/release-openclaw-plugin.yml", ".github/workflows/publish-clawhub.yml", ".github/workflows/complete-plugin-publication.yml"];
 
 function run(program, args, options = {}) {
   const result = spawnSync(program, args, { encoding: "utf8", maxBuffer: 64 * 1024 * 1024, ...options });
@@ -54,19 +48,8 @@ async function overlayWorkingTree(root, worktree) {
   }
 }
 
-async function combinedDigest(root, files) {
-  const lines = [];
-  for (const file of files) lines.push(`${createHash("sha256").update(await readFile(path.join(root, file))).digest("hex")}  ${file}\n`);
-  return createHash("sha256").update(lines.join("")).digest("hex");
-}
-
 async function automationFingerprint(root) {
-  return {
-    controllerWorkflowSha256: createHash("sha256").update(await readFile(path.join(root, ".github/workflows/openclaw-autopilot.yml"))).digest("hex"),
-    qualificationWorkflowSha256: createHash("sha256").update(await readFile(path.join(root, ".github/workflows/qualify-openclaw-autopilot.yml"))).digest("hex"),
-    classifierSha256: await combinedDigest(root, classifierPaths),
-    releaseWorkflowSha256: await combinedDigest(root, releasePaths),
-  };
+  return calculateAutomationFingerprint((file) => readFileSync(path.join(root, file)));
 }
 
 export async function rehearseOpenClawAutopilot({ root, baselineFile, preflightFile, soakWaived = false }) {

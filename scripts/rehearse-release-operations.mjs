@@ -57,7 +57,7 @@ export async function rehearseReleaseOperations() {
     if (request.url !== base) { response.writeHead(404).end(); return; }
     const publicVersion = structuredClone(payload);
     if (mode === "wrong-source") publicVersion.version.verification.sourceTag = "refs/heads/main";
-    if (mode === "unclean-scan") publicVersion.version.verification.scanStatus = "pending";
+    if (mode === "unclean-scan") publicVersion.version.verification.scanStatus = "rejected";
     response.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(publicVersion));
   });
   try {
@@ -80,7 +80,7 @@ export async function rehearseReleaseOperations() {
     const cases = ["accepted-pending-then-verified"];
     for (const [scenario, error] of [
       ["pending", /HTTP 404/u], ["tampered-download", /served artifact bytes/u],
-      ["wrong-source", /source or scan state/u], ["unclean-scan", /source or scan state/u],
+      ["wrong-source", /public source/u], ["unclean-scan", /source or scan state/u],
     ]) {
       mode = scenario;
       await assert.rejects(verifyClawHubRelease({ ...options, timeoutMs: 0 }), error);

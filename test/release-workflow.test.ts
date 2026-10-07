@@ -169,13 +169,12 @@ test("OpenClaw automatic release is selected only by the read-only durable-state
   assert.match(publisher, /assert-openclaw-autopilot-enabled\.mjs/u);
   assert.match(publisher, /GITHUB_WORKFLOW_REF/u);
   assert.match(finalizer, /clawhub-auto:[\s\S]*permission-actions: write[\s\S]*gh workflow run \.github\/workflows\/publish-clawhub\.yml --ref "\$RELEASE_TAG"/u);
-  assert.match(finalizer, /displayTitle == \$title and \.headBranch == \$tag and \.headSha == \$commit/u);
+  assert.match(finalizer, /clawhub-publication-recovery\.mjs find "\$GITHUB_REPOSITORY" "\$RELEASE_TAG" "\$RELEASE_COMMIT"/u);
   assert.match(finalizer, /dispatch_status=\$\?[\s\S]*Publisher dispatch was not acknowledged[\s\S]*for _ in \$\(seq 1 480\)/u);
   assert.match(finalizer, /node scripts\/clawhub-publication-recovery\.mjs/u);
   assert.doesNotMatch(finalizer, /gh run rerun/u);
-  assert.match(release, /actual_workflow=\$\(\{ sha256sum \.github\/workflows\/release-openclaw-plugin\.yml \.github\/workflows\/publish-clawhub\.yml \.github\/workflows\/complete-plugin-publication\.yml;/u);
-  assert.match(releaseClassifier, /publicationWorkflowPaths = \["\.github\/workflows\/release-openclaw-plugin\.yml", "\.github\/workflows\/publish-clawhub\.yml", "\.github\/workflows\/complete-plugin-publication\.yml"\]/u);
-  assert.match(releaseClassifier, /automation\.releaseWorkflowSha = digest\(publicationWorkflowPaths\.map/u);
+  assert.match(release, /actual_workflow=\$\(mise exec -- node scripts\/release-automation-fingerprint\.mjs release\)/u);
+  assert.match(releaseClassifier, /calculateAutomationFingerprint\(\(file\) => readAt\(root, options\.commit, file\)\)/u);
   assert.match(release, /Re-read the live autopilot guard before provenance[\s\S]*attest-build-provenance/u);
   assert.match(release, /release:\n[\s\S]*?permissions:\n\s+actions: read[\s\S]*?Install managed runtimes/u);
   assert.match(release, /clawhub:\n[\s\S]*?permissions:\n\s+actions: read\n\s+contents: read\n\s+id-token: write/u);
@@ -202,17 +201,18 @@ test("automatic publication probes external state and isolates App-powered one-f
   assert.match(closeout, /automation\/counterpart-\$\{RELEASE_TAG\}/u);
   assert.match(closeout, /gh pr list --head/u);
   assert.match(closeout, /gh pr merge "\$pr_number" --auto --squash --match-head-commit/u);
-  assert.ok((closeout.match(/assert-openclaw-autopilot-enabled\.mjs/gu) ?? []).length >= 4,
-    "closeout branch, PR, state, and auto-merge mutations must each re-read the live guard");
+  assert.ok((closeout.match(/assert-openclaw-autopilot-enabled\.mjs/gu) ?? []).length >= 3,
+    "closeout branch, PR, and auto-merge mutations must each re-read the live guard");
+  assert.match(closeout, /persist-openclaw-release-state\.mjs/u, "state mutations use the shared live-guarded writer");
   assert.doesNotMatch(release, /OPENCLAW_AUTOPILOT_APP_PRIVATE_KEY/u);
   assert.equal((finalizer.match(/OPENCLAW_AUTOPILOT_APP_PRIVATE_KEY/gu) ?? []).length, 2);
   const dispatch = finalizer.slice(finalizer.indexOf("  clawhub-auto:"), finalizer.indexOf("  counterpart-closeout:"));
-  assert.ok(dispatch.indexOf("uses: actions/checkout@") < dispatch.indexOf("gh run list"));
+  assert.ok(dispatch.indexOf("uses: actions/checkout@") < dispatch.indexOf("node scripts/clawhub-publication-recovery.mjs find"));
   assert.ok(dispatch.indexOf("uses: jdx/mise-action@") < dispatch.indexOf("mise exec --"));
   assert.match(dispatch, /GH_REPO: \$\{\{ github\.repository \}\}/u);
   assert.match(dispatch, /permissions:\n\s+actions: read\n\s+contents: read/u);
   assert.match(dispatch, /PUBLISHER_READ_TOKEN: \$\{\{ github\.token \}\}/u);
-  assert.match(dispatch, /GH_TOKEN="\$PUBLISHER_READ_TOKEN" gh run list/u);
+  assert.match(dispatch, /GH_TOKEN="\$PUBLISHER_READ_TOKEN" mise exec -- node scripts\/clawhub-publication-recovery\.mjs find/u);
   assert.match(dispatch, /GH_TOKEN="\$PUBLISHER_READ_TOKEN" gh api/u);
   assert.match(finalizer, /verify-plugin-publication-resume\.mjs[\s\S]*gh attestation verify/u);
   assert.match(finalizer, /Probe for an exact verified ClawHub publication[\s\S]*verifyClawHubRelease[\s\S]*timeoutMs: 0/u);
