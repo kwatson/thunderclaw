@@ -155,10 +155,14 @@ jobs:
           GH_REPO: ${{ github.repository }}
           RELEASE_TAG: ${{ needs.verify.outputs.tag }}
           RELEASE_COMMIT: ${{ needs.verify.outputs.commit }}
+          RELEASE_SHA256: ${{ needs.verify.outputs.sha256 }}
         shell: bash
         run: |
           set -euo pipefail
           title="Publish ClawHub $RELEASE_TAG (automatic)"
+          # Share one 80-minute budget between waiting and read-only recovery,
+          # leaving ten minutes for job setup and cleanup under its 90-minute cap.
+          publication_deadline=$((SECONDS + 4800))
           find_run() {
             GH_TOKEN="$PUBLISHER_READ_TOKEN" gh run list --workflow .github/workflows/publish-clawhub.yml --event workflow_dispatch --limit 50 \
               --json databaseId,displayTitle,headBranch,headSha,status,conclusion,createdAt \
@@ -166,15 +170,7 @@ jobs:
                 '[.[] | select(.displayTitle == $title and .headBranch == $tag and .headSha == $commit)] | first // empty'
           }
           run=$(find_run)
-          if [[ -n "$run" && "$(jq -r .status <<<"$run")" == completed && "$(jq -r .conclusion <<<"$run")" == cancelled ]]; then
-            echo "The exact publisher run was cancelled; an explicit operator retry is required" >&2
-            exit 1
-          fi
-          if [[ -n "$run" && "$(jq -r .status <<<"$run")" == completed && "$(jq -r .conclusion <<<"$run")" != success ]]; then
-            mise exec -- node scripts/assert-openclaw-autopilot-enabled.mjs >/dev/null
-            gh run rerun "$(jq -r .databaseId <<<"$run")" --failed
-            run=""
-          elif [[ -z "$run" ]]; then
+          if [[ -z "$run" ]]; then
             mise exec -- node scripts/assert-openclaw-autopilot-enabled.mjs >/dev/null
             set +e
             gh workflow run .github/workflows/publish-clawhub.yml --ref "$RELEASE_TAG" \
@@ -187,15 +183,45 @@ jobs:
             run=""
           fi
           for _ in $(seq 1 480); do
+            if (( SECONDS >= publication_deadline )); then break; fi
             if [[ -z "$run" ]]; then run=$(find_run); fi
             if [[ -n "$run" && "$(jq -r .status <<<"$run")" == completed ]]; then
-              if [[ "$(jq -r .conclusion <<<"$run")" == success ]]; then
-                run_id=$(jq -r .databaseId <<<"$run")
-                run_details=$(GH_TOKEN="$PUBLISHER_READ_TOKEN" gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id")
-                test "$(jq -r .event <<<"$run_details")" = workflow_dispatch
-                run_path=$(jq -r .path <<<"$run_details")
-                test "${run_path%@*}" = .github/workflows/publish-clawhub.yml
-                test "$(jq -r .head_sha <<<"$run_details")" = "$RELEASE_COMMIT"
+              run_id=$(jq -r .databaseId <<<"$run")
+              mkdir -p publisher-evidence
+              GH_TOKEN="$PUBLISHER_READ_TOKEN" gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id" > publisher-evidence/run.json
+              # Submission evidence is retained before the publisher waits for scanning.
+              # Failed or cancelled workflows must never be rerun automatically: an
+              # accepted upload may still be scanning after its verifier timed out.
+              version=${RELEASE_TAG#openclaw-plugin-v}
+              if [[ "$(jq -r .conclusion <<<"$run")" != success ]]; then
+                GH_TOKEN="$PUBLISHER_READ_TOKEN" gh run download "$run_id" \
+                  --name "thunderclaw-clawhub-publication-$version" --dir publisher-evidence || true
+              fi
+              action=$(mise exec -- node scripts/clawhub-publication-recovery.mjs \
+                publisher-evidence/run.json publisher-evidence/clawhub-publish.json \
+                "$GITHUB_REPOSITORY" "$RELEASE_TAG" "$RELEASE_COMMIT")
+              if [[ "$action" == complete ]]; then exit 0; fi
+              if [[ "$action" == verify-public ]]; then
+                echo "::notice::Submission is accepted or unconfirmed; verifying existing publication without another upload."
+                mkdir -p release
+                GH_TOKEN="$PUBLISHER_READ_TOKEN" gh release download "$RELEASE_TAG" --dir release \
+                  --pattern "thunderclaw-openclaw-plugin-$version.tgz" --pattern release-notes.md
+                echo "$RELEASE_SHA256  release/thunderclaw-openclaw-plugin-$version.tgz" | sha256sum --check --strict
+                remaining_seconds=$((publication_deadline - SECONDS))
+                if (( remaining_seconds <= 0 )); then
+                  echo "::error::Publication waiting budget exhausted; resume read-only verification of the retained submission."
+                  exit 1
+                fi
+                verification_seconds=$remaining_seconds
+                if (( verification_seconds > 3600 )); then verification_seconds=3600; fi
+                timeout --kill-after=10s "${remaining_seconds}s" mise exec -- node scripts/verify-marketplace-notes.mjs \
+                  --package @thunderclaw/openclaw-plugin --version "$version" \
+                  --notes-file release/release-notes.md --artifact "release/thunderclaw-openclaw-plugin-$version.tgz" \
+                  --repository "$GITHUB_REPOSITORY" --tag "$RELEASE_TAG" --commit "$RELEASE_COMMIT" \
+                  --timeout-ms "$((verification_seconds * 1000))" || {
+                    echo "::error::Existing submission is still unverified; retain its attempt evidence and resume read-only verification. Do not upload again or create another version."
+                    exit 1
+                  }
                 exit 0
               fi
             fi

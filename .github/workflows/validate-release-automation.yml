@@ -1,0 +1,61 @@
+name: Release automation validation
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-automation-validation-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Release automation validation
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Install managed runtimes
+        uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4
+
+      - name: Install dependencies
+        run: mise exec -- npm ci
+
+      - name: Install checksum-pinned actionlint
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/actionlint.tar.gz"
+          curl --fail --silent --show-error --location --retry 3 \
+            https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz \
+            --output "$archive"
+          echo "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8  $archive" | sha256sum --check --strict
+          mkdir "$RUNNER_TEMP/actionlint"
+          tar -xzf "$archive" -C "$RUNNER_TEMP/actionlint" actionlint
+
+      - name: Lint all GitHub workflows
+        run: '"$RUNNER_TEMP/actionlint/actionlint" -shellcheck= -pyflakes='
+
+      - name: Exercise release workflow and recovery regressions
+        env:
+          OPENCLAW_AUTOPILOT_ENABLED: "true"
+        run: |
+          mise exec -- node --import tsx --test \
+            test/release-workflow.test.ts \
+            test/openclaw-autopilot-workflow.test.ts \
+            test/plugin-publication-resume.test.ts \
+            test/controller-recovery.test.ts \
+            test/clawhub-publication-recovery.test.ts \
+            test/release-operations-rehearsal.test.ts
+
+      - name: Rehearse pending publication and exact-byte recovery
+        run: mise exec -- node scripts/rehearse-release-operations.mjs

@@ -118,7 +118,8 @@ test("autopilot controller is a short trusted-main state machine with isolated m
   assert.match(workflow, /retry_pre_gate_failure:[\s\S]*recover-qualification-automation/u);
   assert.match(workflow, /verify-openclaw-foundation\.mjs[\s\S]*--closeout-state[\s\S]*Roll over reviewed OpenClaw foundation state/u);
   assert.match(workflow, /== qualifying \|\|[\s\S]*== qualified \|\|[\s\S]*== merged/u);
-  assert.match(workflow, /gh run rerun[\s\S]*--failed/u);
+  assert.doesNotMatch(workflow, /gh run rerun/u);
+  assert.match(workflow, /gh workflow run \.github\/workflows\/complete-plugin-publication\.yml --ref main/u);
   assert.match(workflow, /gh pr merge[\s\S]*--auto --squash --match-head-commit/u);
   assert.match(workflow, /actions\/create-github-app-token@[a-f0-9]{40}/u);
   assert.equal((workflow.match(/uses: actions\/create-github-app-token@/gu) ?? []).length,

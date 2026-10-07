@@ -12,7 +12,8 @@ const classifierPaths = ["scripts/classify-openclaw-release.mjs", "scripts/class
   "scripts/prepare-openclaw-upgrade.mjs", "scripts/openclaw-upgrade-policy.mjs", "scripts/openclaw-release-state.mjs",
   "scripts/verify-openclaw-autopilot-result.mjs", "scripts/openclaw-qualification.mjs",
   "scripts/assert-openclaw-autopilot-enabled.mjs", "scripts/classify-openclaw-qualification-failure.mjs",
-  "scripts/verify-openclaw-foundation.mjs", "scripts/classify-change-scope.mjs"];
+  "scripts/verify-openclaw-foundation.mjs", "scripts/classify-change-scope.mjs",
+  "scripts/openclaw-controller-recovery.mjs", "scripts/clawhub-publication-recovery.mjs"];
 const releasePaths = [".github/workflows/release-openclaw-plugin.yml", ".github/workflows/publish-clawhub.yml", ".github/workflows/complete-plugin-publication.yml"];
 
 function run(program, args, options = {}) {

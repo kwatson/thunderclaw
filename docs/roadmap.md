@@ -1,6 +1,6 @@
 # ThunderClaw roadmap
 
-Last reconciled: 2026-10-02
+Last reconciled: 2026-10-06
 
 This file contains unfinished work only. Current behavior belongs in the
 product and architecture documents; completed test results belong in release
@@ -8,17 +8,21 @@ provenance and CI artifacts.
 
 ## Now: compatibility release autopilot
 
-1. Validate the separation of internal automation changes from product release
-   qualification, then enable discovery and verify retirement of the original
-   foundation reservation. Plugin `0.1.15` is published on GitHub and ClawHub;
-   no additional product release is required for controller repairs.
-2. Rehearse the controller, automatic tag lane, publication, cancellation,
-   lost-response handling, and idempotent closeout in a sandbox before enabling
-   each mutation stage.
-3. Verify protected App-only component tags, automatic environments,
-   stage-specific credentials, and exact ClawHub OIDC or broker claims.
-4. Re-enable hosted macOS real-Thunderbird automation after Thunderbird 154.
-5. Add ATN reviewer-source automation if Thunderbird exposes a supported API.
+1. Exercise the corrected automatic ClawHub OIDC publisher on the next genuine
+   qualified plugin compatibility release. The 0.1.16 manual recovery does not
+   prove tokenless publishing end to end; do not create a release for this test.
+2. Extend sandbox evidence for GitHub App-triggered event propagation,
+   environment rejection, merge races, lost dispatch responses, cancellation,
+   and repeated closeout. The credential-free validation workflow exercises
+   real runner setup and synthetic HTTP publication, not marketplace admission.
+3. Consider consolidating the remaining tagged integration and real-agent pair
+   trials with authenticated pre-tag qualification. The automatic lane already
+   reuses one plugin archive and the published extension; preserve coverage and
+   exact artifact/source/counterpart binding before removing any gate.
+4. Add a deduplicated completion notification if wanted. Current workflow
+   summaries expose stages; there is no separate completion notification service.
+5. Re-enable hosted macOS real-Thunderbird automation after Thunderbird 154.
+6. Add ATN reviewer-source automation if Thunderbird exposes a supported API.
    Until then, source and notes remain a recorded Developer Hub handoff; add
    exact post-publication ATN API verification and signed-XPI smoke evidence.
 

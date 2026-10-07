@@ -6,9 +6,11 @@ change compatibility metadata only, and every ThunderClaw qualification gate
 must pass. Anything outside that policy stops before publication and enters the
 manual release lane.
 
-The controller polls at minute 17 every six hours. Together with the two
-unchanged observations required by the policy, this preserves the 6-hour soak
-while bounding the normal discovery delay after that soak to about six hours.
+The controller performs lightweight discovery at minute 17 every hour. The
+six-hour window still begins at first observation, and a fresh observation must
+confirm unchanged upstream identities before qualification. Polling and soak
+are separate controls; GitHub scheduling delays can extend either handoff.
+Unchanged/current releases skip dependency installation and qualification.
 An explicitly dispatched run may expedite an already observed release after a
 fresh unchanged observation. The waiver payload and durable history bind the
 first and second observation timestamps and exact immutable identity hash; a
@@ -105,11 +107,15 @@ The record lives on the protected `automation/openclaw-autopilot-state`
 branch. Only the narrowly scoped automation App may update it, and every write
 uses a compare-and-swap lease against the previously verified commit.
 
-Pre-tag packages are disposable qualification inputs. After the qualified tree
-is merged, an authorized annotated component tag starts the release workflow.
-That workflow builds the authoritative candidate once and passes those exact
-bytes through integration, exact-pair real-agent qualification, secret scan,
-checksums, provenance, and GitHub publication. For the automatic lane it then
+For automatic candidates, qualification builds the plugin archive once and uses
+the pinned published extension, including the Linux extension trial. After the
+qualified tree is merged, an authorized annotated component tag starts the
+release workflow. Its automatic lane downloads that exact qualified archive and
+checks its reserved digest instead of rebuilding it. Tagged archive integration,
+exact-pair real-agent qualification, secret scan, checksums, provenance, and
+GitHub publication continue to verify those bytes. Manual releases build once
+from the tag. The tagged integration and pair checks remain deliberate release
+gates; this change does not remove product coverage. For the automatic lane it then
 uses the narrow App to dispatch the dedicated ClawHub publisher at the exact
 protected tag; the dispatched workflow promotes and publicly verifies the same
 GitHub release bytes. Neither workflow rebuilds between gates.
@@ -144,7 +150,9 @@ exact qualified protected tag and commit.
 
 Store the App private key only in the `openclaw-autopilot-mutation` environment,
 restricted to `main`, and the `autopilot-closeout` environment, restricted to
-plugin release tags. The automatic ClawHub environment must contain no static
+`main` and plugin release tags. The manual `clawhub` environment also allows
+`main` for reviewed recovery and retains its required human reviewer. Automatic
+release and ClawHub environments remain restricted to plugin tags. The automatic ClawHub environment must contain no static
 publisher token; its trusted publisher accepts only the exact repository,
 `publish-clawhub.yml` workflow, and `clawhub-auto` environment claims. The
 App installation and automatic publication jobs need Actions read permission.
@@ -173,14 +181,31 @@ attestation, public source identity, artifact digest and size, and scan state.
 It then opens or updates a deterministic one-file counterpart-baseline pull
 request. The release is complete only when that change is merged and green.
 
-Every external mutation is probed before retrying. Qualification and publisher
-dispatches use exact request/title, workflow commit, ref, and source identity;
-a lost response is probed before any retry, and cancellation is not silently
-redispatched. An exact already-recorded
-tag, artifact, marketplace version, or counterpart identity is success; the
-same version with different identity is a hard failure. Unchanged transient
-failures remain quiet, policy exceptions update one fingerprinted issue, and a
-completed release emits one concise notification with its evidence links.
+Qualification and publisher dispatches probe exact request/title, workflow,
+ref, and source identity before repeating a mutation. Reviewed-main recovery
+uses the existing qualified GitHub archive instead of rerunning frozen tag
+machinery. It waits for active recovery, allows at most three automatic recovery
+dispatches for timed-out/startup failures, and requires explicit
+`retry_publication` for other completed failed or cancelled finalizers. A
+cancelled original release needs separate operator recovery. No missing archive
+is rebuilt by the finalizer.
+
+A completed failed publisher is classified from its exact run and retained
+submission evidence. Cancellation or permanent rejection stops immediately;
+accepted or ambiguous submission resumes only public verification, not upload.
+Publisher waiting and recovery verification share an 80-minute budget within
+its 90-minute job; a late failure gets only the remaining verification budget.
+An exhausted budget leaves accepted publication pending for later read-only
+verification. An exact public version is checked before any publisher dispatch.
+
+Closeout requires successful CI and signoffs in addition to exact PR, source,
+and counterpart identity. GitHub required checks enforce merge admission, and
+the completion callback is idempotent for the same recorded merge. Workflow
+summaries show stage and recovery decisions. Policy failures can create a
+deduplicated issue; a separate completion notification service is not implemented.
+Public verification, baseline CI, and durable completion are all required before
+reporting success. Consult [release operations](release-operations.md) for the
+recovery decision tree and [roadmap](roadmap.md) for remaining sandbox validation.
 
 ## Credential-free rehearsal
 
@@ -204,7 +229,7 @@ authorization. The durable controller separately requires two distinct bound
 observations before it records a waiver. The rehearsal performs no push,
 dispatch, issue, pull-request, tag, release, attestation, or marketplace call.
 
-## Foundation release and rollout
+## Historical foundation release and rollout
 
 The autopilot is enabled in stages: dry-run discovery and classification,
 generated pull requests, automatic qualification and merge, nonpublishing tag
@@ -235,6 +260,7 @@ A later counterpart pin without that historical closeout does not qualify.
 Discovery checks out full history to verify this proof without editing or
 deleting durable state.
 
-Keep `OPENCLAW_AUTOPILOT_ENABLED=false` while merging and releasing the
-foundation. Enable later stages only after the credential-free rehearsal and
-the documented sandbox checks succeed.
+The foundation instructions above are historical migration requirements, not a
+reason to pause an already admitted successor or publish tooling repairs. Live
+rollout state must be checked in GitHub; historical/manual success does not prove
+the corrected automatic publisher end to end.

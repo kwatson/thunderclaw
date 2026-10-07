@@ -45,8 +45,10 @@ root package is development orchestration metadata and is not a release
 version authority. The historical combined `v0.1.0` and `v0.1.1` releases
 remain immutable.
 
-Installable artifacts are built once from the tagged commit, hashed, qualified
-as those exact bytes, and promoted without rebuilding. Extension reviewer
+Installable artifacts are built once, hashed, qualified as those exact bytes,
+and promoted without rebuilding. Automatic plugin releases retain their
+pre-tag qualified archive, authenticate the merged source tree, and reuse that
+archive at the tag; manual component releases build from the tagged commit. Extension reviewer
 source is generated from an explicit allowlist and must reproduce the candidate
 XPI. It excludes dependencies, generated output, local state, credentials, and
 qualification evidence.
@@ -88,8 +90,9 @@ to unblock publication. Record this settings review in the release issue
 because it is not represented by a repository diff.
 
 For a human-approved retry of a previously qualified GitHub release, dispatch
-the current reviewed `publish-clawhub.yml` at a protected plugin tag with the
-older release's `tag` input and `release_lane=manual`. The archive, canonical
+the current reviewed `publish-clawhub.yml` on `main` with the existing release's
+`tag` input and `release_lane=manual`. The main recovery ref must be allowed by
+the manual `clawhub` environment; required reviewer approval remains in place. The archive, canonical
 notes, source identity, and attestation come from the older immutable release.
 The audited transport patch comes from the publisher workflow's own commit, so
 a transport repair can promote those exact bytes without rebuilding or editing
@@ -98,10 +101,12 @@ equal the qualified release commit; it cannot use this manual retry exception.
 
 ## Candidate construction and exact-byte qualification
 
-From a clean checkout, build only the component being released. The protected
-component workflow records SHA-256 checksums and provenance, uploads the
-immutable candidate, and makes every qualification job download that
-candidate. Harnesses receive explicit paths through
+From a clean checkout, build only the component being released. Automatic
+plugin qualification builds and retains one archive; the authenticated tag
+workflow downloads and verifies that reserved digest. Manual component tag
+workflows build once. The protected component workflow records SHA-256
+checksums and provenance, uploads the immutable candidate, and makes every
+qualification job download that candidate. Harnesses receive explicit paths through
 `THUNDERCLAW_OPENCLAW_PLUGIN_TGZ` and `THUNDERCLAW_E2E_XPI`; they never pack,
 build, or guess a candidate filename internally.
 
@@ -177,6 +182,13 @@ claiming a retry or changelog repair.
 
 ## Publication and exact post-publication verification
 
+Use [release operations](release-operations.md) to establish the release stage
+before retrying. A qualified existing GitHub release can use **Complete existing
+OpenClaw plugin publication** on reviewed main with the existing tag and original
+release run ID. It verifies public completion before dispatching any publisher,
+and accepted pending submissions receive read-only verification. An internal
+repair or scan timeout never justifies another product version.
+
 Marketplace jobs download the component GitHub release, verify checksum,
 provenance, component identity, tag, version, and source commit, then submit the
 same bytes. They do not build or pack. A manual retry selects one channel and
@@ -221,7 +233,7 @@ ThunderClaw gate remains blocking and cannot be waived.
 
 The automatic lane independently regenerates and verifies the permitted
 field-level change, qualifies the exact source tree with the last published
-extension counterpart, and builds the authoritative tagged candidate once.
+extension counterpart, and promotes the retained qualified archive from its authenticated tag.
 Runtime, workflow, release-tooling, test, fixture, contract, or other
 non-generated changes require the existing human-reviewed release lane. The
 one-use `0.1.11` foundation manifest binds the published `0.1.10` anchor to the
