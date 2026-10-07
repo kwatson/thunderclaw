@@ -1,3 +1,7 @@
+import { persistReleaseState } from "../scripts/persist-openclaw-release-state.mjs";
+import { execFileSync } from "node:child_process";
+import { STALE_MAIN_REASON, selectQualificationRun, authenticateDispatchMismatch } from "../scripts/openclaw-qualification-reconciliation.mjs";
+import { reconcileAuthorizedTag } from "../scripts/reconcile-openclaw-authorized-tag.mjs";
 import assert from "node:assert/strict";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
@@ -282,7 +286,7 @@ test("lockfile classification rejects lifecycle behavior on newly admitted depen
   }
 });
 
-test("release state provides strict CAS, replay, and safe resume through qualification", () => {
+test("release state provides strict CAS, replay, and safe resume through qualification", async () => {
   const baseline = preflight();
   const state = createReleaseState(baseline, { reservationId: hex("1", 32), baseSha: hex("2", 40) });
   assert.deepEqual(decideReleaseResume(state), { action: "reobserve", revision: 0,
@@ -391,11 +395,92 @@ test("release state provides strict CAS, replay, and safe resume through qualifi
   const qualified = applyReleaseStateIntent(qualifying, intent("qualify", 3, "record-qualification", qualification, "2026-09-23T02:00:00.000Z") as never).state;
   assert.equal(qualified.phase, "qualified");
   assert.equal(decideReleaseResume(qualified).action, "merge");
+  const stale = applyReleaseStateIntent(qualified, intent("stale-main", 4, "block", { reason: STALE_MAIN_REASON }) as never).state;
+  const resetPayload = { preflight: preflight("2026-09-23T03:00:00.000Z"), identitySha256: stale.identitySha256,
+    reservationId: hex("f", 32), baseSha: hex("e", 40) };
+  const reset = applyReleaseStateIntent(stale, intent("reset-stale", 5, "reset-stale-candidate", resetPayload) as never).state;
+  assert.equal(reset.phase, "ready");
+  assert.deepEqual(reset.outputs, {});
+  assert.equal(reset.firstObservedAt, stale.firstObservedAt);
+  assert.equal(reset.soakCompletesAt, stale.soakCompletesAt);
+  assert.equal(reset.identitySha256, stale.identitySha256);
+  assert.equal(applyReleaseStateIntent(stale, intent("stale-reset-cas", 4, "reset-stale-candidate", resetPayload) as never).decision, "compare-and-swap-mismatch");
+  assert.throws(() => applyReleaseStateIntent(gateBlocked, intent("cannot-reset-gate", 4, "reset-stale-candidate", resetPayload) as never), /safe unpublished/u);
+  assert.equal(applyReleaseStateIntent(cancelled, intent("cannot-reset-cancelled", 4, "reset-stale-candidate", resetPayload) as never).decision, "terminal");
+  assert.throws(() => applyReleaseStateIntent(stale, intent("same-base", 5, "reset-stale-candidate", { ...resetPayload, baseSha: stale.baseSha }) as never), /new main reservation/u);
+  const changedReset = structuredClone(resetPayload);
+  changedReset.preflight.proposed.npm.integrity = "sha512-CHANGED";
+  assert.throws(() => applyReleaseStateIntent(stale, intent("changed-reset", 5, "reset-stale-candidate", changedReset) as never), /unchanged upstream/u);
+  const dispatchState = structuredClone(qualifying);
+  dispatchState.outputs.qualificationDispatch.workflow = ".github/workflows/qualify-openclaw-autopilot.yml";
+  const authenticRun = { ...run, status: "completed", repository: { full_name: "kwatson/thunderclaw" }, head_repository: { full_name: "kwatson/thunderclaw" },
+    display_title: `Qualify OpenClaw ${proposedVersion} (${dispatch.requestId})`, conclusion: "success" };
+  const selected = selectQualificationRun({ state: dispatchState, repository: "kwatson/thunderclaw", runs: [authenticRun] });
+  assert.equal(selected.action, "completed"); // Lost callbacks reuse success rather than dispatching again.
+  assert.equal(selected.run.id, 123);
+  assert.equal(selectQualificationRun({ state: dispatchState, repository: "kwatson/thunderclaw", runs: [{ ...authenticRun, conclusion: "cancelled" }] }).action, "completed");
+  assert.equal(selectQualificationRun({ state: dispatchState, repository: "kwatson/thunderclaw", runs: [{ ...authenticRun, status: "in_progress" }] }).action, "wait");
+  assert.throws(() => selectQualificationRun({ state: dispatchState, repository: "kwatson/thunderclaw", runs: [authenticRun, authenticRun] }), /ambiguous/u);
+  for (const forged of [{ ...authenticRun, event: "push" }, { ...authenticRun, head_repository: { full_name: "attacker/fork" } }, { ...authenticRun, path: "other.yml" }]) {
+    assert.equal(selectQualificationRun({ state: dispatchState, repository: "kwatson/thunderclaw", runs: [forged] }).action, "dispatch");
+  }
+  const admittedRun = { ...authenticRun, head_sha: hex("e", 40), conclusion: "failure" };
+  assert.equal(selectQualificationRun({ state: dispatchState, repository: "kwatson/thunderclaw", runs: [admittedRun] }).action, "admission-mismatch");
+  assert.equal(authenticateDispatchMismatch({ state: dispatchState, repository: "kwatson/thunderclaw", run: admittedRun, jobs }), true);
+  assert.throws(() => authenticateDispatchMismatch({ state: dispatchState, repository: "kwatson/thunderclaw", run: { ...admittedRun, conclusion: "cancelled" }, jobs }), /completed failed/u);
+  assert.throws(() => authenticateDispatchMismatch({ state: dispatchState, repository: "kwatson/thunderclaw", run: admittedRun, jobs: gateJobs }), /gate result/u);
+  const admissionBlocked = applyReleaseStateIntent(dispatchState, intent("admission", 3, "record-dispatch-admission-mismatch", { repository: "kwatson/thunderclaw", run: admittedRun, jobs }) as never).state;
+  assert.equal(admissionBlocked.phase, "blocked");
+  assert.equal(applyReleaseStateIntent(admissionBlocked, intent("reset-admission", 4, "reset-stale-candidate", resetPayload) as never).state.phase, "ready");
   const forgedState = structuredClone(qualified);
   forgedState.outputs.qualification.headSha = hex("f", 40);
   assert.throws(() => validateReleaseState(forgedState), /persisted qualification is inconsistent/u);
   const merged = applyReleaseStateIntent(qualified, intent("merge", 4, "record-merge", { mergeSha: hex("e", 40), mergeTree: preparation.candidateTree, tag: preparation.tag }) as never).state;
   const tagged = applyReleaseStateIntent(merged, intent("tag", 5, "record-tag", { tag: preparation.tag, commit: hex("e", 40), tree: preparation.candidateTree }) as never).state;
+  // Simulate interruption after durable authorization and after an ambiguous
+  // successful ref creation. Reconciliation only creates absent exact identity.
+  let tagRef: any = null;
+  let posts = 0;
+  let enabledChecks = 0;
+  const annotationSha = hex("a", 40);
+  const api = async (method: string, endpoint: string, payload?: any) => {
+    if (method === "POST") {
+      posts += 1;
+      if (endpoint.endsWith("/tags")) return { sha: annotationSha };
+      tagRef = { ref: `refs/tags/${preparation.tag}`, object: { type: "tag", sha: annotationSha } };
+      return tagRef;
+    }
+    if (endpoint.includes("/commits/")) return { sha: hex("e", 40), tree: { sha: preparation.candidateTree } };
+    if (endpoint.includes("/ref/tags/")) return tagRef;
+    return { tag: preparation.tag, message: `ThunderClaw OpenClaw plugin ${preparation.pluginVersion}`, object: { type: "commit", sha: hex("e", 40) } };
+  };
+  const tagInput = { state: tagged, repository: "kwatson/thunderclaw", api, assertEnabled: () => { enabledChecks += 1; } };
+  assert.equal((await reconcileAuthorizedTag(tagInput)).action, "created");
+  assert.equal(posts, 2);
+  assert.equal(enabledChecks, 2);
+  assert.equal((await reconcileAuthorizedTag(tagInput)).action, "verified");
+  assert.equal(posts, 2);
+  tagRef.object.type = "commit";
+  await assert.rejects(reconcileAuthorizedTag(tagInput), /authorized annotated/u);
+  assert.equal(posts, 2);
+  await assert.rejects(reconcileAuthorizedTag({ ...tagInput, api: async () => { throw new Error("network unavailable"); } }), /network unavailable/u);
+  assert.equal(posts, 2);
+  tagRef = null;
+  posts = 0;
+  const ambiguousApi = async (method: string, endpoint: string, payload?: any) => {
+    const result = await api(method, endpoint, payload);
+    if (method === "POST" && endpoint.endsWith("/refs")) throw new Error("ref accepted but response lost");
+    return result;
+  };
+  await assert.rejects(reconcileAuthorizedTag({ ...tagInput, api: ambiguousApi }), /response lost/u);
+  assert.equal(posts, 2);
+  assert.equal((await reconcileAuthorizedTag(tagInput)).action, "verified");
+  assert.equal(posts, 2); // Retained side effect recovered without tag mutation.
+  await assert.rejects(reconcileAuthorizedTag({ ...tagInput, state: merged }), /durable exact tag authorization/u);
+  tagRef = null;
+  posts = 0;
+  await assert.rejects(reconcileAuthorizedTag({ ...tagInput, assertEnabled: () => { throw new Error("paused"); } }), /paused/u);
+  assert.equal(posts, 0);
   const github = applyReleaseStateIntent(tagged, intent("github", 6, "record-github-publication", { tag: preparation.tag, commit: hex("e", 40), artifactSha256: hex("0", 64), releaseId: 55 }) as never).state;
   const clawhub = applyReleaseStateIntent(github, intent("clawhub", 7, "record-clawhub-verification", { tag: preparation.tag, version: preparation.pluginVersion, artifactSha256: hex("0", 64), verifiedAt: "2026-09-23T03:00:00.000Z" }) as never).state;
   const closeout = applyReleaseStateIntent(clawhub, intent("closeout", 8, "open-closeout", { branch: `automation/counterpart-${proposedPluginVersion}`, prNumber: 11, baseline: { repository: "kwatson/thunderclaw", tag: preparation.tag, name: `thunderclaw-openclaw-plugin-${proposedPluginVersion}.tgz`, sha256: hex("0", 64), size: 200 }, headSha: hex("1", 40), tree: hex("2", 40) }) as never).state;
@@ -458,4 +543,46 @@ test("a manual expedite records an auditable one-release soak waiver", () => {
     payload: { reason: "wrong identity", identitySha256: hex("f", 64),
       firstObservedAt: reobserved.firstObservedAt, secondObservedAt: reobserved.lastObservedAt },
   } as never), /exact same release identity/u);
+});
+
+
+test("shared state persistence admits only the authenticated parent and survives competing writers", async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "thunderclaw-state-persistence-"));
+  const checkout = path.join(directory, "checkout");
+  const remote = path.join(directory, "remote.git");
+  const git = (args: string[], cwd = checkout) => execFileSync("git", args, { cwd, encoding: "utf8", stdio: ["pipe", "pipe", "pipe"] }).trim();
+  try {
+    git(["init", "--bare", remote], directory);
+    git(["init", checkout], directory);
+    git(["config", "user.name", "synthetic-state-test"]);
+    git(["config", "user.email", "state-test@invalid"]);
+    git(["remote", "add", "origin", remote]);
+    const state = createReleaseState(preflight(), { reservationId: hex("b", 32), baseSha: hex("c", 40) });
+    await writeFile(path.join(checkout, "state.json"), JSON.stringify(state));
+    git(["add", "state.json"]); git(["commit", "-m", "Synthetic initial state"]);
+    const expectedCommit = git(["rev-parse", "HEAD"]);
+    const stateRef = "refs/heads/automation/openclaw-autopilot-state";
+    git(["push", "origin", `${expectedCommit}:${stateRef}`]);
+    const intent = { format: "thunderclaw-openclaw-autopilot-intent-v1" as const, intentId: "synthetic-block",
+      expectedRevision: state.revision, type: "block" as const, at: "2026-09-22T02:00:00.000Z", payload: { reason: "synthetic policy failure" } };
+    let guarded = 0;
+    const options = { root: checkout, state, intent, expectedCommit, message: "Record synthetic block", token: "synthetic-token",
+      assertEnabled: () => { guarded++; } };
+    await assert.rejects(persistReleaseState({ ...options, state: { ...state, advisories: ["forged snapshot"] } }), /snapshot differs/u);
+    await assert.rejects(persistReleaseState({ ...options, intent: { ...intent, expectedRevision: state.revision + 1 } }), /compare-and-swap/u);
+    await assert.rejects(persistReleaseState({ ...options, assertEnabled: () => { throw new Error("paused"); } }), /paused/u);
+    assert.equal(git(["rev-parse", stateRef], remote), expectedCommit);
+    const winner = await persistReleaseState(options);
+    assert.equal(guarded, 1); assert.equal(winner.state.phase, "blocked");
+    assert.equal(git(["rev-parse", stateRef], remote), winner.commit);
+    assert.equal(git(["show", "-s", "--format=%P", winner.commit]), expectedCommit);
+    assert.deepEqual(JSON.parse(git(["show", `${winner.commit}:state.json`])), winner.state);
+    const winnerTree = git(["ls-tree", "--name-only", winner.commit]);
+    assert.equal(winnerTree, "state.json");
+    await assert.rejects(persistReleaseState({ ...options, intent: { ...intent, intentId: "competing-writer", payload: { reason: "different synthetic block" } } }), /compare-and-swap lease/u);
+    assert.equal(git(["rev-parse", stateRef], remote), winner.commit);
+    const replay = await persistReleaseState({ ...options, state: winner.state, expectedCommit: winner.commit,
+      assertEnabled: () => { throw new Error("an idempotent replay must not mutate"); } });
+    assert.equal(replay.decision, "already-applied"); assert.equal(replay.commit, winner.commit);
+  } finally { await rm(directory, { recursive: true, force: true }); }
 });

@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { assessPublishedPluginChanges, changedFiles, classifyChangeScope } from "../scripts/classify-change-scope.mjs";
+import { CLASSIFIER_PATHS } from "../scripts/release-automation-fingerprint.mjs";
 
 test("internal automation repair requires checks without product qualification", () => {
   const scope = classifyChangeScope([".github/workflows/publish-clawhub.yml", "scripts/patch-clawhub-publisher.mjs",
@@ -14,7 +15,9 @@ test("internal automation repair requires checks without product qualification",
     "scripts/verify-plugin-publication-resume.d.mts", "scripts/clawhub-publication-recovery.mjs",
     "scripts/openclaw-controller-recovery.mjs", "scripts/rehearse-release-operations.mjs",
     "scripts/clawhub-publication-recovery.d.mts", "scripts/openclaw-controller-recovery.d.mts",
-    "scripts/rehearse-release-operations.d.mts"]);
+    "scripts/rehearse-release-operations.d.mts", "scripts/release-automation-fingerprint.mjs",
+    "scripts/release-automation-fingerprint.d.mts", "scripts/openclaw-qualification-reconciliation.mjs",
+    "scripts/openclaw-qualification-reconciliation.d.mts"]);
   assert.equal(scope.runChecks, true);
   assert.equal(scope.qualifyPlugin, false);
   assert.equal(scope.qualifyExtension, false);
@@ -67,8 +70,10 @@ test("scope policy participates in every reserved verifier fingerprint and CI ne
   for (const file of ["scripts/classify-openclaw-release.mjs", "scripts/rehearse-openclaw-autopilot.mjs",
     ".github/workflows/openclaw-autopilot.yml", ".github/workflows/qualify-openclaw-autopilot.yml",
     ".github/workflows/release-openclaw-plugin.yml"]) {
-    assert.match(await readFile(file, "utf8"), /(?:sha256sum|verifierPaths|classifierPaths)[\s\S]*scripts\/classify-change-scope\.mjs/u, file);
+    assert.match(await readFile(file, "utf8"), /release-automation-fingerprint\.mjs/u, file);
   }
+  assert.ok(CLASSIFIER_PATHS.includes("scripts/classify-change-scope.mjs"));
+  assert.ok(CLASSIFIER_PATHS.includes("scripts/release-automation-fingerprint.mjs"));
   const controller = await readFile(".github/workflows/openclaw-autopilot.yml", "utf8");
   const admission = controller.indexOf("node scripts/classify-change-scope.mjs --published-plugin");
   assert.ok(admission > 0);

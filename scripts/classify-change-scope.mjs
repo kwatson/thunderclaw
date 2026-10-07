@@ -85,6 +85,14 @@ const internalScripts = new Set([
   "openclaw-controller-recovery.d.mts",
   "rehearse-release-operations.mjs",
   "rehearse-release-operations.d.mts",
+  "release-automation-fingerprint.mjs",
+  "release-automation-fingerprint.d.mts",
+  "openclaw-qualification-reconciliation.mjs",
+  "openclaw-qualification-reconciliation.d.mts",
+  "reconcile-openclaw-authorized-tag.mjs",
+  "reconcile-openclaw-authorized-tag.d.mts",
+  "persist-openclaw-release-state.mjs",
+  "persist-openclaw-release-state.d.mts",
   "classify-change-scope.mjs",
   "classify-change-scope.d.mts"
 ]);

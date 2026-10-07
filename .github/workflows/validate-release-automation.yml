@@ -55,7 +55,10 @@ jobs:
             test/plugin-publication-resume.test.ts \
             test/controller-recovery.test.ts \
             test/clawhub-publication-recovery.test.ts \
-            test/release-operations-rehearsal.test.ts
+            test/release-operations-rehearsal.test.ts \
+            test/openclaw-autopilot-core.test.ts \
+            test/clawhub-verification-progress.test.ts \
+            test/release-automation-fingerprint.test.ts
 
       - name: Rehearse pending publication and exact-byte recovery
         run: mise exec -- node scripts/rehearse-release-operations.mjs

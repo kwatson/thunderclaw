@@ -99,26 +99,49 @@ jobs:
         env:
           RELEASE_TAG: ${{ inputs.tag }}
           RELEASE_COMMIT: ${{ steps.release.outputs.commit }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
+          # Inspect the original upload even when public bytes are already visible.
+          publisher=$(mise exec -- node scripts/clawhub-publication-recovery.mjs find "$GITHUB_REPOSITORY" "$RELEASE_TAG" "$RELEASE_COMMIT")
+          if [[ "$publisher" != null ]]; then
+            run_id=$(jq -r .id <<<"$publisher")
+            mkdir publisher-evidence
+            gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id" > publisher-evidence/run.json
+            gh run download "$run_id" --name "thunderclaw-clawhub-publication-${RELEASE_TAG#openclaw-plugin-v}" --dir publisher-evidence || true
+            mise exec -- node scripts/clawhub-publication-recovery.mjs publisher-evidence/run.json \
+              publisher-evidence/clawhub-publish.json "$GITHUB_REPOSITORY" "$RELEASE_TAG" "$RELEASE_COMMIT"
+          fi
           already_published=$(mise exec -- node --input-type=module <<'NODE'
-          import { verifyClawHubRelease } from './scripts/verify-marketplace-notes.mjs';
+          import { readFile, writeFile } from 'node:fs/promises';
+          import { verifyClawHubRelease, ClawHubPendingError } from './scripts/verify-marketplace-notes.mjs';
           const tag = process.env.RELEASE_TAG;
           const version = tag.slice('openclaw-plugin-v'.length);
-          const endpoint = `https://clawhub.ai/api/v1/packages/%40thunderclaw%2Fopenclaw-plugin/versions/${encodeURIComponent(version)}`;
-          const response = await fetch(endpoint);
-          if (response.status === 404) {
-            console.log('false');
-          } else {
-            if (!response.ok) throw new Error(`ClawHub publication probe returned HTTP ${response.status}`);
+          try {
             await verifyClawHubRelease({ packageName: '@thunderclaw/openclaw-plugin', version,
               notesFile: 'release/release-notes.md', artifact: `release/thunderclaw-openclaw-plugin-${version}.tgz`,
               repository: process.env.GITHUB_REPOSITORY, tag, commit: process.env.RELEASE_COMMIT, timeoutMs: 0 });
             console.log('true');
+          } catch (error) {
+            if (!(error instanceof ClawHubPendingError)) {
+              const run = JSON.parse(await readFile('publisher-evidence/run.json', 'utf8').catch(() => 'null'));
+              if (run) await writeFile('publisher-evidence/reconciliation.json', JSON.stringify({status:'terminal',tag,commit:process.env.RELEASE_COMMIT,publisherRunId:run.id}));
+              throw error;
+            }
+            console.log('false');
           }
           NODE
           )
           echo "already_published=$already_published" >> "$GITHUB_OUTPUT"
+      - name: Retain publication probe evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: thunderclaw-publication-probe-${{ inputs.tag }}
+          path: publisher-evidence/
+          if-no-files-found: ignore
+          retention-days: 90
 
   clawhub-auto:
     name: Dispatch and verify tokenless ClawHub promotion
@@ -164,10 +187,9 @@ jobs:
           # leaving ten minutes for job setup and cleanup under its 90-minute cap.
           publication_deadline=$((SECONDS + 4800))
           find_run() {
-            GH_TOKEN="$PUBLISHER_READ_TOKEN" gh run list --workflow .github/workflows/publish-clawhub.yml --event workflow_dispatch --limit 50 \
-              --json databaseId,displayTitle,headBranch,headSha,status,conclusion,createdAt \
-              | jq -c --arg title "$title" --arg tag "$RELEASE_TAG" --arg commit "$RELEASE_COMMIT" \
-                '[.[] | select(.displayTitle == $title and .headBranch == $tag and .headSha == $commit)] | first // empty'
+            local selected
+            selected=$(GH_TOKEN="$PUBLISHER_READ_TOKEN" mise exec -- node scripts/clawhub-publication-recovery.mjs find "$GITHUB_REPOSITORY" "$RELEASE_TAG" "$RELEASE_COMMIT") || return $?
+            if [[ "$selected" != null ]]; then printf '%s\n' "$selected"; fi
           }
           run=$(find_run)
           if [[ -z "$run" ]]; then
@@ -186,17 +208,15 @@ jobs:
             if (( SECONDS >= publication_deadline )); then break; fi
             if [[ -z "$run" ]]; then run=$(find_run); fi
             if [[ -n "$run" && "$(jq -r .status <<<"$run")" == completed ]]; then
-              run_id=$(jq -r .databaseId <<<"$run")
+              run_id=$(jq -r .id <<<"$run")
               mkdir -p publisher-evidence
               GH_TOKEN="$PUBLISHER_READ_TOKEN" gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id" > publisher-evidence/run.json
               # Submission evidence is retained before the publisher waits for scanning.
               # Failed or cancelled workflows must never be rerun automatically: an
               # accepted upload may still be scanning after its verifier timed out.
               version=${RELEASE_TAG#openclaw-plugin-v}
-              if [[ "$(jq -r .conclusion <<<"$run")" != success ]]; then
-                GH_TOKEN="$PUBLISHER_READ_TOKEN" gh run download "$run_id" \
-                  --name "thunderclaw-clawhub-publication-$version" --dir publisher-evidence || true
-              fi
+              GH_TOKEN="$PUBLISHER_READ_TOKEN" gh run download "$run_id" \
+                --name "thunderclaw-clawhub-publication-$version" --dir publisher-evidence || true
               action=$(mise exec -- node scripts/clawhub-publication-recovery.mjs \
                 publisher-evidence/run.json publisher-evidence/clawhub-publish.json \
                 "$GITHUB_REPOSITORY" "$RELEASE_TAG" "$RELEASE_COMMIT")
@@ -210,18 +230,26 @@ jobs:
                 remaining_seconds=$((publication_deadline - SECONDS))
                 if (( remaining_seconds <= 0 )); then
                   echo "::error::Publication waiting budget exhausted; resume read-only verification of the retained submission."
-                  exit 1
+                  jq -n --arg tag "$RELEASE_TAG" --arg commit "$RELEASE_COMMIT" --argjson publisherRunId "$run_id" '{status:"pending",tag:$tag,commit:$commit,publisherRunId:$publisherRunId}' > publisher-evidence/reconciliation.json
+                  exit 75
                 fi
                 verification_seconds=$remaining_seconds
                 if (( verification_seconds > 3600 )); then verification_seconds=3600; fi
+                set +e
                 timeout --kill-after=10s "${remaining_seconds}s" mise exec -- node scripts/verify-marketplace-notes.mjs \
                   --package @thunderclaw/openclaw-plugin --version "$version" \
                   --notes-file release/release-notes.md --artifact "release/thunderclaw-openclaw-plugin-$version.tgz" \
                   --repository "$GITHUB_REPOSITORY" --tag "$RELEASE_TAG" --commit "$RELEASE_COMMIT" \
-                  --timeout-ms "$((verification_seconds * 1000))" || {
-                    echo "::error::Existing submission is still unverified; retain its attempt evidence and resume read-only verification. Do not upload again or create another version."
-                    exit 1
-                  }
+                  --timeout-ms "$((verification_seconds * 1000))"
+                verification_status=$?
+                set -e
+                if [[ "$verification_status" -ne 0 ]]; then
+                  status=terminal
+                  if [[ "$verification_status" == 75 || "$verification_status" == 124 ]]; then status=pending; fi
+                  jq -n --arg status "$status" --arg tag "$RELEASE_TAG" --arg commit "$RELEASE_COMMIT" --argjson publisherRunId "$run_id" '{status:$status,tag:$tag,commit:$commit,publisherRunId:$publisherRunId}' > publisher-evidence/reconciliation.json
+                  echo "Existing submission remains $status; preserve its original evidence for reconciliation." >> "$GITHUB_STEP_SUMMARY"
+                  exit "$verification_status"
+                fi
                 exit 0
               fi
             fi
@@ -230,6 +258,14 @@ jobs:
           done
           echo "Timed out waiting for the exact ClawHub publication workflow" >&2
           exit 1
+      - name: Retain original publisher and reconciliation evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: thunderclaw-publication-reconciliation-${{ needs.verify.outputs.tag }}
+          path: publisher-evidence/
+          if-no-files-found: ignore
+          retention-days: 90
 
   counterpart-closeout:
     name: Open exact counterpart baseline closeout
@@ -240,6 +276,8 @@ jobs:
       name: autopilot-closeout
     permissions:
       contents: read
+      checks: read
+      pull-requests: read
     steps:
       - name: Mint a narrowly scoped GitHub App token
         id: app-token
@@ -348,6 +386,7 @@ jobs:
       - name: Record verified publication and closeout state
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          CLOSEOUT_READ_TOKEN: ${{ github.token }}
           EXPECTED_STATE_COMMIT: ${{ needs.verify.outputs.state_commit }}
           RELEASE_TAG: ${{ needs.verify.outputs.tag }}
           RELEASE_VERSION: ${{ needs.verify.outputs.version }}
@@ -372,16 +411,8 @@ jobs:
           test "$(jq -r .outputs.preparation.tag "$work/state.json")" = "$RELEASE_TAG"
           update_state() {
             local intent=$1 message=$2
-            mise exec -- node scripts/openclaw-release-state.mjs apply --state "$work/state.json" --intent "$intent" | jq .state > "$work/next.json"
-            blob=$(git hash-object -w "$work/next.json")
-            tree=$(printf '100644 blob %s\tstate.json\n' "$blob" | git mktree)
-            next_commit=$(printf '%s\n' "$message" | git commit-tree "$tree" -p "$state_commit")
-            auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
-            mise exec -- node scripts/assert-openclaw-autopilot-enabled.mjs >/dev/null
-            git -c "http.extraheader=AUTHORIZATION: basic $auth" push origin \
-              --force-with-lease="$STATE_REF:$state_commit" "$next_commit:$STATE_REF"
-            state_commit=$next_commit
-            mv "$work/next.json" "$work/state.json"
+            persisted=$(mise exec -- node scripts/persist-openclaw-release-state.mjs "$work/state.json" "$intent" "$state_commit" "$message")
+            state_commit=$(jq -r .commit <<<"$persisted")
           }
           release=$(gh release view "$RELEASE_TAG" --json databaseId)
           artifact_sha=$(jq -r .sha256 <<<"$BASELINE")
@@ -410,6 +441,10 @@ jobs:
           fi
           test "$(jq -r .outputs.closeout.prNumber "$work/state.json")" = "$CLOSEOUT_PR"
           if [[ "$CLOSEOUT_MERGED" == true ]]; then
+            result=$(mise exec -- node scripts/openclaw-controller-recovery.mjs closeout "$work/state.json" "$GITHUB_REPOSITORY")
+            [[ "$(jq -r .action <<<"$result")" == complete ]] || exit 0
+            CLOSEOUT_MERGE_SHA=$(jq -r .mergeSha <<<"$result")
+            CLOSEOUT_MERGE_TREE=$(jq -r .mergeTree <<<"$result")
             jq -n --arg id "complete-$CLOSEOUT_MERGE_SHA" --argjson revision "$(jq -r .revision "$work/state.json")" \
               --arg at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg mergeSha "$CLOSEOUT_MERGE_SHA" --arg mergeTree "$CLOSEOUT_MERGE_TREE" \
               '{format:"thunderclaw-openclaw-autopilot-intent-v1",intentId:$id,expectedRevision:$revision,type:"complete-closeout",at:$at,payload:{mergeSha:$mergeSha,mergeTree:$mergeTree}}' > "$work/intent.json"

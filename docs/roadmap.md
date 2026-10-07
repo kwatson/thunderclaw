@@ -13,7 +13,10 @@ provenance and CI artifacts.
    prove tokenless publishing end to end; do not create a release for this test.
 2. Extend sandbox evidence for GitHub App-triggered event propagation,
    environment rejection, merge races, lost dispatch responses, cancellation,
-   and repeated closeout. The credential-free validation workflow exercises
+   and repeated closeout. Executable synthetic regressions now cover lost
+   qualification callbacks, stale candidates, authorized tag interruptions,
+   shared closeout admission, and long-scan read-only recovery; those do not
+   prove live GitHub event delivery or marketplace OIDC admission. The credential-free validation workflow exercises
    real runner setup and synthetic HTTP publication, not marketplace admission.
 3. Consider consolidating the remaining tagged integration and real-agent pair
    trials with authenticated pre-tag qualification. The automatic lane already

@@ -72,7 +72,9 @@ compatibility edits. Runtime or machinery edits inside that candidate still
 force the manual lane. The scope policy participates in the reserved verifier
 digest; controller, classifier, qualification and publication fingerprints must
 remain unchanged throughout an active reservation. An automation repair cannot
-reuse an old reservation's authorization with different machinery. The original
+reuse an old reservation's authorization with different machinery. The ordered machinery paths are maintained once in
+`scripts/release-automation-fingerprint.mjs`, which also fingerprints itself.
+Every admission stage uses that definition. The original
 one-use foundation rules remain historical migration evidence, not a requirement
 to release the plugin after every controller repair.
 
@@ -98,6 +100,19 @@ reservation on trusted main. Every gate must pass again; no gate is waived.
 An unpublished completed qualification can likewise be restarted explicitly
 after a controller repair with `restart_completed_qualification`; the controller
 authenticates its active request and completed run before replacing the reservation.
+Hourly reconciliation also consumes already completed qualification results
+through the same authenticated verifier as completion callbacks. Losing a
+callback does not require rerunning successful qualification. If main moves
+before dispatch admission, only evidence that no product gate started permits
+a fresh reservation. A qualified candidate made stale by a main change has a
+separate recovery path; it does not masquerade as a failed product gate.
+Fresh reservations regenerate the candidate and rerun every qualification gate.
+
+Tag authorization is recorded before the external ref mutation. Reconciliation
+creates only that already-authorized annotated tag when the exact ref is absent,
+and verifies its immutable identity when present. API errors are not absence,
+and existing refs are never moved or replaced.
+
 Waiting for the soak, a qualification result, or closeout is represented as an explicit
 pause with its reason instead of being described as active work. The controller
 never holds a workflow concurrency lock while waiting for a tag-triggered
@@ -105,7 +120,10 @@ workflow.
 
 The record lives on the protected `automation/openclaw-autopilot-state`
 branch. Only the narrowly scoped automation App may update it, and every write
-uses a compare-and-swap lease against the previously verified commit.
+uses a compare-and-swap lease against the previously verified commit. Promotion
+and completion use the shared `persist-openclaw-release-state.mjs` writer, which
+authenticates the parent snapshot, validates the intent, checks the live pause
+switch, and preserves idempotent replay and competing-writer leases.
 
 For automatic candidates, qualification builds the plugin archive once and uses
 the pinned published extension, including the Linux extension trial. After the
@@ -195,11 +213,15 @@ submission evidence. Cancellation or permanent rejection stops immediately;
 accepted or ambiguous submission resumes only public verification, not upload.
 Publisher waiting and recovery verification share an 80-minute budget within
 its 90-minute job; a late failure gets only the remaining verification budget.
-An exhausted budget leaves accepted publication pending for later read-only
-verification. An exact public version is checked before any publisher dispatch.
+An exhausted budget retains authenticated waiting evidence for hourly read-only
+verification, even after the infrastructure retry budget is exhausted. A retained
+terminal integrity failure still stops recovery; acceptance does not override it.
+Individual public requests and response bodies have deadlines, and permanent
+source, notes, digest, or scan failures fail immediately. An exact public version is checked before any publisher dispatch.
 
-Closeout requires successful CI and signoffs in addition to exact PR, source,
-and counterpart identity. GitHub required checks enforce merge admission, and
+All three completion entry points use one shared closeout verifier. Closeout
+requires successful CI, signoffs, and release-automation validation in addition
+to exact PR/head/tree, a one-file merge, and the exact recorded merged baseline. GitHub required checks enforce merge admission, and
 the completion callback is idempotent for the same recorded merge. Workflow
 summaries show stage and recovery decisions. Policy failures can create a
 deduplicated issue; a separate completion notification service is not implemented.

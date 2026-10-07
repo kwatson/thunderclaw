@@ -85,7 +85,7 @@ test("autopilot qualification result binds exact run, attempt, tree, counterpart
   ]) assert.match(workflow, new RegExp(`\\$${binding}`, "u"));
   assert.match(workflow, /for result in "\$BIND_SOURCE"[\s\S]*test "\$result" = success/u);
   assert.match(workflow, /"native-windows":"success","native-macos":"success"/u);
-  assert.match(workflow, /sha256sum \.github\/workflows\/release-openclaw-plugin\.yml \.github\/workflows\/publish-clawhub\.yml/u);
+  assert.match(workflow, /release-automation-fingerprint\.mjs release/u);
   assert.doesNotMatch(workflow, /continue-on-error:|allow-failure/iu);
   assert.match(workflow, /openclaw-autopilot-result-\$\{\{ inputs\.request_id \}\}-\$\{\{ github\.run_attempt \}\}/u);
   const resultJob = workflow.slice(workflow.indexOf("\n  result:\n"));
@@ -113,7 +113,7 @@ test("autopilot controller is a short trusted-main state machine with isolated m
   assert.match(workflow, /--force-with-lease/u);
   assert.match(workflow, /OPENCLAW_AUTOPILOT_ENABLED/u);
   assert.match(workflow, /assert-openclaw-autopilot-enabled\.mjs/u);
-  assert.match(workflow, /find_run\(\)[\s\S]*Exact qualification dispatch already exists[\s\S]*dispatch_status=\$\?/u);
+  assert.match(workflow, /find_run\(\)[\s\S]*Exact qualification request already exists[\s\S]*dispatch_status=\$\?/u);
   assert.match(workflow, /classify-openclaw-qualification-failure\.mjs[\s\S]*record-qualification-failure/u);
   assert.match(workflow, /retry_pre_gate_failure:[\s\S]*recover-qualification-automation/u);
   assert.match(workflow, /verify-openclaw-foundation\.mjs[\s\S]*--closeout-state[\s\S]*Roll over reviewed OpenClaw foundation state/u);
@@ -125,9 +125,11 @@ test("autopilot controller is a short trusted-main state machine with isolated m
   assert.equal((workflow.match(/uses: actions\/create-github-app-token@/gu) ?? []).length,
     (workflow.match(/permission-actions: (?:read|write)/gu) ?? []).length,
     "every App token that can mutate must also be able to re-read the live guard");
-  assert.match(workflow, /repos\/\$GITHUB_REPOSITORY\/git\/tags/u);
-  assert.match(workflow, /ref="refs\/tags\/\$tag"/u);
-  assert.ok((workflow.match(/assert-openclaw-autopilot-enabled\.mjs/gu) ?? []).length >= 16,
+  assert.match(workflow, /reconcile-openclaw-authorized-tag\.mjs/u);
+  assert.match(workflow, /needs\.dispatch\.outputs\.conclusion == 'success'/u);
+  assert.match(workflow, /record-dispatch-admission-mismatch/u);
+  assert.match(workflow, /reset-stale-candidate/u);
+  assert.ok((workflow.match(/assert-openclaw-autopilot-enabled\.mjs/gu) ?? []).length >= 14,
     "each controller mutation must re-read the live controller workflow");
   assert.doesNotMatch(workflow, /sleep\s+(?:[6-9]\d|[1-9]\d{2,})/u);
 
@@ -149,10 +151,10 @@ test("merged counterpart closeout completes only the exact durable reservation",
   assert.match(workflow, /refs\/heads\/automation\/openclaw-autopilot-state/u);
   assert.match(workflow, /\.outputs\.closeout/u);
   assert.match(workflow, /complete-closeout/u);
-  assert.match(workflow, /--force-with-lease/u);
+  assert.match(workflow, /persist-openclaw-release-state\.mjs/u);
   assert.match(workflow, /openclaw-autopilot-mutation/u);
   assert.match(workflow, /vars\.OPENCLAW_AUTOPILOT_ENABLED == 'true'/u);
-  assert.match(workflow, /assert-openclaw-autopilot-enabled\.mjs/u);
+  assert.match(workflow, /OPENCLAW_AUTOPILOT_ENABLED/u);
   assert.match(workflow, /permission-actions: read/u);
   verifyPinnedActionsAndShell(workflow, "complete-openclaw-autopilot-closeout.yml");
 });
@@ -161,5 +163,17 @@ test("every automatic mutation workflow carries explicit rollout admission to th
   for (const filename of ["openclaw-autopilot.yml", "release-openclaw-plugin.yml", "publish-clawhub.yml", "complete-plugin-publication.yml", "complete-openclaw-autopilot-closeout.yml"]) {
     const workflow = await readFile(new URL(`../.github/workflows/${filename}`, import.meta.url), "utf8");
     assert.match(workflow, /^env:\n  OPENCLAW_AUTOPILOT_ENABLED: \$\{\{ vars\.OPENCLAW_AUTOPILOT_ENABLED \}\}/mu, filename);
+  }
+});
+
+
+test("every fingerprinting job installs its managed runtime before invoking admission", async () => {
+  for (const filename of ["qualify-openclaw-autopilot.yml", "release-openclaw-plugin.yml", "openclaw-autopilot.yml"]) {
+    const workflow = await readFile(new URL(`../.github/workflows/${filename}`, import.meta.url), "utf8");
+    for (const job of workflow.split(/(?=^  [a-z][a-z-]*:$)/mu)) {
+      if (!job.includes("node scripts/release-automation-fingerprint.mjs")) continue;
+      const setup = job.indexOf("uses: jdx/mise-action@");
+      assert.ok(setup > 0 && setup < job.indexOf("node scripts/release-automation-fingerprint.mjs"), filename);
+    }
   }
 });

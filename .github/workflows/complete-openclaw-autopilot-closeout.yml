@@ -59,39 +59,16 @@ jobs:
           git fetch --no-tags origin "+$STATE_REF:refs/remotes/origin/openclaw-autopilot-state"
           state_commit=$(git rev-parse refs/remotes/origin/openclaw-autopilot-state)
           git show "$state_commit:state.json" > "$work/state.json"
-          phase=$(jq -r .phase "$work/state.json")
-          # A scheduled recovery may have completed this same merge already.
-          if [[ "$phase" == complete ]]; then
-            test "$(jq -r .outputs.closeout.prNumber "$work/state.json")" = "$PR_NUMBER"
-            test "$(jq -r .outputs.completion.mergeSha "$work/state.json")" = "$MERGE_SHA"
-            echo 'Release closeout is already complete' >> "$GITHUB_STEP_SUMMARY"
-            exit 0
-          fi
-          test "$phase" = closeout-open
-          closeout=$(jq -c .outputs.closeout "$work/state.json")
-          test "$(jq -r .prNumber <<<"$closeout")" = "$PR_NUMBER"
-          test "$(jq -r .branch <<<"$closeout")" = "$PR_BRANCH"
-          test "$(jq -r .headSha <<<"$closeout")" = "$PR_HEAD_SHA"
-          GH_TOKEN="$CLOSEOUT_READ_TOKEN" gh pr checks "$PR_NUMBER" --json name,state,workflow > "$work/checks.json" || checks_status=$?
-          [[ "${checks_status:-0}" == 0 || "${checks_status:-0}" == 8 ]] || exit "$checks_status"
-          checks=$(mise exec -- node scripts/openclaw-controller-recovery.mjs checks "$work/checks.json")
-          [[ "$(jq -r .passed <<<"$checks")" == true ]] || { echo 'Closeout awaits green CI, signoffs and automation validation' >> "$GITHUB_STEP_SUMMARY"; exit 0; }
-          head_tree=$(gh api "repos/$GITHUB_REPOSITORY/git/commits/$PR_HEAD_SHA" --jq .tree.sha)
-          test "$head_tree" = "$(jq -r .tree <<<"$closeout")"
-          merge_tree=$(gh api "repos/$GITHUB_REPOSITORY/git/commits/$MERGE_SHA" --jq .tree.sha)
-          git fetch --no-tags origin "$MERGE_SHA"
-          test "$(git diff-tree --no-commit-id --name-only -r "$MERGE_SHA")" = e2e/qualification/counterpart-baselines.json
-          git show "$MERGE_SHA:e2e/qualification/counterpart-baselines.json" > "$work/merged-baselines.json"
-          jq -e --argjson expected "$(jq -c .baseline <<<"$closeout")" '."openclaw-plugin" == ($expected | del(.repository))' "$work/merged-baselines.json" >/dev/null
+          test "$(jq -r .outputs.closeout.prNumber "$work/state.json")" = "$PR_NUMBER"
+          test "$(jq -r .outputs.closeout.branch "$work/state.json")" = "$PR_BRANCH"
+          test "$(jq -r .outputs.closeout.headSha "$work/state.json")" = "$PR_HEAD_SHA"
+          result=$(mise exec -- node scripts/openclaw-controller-recovery.mjs closeout "$work/state.json" "$GITHUB_REPOSITORY")
+          [[ "$(jq -r .action <<<"$result")" == complete ]] || exit 0
+          test "$(jq -r .mergeSha <<<"$result")" = "$MERGE_SHA"
+          [[ "$(jq -r .phase "$work/state.json")" != complete ]] || exit 0
+          merge_tree=$(jq -r .mergeTree <<<"$result")
           jq -n --arg id "complete-$MERGE_SHA" --argjson revision "$(jq -r .revision "$work/state.json")" \
             --arg at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg mergeSha "$MERGE_SHA" --arg mergeTree "$merge_tree" \
             '{format:"thunderclaw-openclaw-autopilot-intent-v1",intentId:$id,expectedRevision:$revision,type:"complete-closeout",at:$at,payload:{mergeSha:$mergeSha,mergeTree:$mergeTree}}' > "$work/intent.json"
-          mise exec -- node scripts/openclaw-release-state.mjs apply --state "$work/state.json" --intent "$work/intent.json" | jq .state > "$work/next.json"
-          blob=$(git hash-object -w "$work/next.json")
-          tree=$(printf '100644 blob %s\tstate.json\n' "$blob" | git mktree)
-          next_commit=$(printf 'Complete OpenClaw counterpart closeout\n' | git commit-tree "$tree" -p "$state_commit")
-          mise exec -- node scripts/assert-openclaw-autopilot-enabled.mjs >/dev/null
-          auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
-          git -c "http.extraheader=AUTHORIZATION: basic $auth" push origin \
-            --force-with-lease="$STATE_REF:$state_commit" "$next_commit:$STATE_REF"
+          mise exec -- node scripts/persist-openclaw-release-state.mjs "$work/state.json" "$work/intent.json" "$state_commit" "Complete OpenClaw counterpart closeout"
           printf '### Release complete\n\nThe verified plugin publication and merged counterpart baseline are recorded.\n' >> "$GITHUB_STEP_SUMMARY"
