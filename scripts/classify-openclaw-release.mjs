@@ -21,7 +21,8 @@ const verifierPaths = ["scripts/classify-openclaw-release.mjs", "scripts/classif
   "scripts/prepare-openclaw-upgrade.mjs", "scripts/openclaw-upgrade-policy.mjs", "scripts/openclaw-release-state.mjs",
   "scripts/verify-openclaw-autopilot-result.mjs", "scripts/openclaw-qualification.mjs",
   "scripts/assert-openclaw-autopilot-enabled.mjs", "scripts/classify-openclaw-qualification-failure.mjs",
-  "scripts/verify-openclaw-foundation.mjs", "scripts/classify-change-scope.mjs"];
+  "scripts/verify-openclaw-foundation.mjs", "scripts/classify-change-scope.mjs",
+  "scripts/openclaw-controller-recovery.mjs", "scripts/clawhub-publication-recovery.mjs"];
 
 function digest(contents) {
   return createHash("sha256").update(contents).digest("hex");

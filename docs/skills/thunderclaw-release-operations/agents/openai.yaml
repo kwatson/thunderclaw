@@ -1,0 +1,3 @@
+interface:
+  display_name: "ThunderClaw release operations"
+  short_description: "Qualify releases and recover verified publication"

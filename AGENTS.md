@@ -76,6 +76,18 @@ message content, and environment details.
 
 ## Distribution
 
+Before creating tags, publishing, approving release jobs, or recovering a failed
+release, read `docs/release.md` and `docs/release-operations.md`. Use the
+repo-owned skill at `docs/skills/thunderclaw-release-operations/SKILL.md` for
+release operations; it routes to those authoritative documents.
+
+Internal automation, publishing-tool, test-harness, documentation, and skill
+changes do not require a product version bump, tag, or release. Validate them
+with ordinary CI, executable workflow regressions, or a sandbox as appropriate.
+For recovery, establish the publication stage from evidence before choosing an
+action. Preserve qualified bytes and immutable public release identity. A slow
+ClawHub scan or repaired workflow does not justify another product version.
+
 The OpenClaw plugin and Thunderbird extension release independently. A plugin
 release produces one npm-style archive; an extension release produces one XPI
 and one allowlisted Mozilla reviewer source archive. Each component owns its

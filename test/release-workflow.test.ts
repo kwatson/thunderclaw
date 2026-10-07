@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { spawnSync, type SpawnSyncReturns } from "node:child_process";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
@@ -39,7 +40,7 @@ function verifyWorkflow(workflow: string, filename: string) {
 test("recovery jobs run trusted main automation with managed runtimes and repository binding", async () => {
   const controller = await readFile(new URL("../.github/workflows/openclaw-autopilot.yml", import.meta.url), "utf8");
   const recovery = controller.slice(controller.indexOf("  resume-tag-release:"), controller.indexOf("  verify-result:"));
-  assert.match(recovery, /uses: actions\/checkout@[a-f0-9]{40}[\s\S]*ref: main[\s\S]*uses: jdx\/mise-action@[a-f0-9]{40}[\s\S]*Re-run the exact/u);
+  assert.match(recovery, /uses: actions\/checkout@[a-f0-9]{40}[\s\S]*ref: main[\s\S]*uses: jdx\/mise-action@[a-f0-9]{40}[\s\S]*Resume the existing archive/u);
   assert.match(recovery, /GH_REPO: \$\{\{ github\.repository \}\}/u);
   const closeout = await readFile(new URL("../.github/workflows/complete-openclaw-autopilot-closeout.yml", import.meta.url), "utf8");
   assert.match(closeout, /on:\n  pull_request_target:\n    types: \[closed\]/u);
@@ -170,7 +171,8 @@ test("OpenClaw automatic release is selected only by the read-only durable-state
   assert.match(finalizer, /clawhub-auto:[\s\S]*permission-actions: write[\s\S]*gh workflow run \.github\/workflows\/publish-clawhub\.yml --ref "\$RELEASE_TAG"/u);
   assert.match(finalizer, /displayTitle == \$title and \.headBranch == \$tag and \.headSha == \$commit/u);
   assert.match(finalizer, /dispatch_status=\$\?[\s\S]*Publisher dispatch was not acknowledged[\s\S]*for _ in \$\(seq 1 480\)/u);
-  assert.match(finalizer, /test "\$\{run_path%@\*\}" = \.github\/workflows\/publish-clawhub\.yml/u);
+  assert.match(finalizer, /node scripts\/clawhub-publication-recovery\.mjs/u);
+  assert.doesNotMatch(finalizer, /gh run rerun/u);
   assert.match(release, /actual_workflow=\$\(\{ sha256sum \.github\/workflows\/release-openclaw-plugin\.yml \.github\/workflows\/publish-clawhub\.yml \.github\/workflows\/complete-plugin-publication\.yml;/u);
   assert.match(releaseClassifier, /publicationWorkflowPaths = \["\.github\/workflows\/release-openclaw-plugin\.yml", "\.github\/workflows\/publish-clawhub\.yml", "\.github\/workflows\/complete-plugin-publication\.yml"\]/u);
   assert.match(releaseClassifier, /automation\.releaseWorkflowSha = digest\(publicationWorkflowPaths\.map/u);
@@ -314,4 +316,45 @@ test("ClawHub submission uses the OIDC tag ref and stops permanent identity reje
       assert.equal(evidence.publicationStatus, scenario.status);
     }
   } finally { await rm(directory, { recursive: true, force: true }); }
+});
+
+test("automatic tag promotion reuses qualified bytes and rejects a tampered retained archive", async () => {
+  const workflow = await readFile(new URL("../.github/workflows/release-openclaw-plugin.yml", import.meta.url), "utf8");
+  const reuse = workflowRunBlocks(workflow).find((block) => block.script.includes("candidate=build/qualified-candidate/thunderclaw-autopilot-plugin.tgz"));
+  assert.ok(reuse);
+  const original = Buffer.from("synthetic qualified bytes");
+  const digest = createHash("sha256").update(original).digest("hex");
+  for (const tampered of [false, true]) {
+    const directory = await mkdtemp(path.join(os.tmpdir(), "thunderclaw-retained-candidate-"));
+    try {
+      await mkdir(path.join(directory, "build"));
+      await writeFile(path.join(directory, "retained.tgz"), tampered ? "changed bytes" : original);
+      const mock = `
+        gh() {
+          [[ "$1 $2 $3" == "run download 123" ]] || return 4
+          [[ "$4" == --name && "$5" == "$QUALIFICATION_ARTIFACT" && "$6" == --dir ]] || return 4
+          cp retained.tgz "$7/thunderclaw-autopilot-plugin.tgz"
+        }
+        mise() {
+          [[ "$1 $2 $3 $4 $5" == "exec -- node scripts/validate-candidate-artifact.mjs plugin-tgz" ]] || return 5
+          echo validated > validation-marker
+        }
+      `;
+      const result: SpawnSyncReturns<string> = spawnSync("bash", ["-e", "-o", "pipefail", "-c", `${mock}\n${reuse.script}`], {
+        cwd: directory, encoding: "utf8", env: { ...process.env, QUALIFICATION_RUN_ID: "123",
+          QUALIFICATION_ARTIFACT: `openclaw-autopilot-candidate-${"a".repeat(32)}-1`,
+          QUALIFICATION_SHA256: digest, RELEASE_VERSION: "1.2.3" },
+      });
+      const promoted = path.join(directory, "build/thunderclaw-openclaw-plugin-1.2.3.tgz");
+      if (tampered) {
+        assert.notEqual(result.status, 0);
+        await assert.rejects(readFile(promoted), /ENOENT/u);
+        await assert.rejects(readFile(path.join(directory, "validation-marker")), /ENOENT/u);
+      } else {
+        assert.equal(result.status, 0, result.stderr);
+        assert.deepEqual(await readFile(promoted), original);
+        assert.equal(await readFile(path.join(directory, "validation-marker"), "utf8"), "validated\n");
+      }
+    } finally { await rm(directory, { recursive: true, force: true }); }
+  }
 });

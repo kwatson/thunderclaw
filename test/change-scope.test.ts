@@ -11,7 +11,10 @@ test("internal automation repair requires checks without product qualification",
     "scripts/classify-change-scope.mjs", "test/publisher.test.ts", "e2e/qualification/real-agent/run.mjs",
     "e2e/qualification/counterpart-baselines.json", "docs/release.md",
     ".github/workflows/complete-plugin-publication.yml", "scripts/verify-plugin-publication-resume.mjs",
-    "scripts/verify-plugin-publication-resume.d.mts"]);
+    "scripts/verify-plugin-publication-resume.d.mts", "scripts/clawhub-publication-recovery.mjs",
+    "scripts/openclaw-controller-recovery.mjs", "scripts/rehearse-release-operations.mjs",
+    "scripts/clawhub-publication-recovery.d.mts", "scripts/openclaw-controller-recovery.d.mts",
+    "scripts/rehearse-release-operations.d.mts"]);
   assert.equal(scope.runChecks, true);
   assert.equal(scope.qualifyPlugin, false);
   assert.equal(scope.qualifyExtension, false);

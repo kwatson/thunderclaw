@@ -79,6 +79,12 @@ const internalScripts = new Set([
   "verify-openclaw-qualification.mjs",
   "verify-plugin-publication-resume.d.mts",
   "verify-plugin-publication-resume.mjs",
+  "clawhub-publication-recovery.mjs",
+  "clawhub-publication-recovery.d.mts",
+  "openclaw-controller-recovery.mjs",
+  "openclaw-controller-recovery.d.mts",
+  "rehearse-release-operations.mjs",
+  "rehearse-release-operations.d.mts",
   "classify-change-scope.mjs",
   "classify-change-scope.d.mts"
 ]);

@@ -2,7 +2,8 @@
 
 This is the manual and exception sequence for qualifying and publishing a
 ThunderClaw OpenClaw compatibility release. Routine metadata-only releases use
-the [`OpenClaw compatibility autopilot`](openclaw-autopilot.md). The safety and
+the [`OpenClaw compatibility autopilot`](openclaw-autopilot.md). For a stalled
+existing release, first follow [release operations](release-operations.md). The safety and
 exact-byte requirements in [`release.md`](release.md) remain authoritative.
 These steps never make a newer OpenClaw version compatible merely because its
 version or types look similar.
@@ -85,9 +86,11 @@ alone, database plus WAL, or
 database plus WAL and SHM; it rejects incomplete, duplicate, unsafe, linked, or
 non-private SQLite file sets.
 
-This local archive is not the immutable release candidate and has no release
-provenance. The component-tag workflow builds the authoritative candidate once
-from the tagged commit and passes those exact bytes through every release gate.
+This manually built local archive has no release provenance. The manual
+component-tag workflow builds the authoritative candidate once and passes those
+exact bytes through every release gate. The automatic lane instead retains and
+reuses its authenticated pre-tag qualified archive; it does not promote an
+arbitrary local build.
 
 For an autopilot candidate or foundation migration, also run the isolated,
 credential-free cross-stage rehearsal with the original and fresh observations:

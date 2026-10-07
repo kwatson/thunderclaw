@@ -6,6 +6,8 @@ on:
 
 permissions:
   contents: read
+  checks: read
+  pull-requests: read
 
 env:
   OPENCLAW_AUTOPILOT_ENABLED: ${{ vars.OPENCLAW_AUTOPILOT_ENABLED }}
@@ -42,6 +44,8 @@ jobs:
       - name: Bind the exact merged pull request and complete state
         env:
           GH_TOKEN: ${{ steps.app.outputs.token }}
+          GH_REPO: ${{ github.repository }}
+          CLOSEOUT_READ_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_BRANCH: ${{ github.event.pull_request.head.ref }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
@@ -55,11 +59,23 @@ jobs:
           git fetch --no-tags origin "+$STATE_REF:refs/remotes/origin/openclaw-autopilot-state"
           state_commit=$(git rev-parse refs/remotes/origin/openclaw-autopilot-state)
           git show "$state_commit:state.json" > "$work/state.json"
-          test "$(jq -r .phase "$work/state.json")" = closeout-open
+          phase=$(jq -r .phase "$work/state.json")
+          # A scheduled recovery may have completed this same merge already.
+          if [[ "$phase" == complete ]]; then
+            test "$(jq -r .outputs.closeout.prNumber "$work/state.json")" = "$PR_NUMBER"
+            test "$(jq -r .outputs.completion.mergeSha "$work/state.json")" = "$MERGE_SHA"
+            echo 'Release closeout is already complete' >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          test "$phase" = closeout-open
           closeout=$(jq -c .outputs.closeout "$work/state.json")
           test "$(jq -r .prNumber <<<"$closeout")" = "$PR_NUMBER"
           test "$(jq -r .branch <<<"$closeout")" = "$PR_BRANCH"
           test "$(jq -r .headSha <<<"$closeout")" = "$PR_HEAD_SHA"
+          GH_TOKEN="$CLOSEOUT_READ_TOKEN" gh pr checks "$PR_NUMBER" --json name,state,workflow > "$work/checks.json" || checks_status=$?
+          [[ "${checks_status:-0}" == 0 || "${checks_status:-0}" == 8 ]] || exit "$checks_status"
+          checks=$(mise exec -- node scripts/openclaw-controller-recovery.mjs checks "$work/checks.json")
+          [[ "$(jq -r .passed <<<"$checks")" == true ]] || { echo 'Closeout awaits green CI, signoffs and automation validation' >> "$GITHUB_STEP_SUMMARY"; exit 0; }
           head_tree=$(gh api "repos/$GITHUB_REPOSITORY/git/commits/$PR_HEAD_SHA" --jq .tree.sha)
           test "$head_tree" = "$(jq -r .tree <<<"$closeout")"
           merge_tree=$(gh api "repos/$GITHUB_REPOSITORY/git/commits/$MERGE_SHA" --jq .tree.sha)
@@ -78,3 +94,4 @@ jobs:
           auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
           git -c "http.extraheader=AUTHORIZATION: basic $auth" push origin \
             --force-with-lease="$STATE_REF:$state_commit" "$next_commit:$STATE_REF"
+          printf '### Release complete\n\nThe verified plugin publication and merged counterpart baseline are recorded.\n' >> "$GITHUB_STEP_SUMMARY"

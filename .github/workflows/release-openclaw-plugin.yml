@@ -28,6 +28,9 @@ jobs:
       release_lane: ${{ steps.classifier.outputs.release_lane }}
       reservation_id: ${{ steps.classifier.outputs.reservation_id }}
       state_commit: ${{ steps.classifier.outputs.state_commit }}
+      qualification_run_id: ${{ steps.classifier.outputs.qualification_run_id }}
+      qualification_artifact: ${{ steps.classifier.outputs.qualification_artifact }}
+      qualification_sha256: ${{ steps.classifier.outputs.qualification_sha256 }}
     steps:
       - name: Check out tagged source without credentials
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -70,7 +73,7 @@ jobs:
           base_sha=$(jq -er .baseSha "$evidence_root/state.json") || exit 0
           git worktree add --detach "$evidence_root/trusted" "$base_sha"
           expected_classifier=$(jq -er '.outputs.preparation.automation.classifierSha' "$evidence_root/state.json") || exit 0
-          actual_classifier=$(cd "$evidence_root/trusted" && { sha256sum scripts/classify-openclaw-release.mjs scripts/classify-openclaw-upgrade.mjs scripts/prepare-openclaw-upgrade.mjs scripts/openclaw-upgrade-policy.mjs scripts/openclaw-release-state.mjs scripts/verify-openclaw-autopilot-result.mjs scripts/openclaw-qualification.mjs scripts/assert-openclaw-autopilot-enabled.mjs scripts/classify-openclaw-qualification-failure.mjs scripts/verify-openclaw-foundation.mjs scripts/classify-change-scope.mjs; } | sha256sum | cut -d ' ' -f1)
+          actual_classifier=$(cd "$evidence_root/trusted" && { sha256sum scripts/classify-openclaw-release.mjs scripts/classify-openclaw-upgrade.mjs scripts/prepare-openclaw-upgrade.mjs scripts/openclaw-upgrade-policy.mjs scripts/openclaw-release-state.mjs scripts/verify-openclaw-autopilot-result.mjs scripts/openclaw-qualification.mjs scripts/assert-openclaw-autopilot-enabled.mjs scripts/classify-openclaw-qualification-failure.mjs scripts/verify-openclaw-foundation.mjs scripts/classify-change-scope.mjs scripts/openclaw-controller-recovery.mjs scripts/clawhub-publication-recovery.mjs; } | sha256sum | cut -d ' ' -f1)
           test "$actual_classifier" = "$expected_classifier" || {
             echo "The tagged classifier is not the exact reserved verifier; retaining the human-approved lane."
             exit 0
@@ -112,12 +115,18 @@ jobs:
           echo "release_lane=automatic" >> "$GITHUB_OUTPUT"
           echo "reservation_id=$(jq -r .reservationId <<<"$result")" >> "$GITHUB_OUTPUT"
           echo "state_commit=$state_commit" >> "$GITHUB_OUTPUT"
+          echo "qualification_run_id=$run_id" >> "$GITHUB_OUTPUT"
+          echo "qualification_artifact=openclaw-autopilot-candidate-${request_id}-${run_attempt}" >> "$GITHUB_OUTPUT"
+          echo "qualification_sha256=$(jq -er .outputs.qualification.candidateArtifactSha256 "$evidence_root/state.json")" >> "$GITHUB_OUTPUT"
 
   build:
     name: Validate and build plugin once
     needs: classify
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    permissions:
+      actions: read
+      contents: read
     outputs:
       version: ${{ steps.metadata.outputs.version }}
       artifact_sha256: ${{ steps.artifact.outputs.sha256 }}
@@ -162,7 +171,30 @@ jobs:
         run: mise exec -- npm run typecheck
 
       - name: Build plugin archive once
+        if: needs.classify.outputs.release_lane != 'automatic'
         run: mise exec -- npm run pack:plugin
+
+      - name: Reuse the exact automatically qualified plugin archive
+        if: needs.classify.outputs.release_lane == 'automatic'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          QUALIFICATION_RUN_ID: ${{ needs.classify.outputs.qualification_run_id }}
+          QUALIFICATION_ARTIFACT: ${{ needs.classify.outputs.qualification_artifact }}
+          QUALIFICATION_SHA256: ${{ needs.classify.outputs.qualification_sha256 }}
+          RELEASE_VERSION: ${{ steps.metadata.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$QUALIFICATION_RUN_ID" =~ ^[1-9][0-9]*$ ]]
+          [[ "$QUALIFICATION_ARTIFACT" =~ ^openclaw-autopilot-candidate-[a-f0-9]{32}-[1-9][0-9]*$ ]]
+          [[ "$QUALIFICATION_SHA256" =~ ^[a-f0-9]{64}$ ]]
+          mkdir build/qualified-candidate
+          gh run download "$QUALIFICATION_RUN_ID" --name "$QUALIFICATION_ARTIFACT" --dir build/qualified-candidate
+          candidate=build/qualified-candidate/thunderclaw-autopilot-plugin.tgz
+          echo "$QUALIFICATION_SHA256  $candidate" | sha256sum --check -
+          mise exec -- node scripts/validate-candidate-artifact.mjs plugin-tgz "$candidate"
+          mv "$candidate" "build/thunderclaw-openclaw-plugin-${RELEASE_VERSION}.tgz"
 
       - name: Assemble plugin checksum and provenance
         id: artifact

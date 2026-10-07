@@ -68,18 +68,23 @@ export async function verifyClawHubReleaseNotes(options) {
   return verifyClawHubRelease(options);
 }
 
-function parseArguments(argumentsList) {
+export function parseMarketplaceVerificationArguments(argumentsList) {
   const values = new Map();
   for (let index = 0; index < argumentsList.length; index += 2) {
     const key = argumentsList[index];
     const value = argumentsList[index + 1];
-    if (!["--package", "--version", "--notes-file", "--artifact", "--repository", "--tag", "--commit", "--api-base"].includes(key) || !value || values.has(key)) {
-      throw new Error("Usage: verify-marketplace-notes.mjs --package <name> --version X.Y.Z --notes-file <path> --artifact <path> --repository owner/repo --tag <tag> --commit <sha> [--api-base <url>]");
+    if (!["--package", "--version", "--notes-file", "--artifact", "--repository", "--tag", "--commit", "--api-base", "--timeout-ms"].includes(key) || !value || values.has(key)) {
+      throw new Error("Usage: verify-marketplace-notes.mjs --package <name> --version X.Y.Z --notes-file <path> --artifact <path> --repository owner/repo --tag <tag> --commit <sha> [--api-base <url>] [--timeout-ms <0..3600000>]");
     }
     values.set(key, value);
   }
   for (const required of ["--package", "--version", "--notes-file", "--artifact", "--repository", "--tag", "--commit"]) {
     if (!values.has(required)) throw new Error(`Missing required argument: ${required}`);
+  }
+  const timeout = values.get("--timeout-ms");
+  if (timeout !== undefined && (!/^(0|[1-9][0-9]*)$/u.test(timeout)
+      || !Number.isSafeInteger(Number(timeout)) || Number(timeout) > CLAWHUB_PUBLICATION_TIMEOUT_MS)) {
+    throw new Error("ClawHub timeout must be an integer from 0 through 3600000 milliseconds");
   }
   return {
     packageName: values.get("--package"),
@@ -90,12 +95,13 @@ function parseArguments(argumentsList) {
     tag: values.get("--tag"),
     commit: values.get("--commit"),
     ...(values.has("--api-base") ? { apiBase: values.get("--api-base") } : {}),
+    ...(timeout !== undefined ? { timeoutMs: Number(timeout) } : {}),
   };
 }
 
 if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url) {
   try {
-    const result = await verifyClawHubReleaseNotes(parseArguments(process.argv.slice(2)));
+    const result = await verifyClawHubReleaseNotes(parseMarketplaceVerificationArguments(process.argv.slice(2)));
     process.stdout.write(`${JSON.stringify(result)}\n`);
   } catch (error) {
     process.stderr.write(`${error.message}\n`);
