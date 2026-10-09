@@ -1,7 +1,7 @@
 {
   "format": "thunderclaw-openclaw-autopilot-state-v1",
-  "revision": 20,
-  "phase": "github-published",
+  "revision": 21,
+  "phase": "clawhub-verified",
   "reservationId": "1d0f6e626b358f0898a8064451fd2af4",
   "baseSha": "52a4e1e0070cff9bec3e8091ade288635b307e50",
   "baseline": {
@@ -194,6 +194,12 @@
       "commit": "42ec899383c9b7911c71fc18e35fe78338dd05ef",
       "artifactSha256": "98ba890c2841bc30feb2bd150a34480bd5a6b4d4eb6f3e82a02ebeba700bcca5",
       "releaseId": 408265566
+    },
+    "clawhubVerification": {
+      "tag": "openclaw-plugin-v0.1.17",
+      "version": "0.1.17",
+      "artifactSha256": "98ba890c2841bc30feb2bd150a34480bd5a6b4d4eb6f3e82a02ebeba700bcca5",
+      "verifiedAt": "2026-10-09T19:31:20Z"
     }
   },
   "history": [
@@ -376,6 +382,15 @@
       "from": "tagged",
       "to": "github-published",
       "revision": 20
+    },
+    {
+      "intentId": "clawhub-37979065670-1",
+      "type": "record-clawhub-verification",
+      "at": "2026-10-09T19:31:20Z",
+      "payloadSha256": "ffddc457ba0fc89f25e8d493dc07738ae79d5e384eafc56c08573b6ef81ea1f8",
+      "from": "github-published",
+      "to": "clawhub-verified",
+      "revision": 21
     }
   ]
 }
