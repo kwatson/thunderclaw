@@ -27,7 +27,7 @@
 
 > [!NOTE]
 > **OpenClaw requirement:** ThunderClaw supports OpenClaw from
-> `2026.7.2-beta.7` through the `2026.9.9` release line. See the
+> `2026.7.2-beta.7` through the `2026.9.8` release line. See the
 > [compatibility policy](docs/compatibility.md) for details.
 
 ## AI assistance without handing over your inbox
@@ -147,7 +147,7 @@ only supported backend; see the [compatibility policy](docs/compatibility.md).
 
 ## Installation and pairing
 
-ThunderClaw supports OpenClaw from `2026.7.2-beta.7` through the `2026.9.9`
+ThunderClaw supports OpenClaw from `2026.7.2-beta.7` through the `2026.9.8`
 release line. See the [compatibility policy](docs/compatibility.md) before
 installing.
 

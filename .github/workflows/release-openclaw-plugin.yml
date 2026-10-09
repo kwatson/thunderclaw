@@ -417,7 +417,9 @@ jobs:
     needs: [classify, release]
     permissions:
       actions: read
+      checks: read
       contents: read
+      pull-requests: read
     uses: ./.github/workflows/complete-plugin-publication.yml
     with:
       tag: ${{ github.ref_name }}
