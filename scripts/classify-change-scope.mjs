@@ -93,6 +93,9 @@ const internalScripts = new Set([
   "reconcile-openclaw-authorized-tag.d.mts",
   "persist-openclaw-release-state.mjs",
   "persist-openclaw-release-state.d.mts",
+  "openclaw-unpublished-tag-recovery.mjs",
+  "openclaw-unpublished-tag-recovery.d.mts",
+  "recover-unpublished-openclaw-tag.mjs",
   "classify-change-scope.mjs",
   "classify-change-scope.d.mts"
 ]);
