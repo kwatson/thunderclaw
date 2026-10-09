@@ -177,3 +177,31 @@ test("every fingerprinting job installs its managed runtime before invoking admi
     }
   }
 });
+
+
+test("recovered unpublished tags receive distinct authorization IDs for each qualified commit", async () => {
+  const workflow = await readFile(new URL("../.github/workflows/openclaw-autopilot.yml", import.meta.url), "utf8");
+  const block = runBlocks(workflow).find((script) => script.includes('type:"record-tag"'));
+  assert.ok(block);
+  const command = block.match(/jq -n --arg id "tag-[\s\S]*? > "\$work\/intent\.json"/u)?.[0];
+  assert.ok(command);
+  const directory = await mkdtemp(join(tmpdir(), "thunderclaw-tag-intent-"));
+  try {
+    await writeFile(join(directory, "state.json"), JSON.stringify({ revision: 18 }));
+    const ids = [];
+    for (const mergeSha of ["a".repeat(40), "b".repeat(40)]) {
+      const result: SpawnSyncReturns<string> = spawnSync("bash", ["-eu", "-o", "pipefail", "-c", command], {
+        encoding: "utf8",
+        env: { ...process.env, work: directory, tag: "openclaw-plugin-v0.1.17", merge_sha: mergeSha, merge_tree: "c".repeat(40) },
+      });
+      assert.equal(result.status, 0, result.stderr);
+      const intent = JSON.parse(await readFile(join(directory, "intent.json"), "utf8"));
+      assert.equal(intent.payload.tag, "openclaw-plugin-v0.1.17");
+      assert.equal(intent.payload.commit, mergeSha);
+      ids.push(intent.intentId);
+    }
+    assert.notEqual(ids[0], ids[1], "a recovery must not reuse the previous tag authorization ID");
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
