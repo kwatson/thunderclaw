@@ -303,7 +303,9 @@ test("ClawHub submission uses the OIDC tag ref and stops permanent identity reje
       { lane: "automatic", mode: "rejected", ref: "refs/tags/openclaw-plugin-v1.2.3", exit: 1, status: "client-rejected" },
       { lane: "automatic", mode: "network", ref: "refs/tags/openclaw-plugin-v1.2.3", exit: 0, status: "client-unconfirmed" },
     ]) {
-      const result: SpawnSyncReturns<string> = spawnSync("bash", ["-c", `${mock}\n${submission.script}`], {
+      // macOS ships Bash 3.2; keep exercising it even if PATH selects Homebrew Bash.
+      const shell = process.platform === "darwin" ? "/bin/bash" : "bash";
+      const result: SpawnSyncReturns<string> = spawnSync(shell, ["-c", `${mock}\n${submission.script}`], {
         cwd: directory, encoding: "utf8", env: { ...process.env,
           GITHUB_WORKSPACE: directory, RUNNER_TEMP: directory, GITHUB_REPOSITORY: "owner/repo",
           RELEASE_TAG: "openclaw-plugin-v1.2.3", RELEASE_COMMIT: "a".repeat(40),
@@ -313,7 +315,7 @@ test("ClawHub submission uses the OIDC tag ref and stops permanent identity reje
       });
       assert.equal(result.status, scenario.exit, result.stderr);
       const evidence = JSON.parse(await readFile(path.join(directory, "clawhub-publish.json"), "utf8"));
-      assert.equal(evidence.publicationStatus, scenario.status);
+      assert.equal(evidence.publicationStatus, scenario.status, `${shell}: ${scenario.lane}/${scenario.mode}\n${result.stderr}`);
     }
   } finally { await rm(directory, { recursive: true, force: true }); }
 });
