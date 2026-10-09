@@ -46,6 +46,15 @@ test("runtime, compatibility, packaging, and unknown inputs retain component gat
   }
 });
 
+test("every fingerprinted release verifier remains classified as reviewed internal machinery", () => {
+  const files = [...CLASSIFIER_PATHS, "scripts/openclaw-unpublished-tag-recovery.d.mts"];
+  const scope = classifyChangeScope(files);
+  assert.deepEqual(scope.plugin, []);
+  assert.deepEqual(scope.extension, []);
+  assert.deepEqual(scope.internal, files);
+  assert.equal(scope.runChecks, true);
+});
+
 test("published product comparison permits reviewed machinery changes but catches renames and missing ancestry", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "thunderclaw-scope-"));
   const git = (...args: string[]) => execFileSync("git", args, { cwd: root, encoding: "utf8", stdio: "pipe" }).trim();
