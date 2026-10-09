@@ -1050,7 +1050,7 @@ jobs:
           fi
           merge_sha=$(jq -r .outputs.merge.mergeSha "$work/state.json"); merge_tree=$(jq -r .outputs.merge.mergeTree "$work/state.json")
           if [[ "$(jq -r .phase "$work/state.json")" == merged ]]; then
-            jq -n --arg id "tag-$tag" --argjson revision "$(jq -r .revision "$work/state.json")" \
+            jq -n --arg id "tag-$tag-$merge_sha" --argjson revision "$(jq -r .revision "$work/state.json")" \
               --arg at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg tag "$tag" --arg commit "$merge_sha" --arg tree "$merge_tree" \
               '{format:"thunderclaw-openclaw-autopilot-intent-v1",intentId:$id,expectedRevision:$revision,type:"record-tag",at:$at,payload:{tag:$tag,commit:$commit,tree:$tree}}' > "$work/intent.json"
             update_state "$work/intent.json" "Authorize OpenClaw component tag"
