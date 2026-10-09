@@ -1,4 +1,5 @@
 import { authenticateDispatchMismatch, isSafeStaleCandidate, DISPATCH_ADMISSION_REASON } from "./openclaw-qualification-reconciliation.mjs";
+import { authenticateUnpublishedRecovery } from "./openclaw-unpublished-tag-recovery.mjs";
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
@@ -10,7 +11,7 @@ import { assessUpgradeEvidence, immutableReleaseIdentity, validateUpgradePreflig
 export const RELEASE_STATE_FORMAT = "thunderclaw-openclaw-autopilot-state-v1";
 export const RELEASE_INTENT_FORMAT = "thunderclaw-openclaw-autopilot-intent-v1";
 const phases = ["observed", "ready", "prepared", "qualifying", "retryable", "cancelled", "qualified", "merged", "tagged", "github-published", "clawhub-verified", "closeout-open", "complete", "blocked"];
-const intentTypes = ["reset-stale-candidate", "record-dispatch-admission-mismatch", "reobserve", "waive-soak", "record-qualification-failure", "recover-qualification-automation", "retry-blocked-qualification", "restart-completed-qualification", "record-preparation", "record-qualification-dispatch", "record-qualification", "record-merge", "record-tag", "record-github-publication", "record-clawhub-verification", "open-closeout", "complete-closeout", "block"];
+const intentTypes = ["recover-unpublished-tag", "reset-stale-candidate", "record-dispatch-admission-mismatch", "reobserve", "waive-soak", "record-qualification-failure", "recover-qualification-automation", "retry-blocked-qualification", "restart-completed-qualification", "record-preparation", "record-qualification-dispatch", "record-qualification", "record-merge", "record-tag", "record-github-publication", "record-clawhub-verification", "open-closeout", "complete-closeout", "block"];
 const sha40 = /^[a-f0-9]{40}$/u;
 const sha256 = /^[a-f0-9]{64}$/u;
 const hash = (value) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
@@ -116,7 +117,27 @@ export function applyReleaseStateIntent(stateValue, intentValue) {
       || (state.phase === "blocked" && !["retry-blocked-qualification", "reset-stale-candidate"].includes(intent.type))
       || (state.phase === "retryable" && intent.type !== "recover-qualification-automation")) return { decision: "terminal", expectedRevision: state.revision, state };
   const from = state.phase; const payload = intent.payload;
-  if (intent.type === "record-dispatch-admission-mismatch") {
+  if (intent.type === "recover-unpublished-tag") {
+    phase(state, "tagged", "unpublished tag recovery");
+    exact(payload, ["evidence", "preflight", "reservationId", "baseSha"], "unpublished recovery payload");
+    authenticateUnpublishedRecovery(state, payload.evidence);
+    pattern(payload.reservationId, /^[a-f0-9]{32}$/u, "recovery reservationId");
+    pattern(payload.baseSha, sha40, "recovery baseSha");
+    const current = validateUpgradePreflight(payload.preflight);
+    const assessment = assessUpgradeEvidence({ baseline: state.baseline, current, now: intent.at });
+    if (assessment.identitySha256 !== state.identitySha256 || assessment.blockers.length
+        || current.current.pluginVersion !== state.baseline.current.pluginVersion
+        || current.current.version !== state.baseline.current.version
+        || current.current.releaseCommit !== state.baseline.current.releaseCommit
+        || payload.reservationId === state.reservationId || payload.baseSha === state.baseSha) {
+      throw new Error("Unpublished recovery requires unchanged upstream evidence, restored published metadata, and a new reviewed-main reservation");
+    }
+    state.reservationId = payload.reservationId; state.baseSha = payload.baseSha;
+    state.outputs = {}; state.blockers = []; state.lastObservedAt = current.observedAt;
+    state.soakCompletesAt = assessment.soakCompletesAt;
+    state.advisories = [...assessment.advisories, `Maintainer recovery of unpublished ${payload.evidence.tag} after startup failure ${payload.evidence.run.id}; every gate requires fresh bytes`];
+    state.phase = assessment.decision === "ready" ? "ready" : "observed";
+  } else if (intent.type === "record-dispatch-admission-mismatch") {
     phase(state, "qualifying", "dispatch admission mismatch");
     exact(payload, ["repository", "run", "jobs"], "dispatch mismatch payload");
     authenticateDispatchMismatch({ state, ...payload });

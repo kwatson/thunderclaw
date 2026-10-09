@@ -14,6 +14,8 @@ export const CLASSIFIER_PATHS = Object.freeze([
   "scripts/classify-change-scope.mjs", "scripts/openclaw-controller-recovery.mjs",
   "scripts/clawhub-publication-recovery.mjs", "scripts/openclaw-qualification-reconciliation.mjs",
   "scripts/reconcile-openclaw-authorized-tag.mjs",
+  "scripts/recover-unpublished-openclaw-tag.mjs",
+  "scripts/openclaw-unpublished-tag-recovery.mjs",
   "scripts/persist-openclaw-release-state.mjs",
   "scripts/verify-marketplace-notes.mjs", "scripts/release-automation-fingerprint.mjs",
 ]);

@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import test from "node:test";
 import { classifyOpenClawRelease } from "../scripts/classify-openclaw-release.mjs";
 import { applyReleaseStateIntent, createReleaseState } from "../scripts/openclaw-release-state.mjs";
+import { authenticateUnpublishedRecovery } from "../scripts/openclaw-unpublished-tag-recovery.mjs";
 
 const sha = (value: string) => value.repeat(40);
 const digest = (value: string) => value.repeat(64);
@@ -83,6 +84,51 @@ function fixture() {
   const classification = { decision: "compatibility-only", findings: [], evidenceSha256: preparation.classificationEvidenceSha256 };
   return { state, stateCommit: sha("f"), result, resultSha256, run, context, classification, automation, counterpart };
 }
+
+test("unpublished startup recovery preserves identity and requires every absence check before new qualification", () => {
+  const { state } = fixture();
+  const tagged = state.outputs.tagged;
+  const evidence = { repository: "kwatson/thunderclaw", tag: tagged.tag, commit: tagged.commit,
+    qualifiedArtifactSha256: state.outputs.qualification.candidateArtifactSha256,
+    run: { id: 321, run_attempt: 1, repository: { full_name: "kwatson/thunderclaw" }, event: "push",
+      path: ".github/workflows/release-openclaw-plugin.yml", head_sha: tagged.commit, head_branch: tagged.tag,
+      status: "completed", conclusion: "startup_failure" },
+    jobCount: 0, githubReleaseAbsent: true, attestationsAbsent: true, marketplaceVersionAbsent: true,
+    publisherRunsAbsent: true, tagAbsent: true };
+  const intent = { format: "thunderclaw-openclaw-autopilot-intent-v1", intentId: "operator-recovery",
+    expectedRevision: state.revision, type: "recover-unpublished-tag", at: "2026-09-28T00:00:00.000Z",
+    payload: { evidence, preflight: preflight("2026-09-28T00:00:00.000Z"), reservationId: "0".repeat(32), baseSha: sha("0") } };
+  const recovered = applyReleaseStateIntent(state, intent);
+  assert.equal(recovered.decision, "applied");
+  assert.equal(recovered.state.phase, "ready");
+  assert.deepEqual(recovered.state.outputs, {});
+  assert.equal(recovered.state.identitySha256, state.identitySha256);
+  assert.equal(recovered.state.baseline.current.pluginVersion, "0.1.9");
+  assert.match(recovered.state.advisories.join("\n"), /startup failure 321/u);
+  assert.equal(applyReleaseStateIntent(recovered.state, intent).decision, "already-applied");
+  for (const field of ["githubReleaseAbsent", "attestationsAbsent", "marketplaceVersionAbsent", "publisherRunsAbsent", "tagAbsent"]) {
+    assert.throws(() => authenticateUnpublishedRecovery(state, { ...evidence, [field]: false }), /every absence check/u);
+  }
+  for (const change of [{ jobCount: 1 }, { commit: sha("1") }, { qualifiedArtifactSha256: digest("1") },
+    { run: { ...evidence.run, conclusion: "cancelled" } }, { run: { ...evidence.run, status: "in_progress" } },
+    { run: { ...evidence.run, repository: { full_name: "attacker/fork" } } }]) {
+    assert.throws(() => authenticateUnpublishedRecovery(state, { ...evidence, ...change }), /exact unpublished tag/u);
+  }
+  assert.throws(() => authenticateUnpublishedRecovery({ ...state, phase: "github-published" }, evidence), /exact unpublished tag/u);
+  const changed = structuredClone(intent);
+  changed.payload.preflight.proposed.npm.integrity = "sha512-CHANGED";
+  assert.throws(() => applyReleaseStateIntent(state, changed), /unchanged upstream evidence/u);
+  const sameBase = structuredClone(intent);
+  sameBase.payload.baseSha = state.baseSha;
+  assert.throws(() => applyReleaseStateIntent(state, sameBase), /new reviewed-main reservation/u);
+  const sameReservation = structuredClone(intent);
+  sameReservation.payload.reservationId = state.reservationId;
+  assert.throws(() => applyReleaseStateIntent(state, sameReservation), /new reviewed-main reservation/u);
+  const wrongBaseline = structuredClone(intent);
+  wrongBaseline.payload.preflight.current.pluginVersion = "0.1.10";
+  assert.throws(() => applyReleaseStateIntent(state, wrongBaseline), /restored published metadata/u);
+  assert.equal(applyReleaseStateIntent(state, { ...intent, expectedRevision: 0 }).decision, "compare-and-swap-mismatch");
+});
 
 test("release classifier selects automatic only for the exact active reservation and authenticated run", () => {
   const input = fixture();

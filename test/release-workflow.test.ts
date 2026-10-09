@@ -273,6 +273,18 @@ test("manual publisher repairs use reviewed workflow source while automatic publ
     "manual verification repairs must use reviewed automation without moving the qualified tag");
 });
 
+test("the release caller grants the reusable closeout's read permissions", async () => {
+  const release = await readFile(new URL("../.github/workflows/release-openclaw-plugin.yml", import.meta.url), "utf8");
+  const closeout = await readFile(new URL("../.github/workflows/complete-plugin-publication.yml", import.meta.url), "utf8");
+  const caller = release.slice(release.indexOf("  publication-closeout:"));
+  const callee = closeout.slice(closeout.indexOf("  counterpart-closeout:"));
+  for (const permission of ["contents", "checks", "pull-requests"]) {
+    assert.match(callee, new RegExp(`^      ${permission}: read$`, "mu"));
+    assert.match(caller, new RegExp(`^      ${permission}: read$`, "mu"),
+      `GitHub rejects the entire release before jobs start if the caller omits ${permission}: read`);
+  }
+});
+
 test("ClawHub submission uses the OIDC tag ref and stops permanent identity rejection before polling", async () => {
   const workflow = await readFile(new URL("../.github/workflows/publish-clawhub.yml", import.meta.url), "utf8");
   const submission = workflowRunBlocks(workflow).find((block) => block.script.includes("publisher_exit=${PIPESTATUS[0]}"));
