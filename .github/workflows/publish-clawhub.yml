@@ -226,7 +226,7 @@ jobs:
             --source-ref "$source_ref" \
             --source-commit "$RELEASE_COMMIT" \
             --changelog "$release_notes" \
-            "${publish_auth_args[@]}" \
+            ${publish_auth_args[@]+"${publish_auth_args[@]}"} \
             --json 2> "$publisher_error" | tee "$result"
           publisher_exit=${PIPESTATUS[0]}
           cat "$publisher_error" >&2
