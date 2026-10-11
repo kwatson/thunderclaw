@@ -6,6 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { readOpenClawQualification } from "./openclaw-qualification.mjs";
+import { npmPackFilename } from "./npm-pack-output.mjs";
 
 function command(program, args) {
   const result = spawnSync(program, args, { encoding: "utf8", maxBuffer: 16 * 1024 * 1024 });
@@ -59,10 +60,7 @@ async function stage(output) {
   try {
     const packed = JSON.parse(command("npm", ["pack", `${provider.package}@${provider.version}`, "--json", "--ignore-scripts",
       "--pack-destination", temporary]));
-    if (!Array.isArray(packed) || packed.length !== 1 || typeof packed[0].filename !== "string") {
-      throw new Error("npm pack did not return exactly one provider archive");
-    }
-    const source = path.join(temporary, packed[0].filename);
+    const source = path.join(temporary, npmPackFilename(packed, provider.package, provider.version));
     const verified = await verifyArchive(source, provider);
     await copyFile(source, output, constants.COPYFILE_EXCL);
     await chmod(output, 0o644);
