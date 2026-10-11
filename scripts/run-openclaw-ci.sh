@@ -12,14 +12,23 @@ state_root="${temporary_root}/state"
 cache_root="${temporary_root}/cache"
 evidence_root="${repository_root}/build/openclaw-ci-${$}"
 container_name="thunderclaw-openclaw-ci-${$}"
+export THUNDERCLAW_QUALIFICATION_DIAGNOSTICS="${repository_root}/build/qualification-diagnostics/openclaw-ci-${$}/diagnostics.jsonl"
+qualification_phase=setup
+record_phase() {
+  qualification_phase=$1
+  mise exec -- node scripts/qualification-diagnostics.mjs "${qualification_phase}" started
+}
 gateway_token=$(mise exec -- node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("base64url"))')
 
 cleanup() {
   qualification_status=$?
-  if test "${qualification_status}" -ne 0; then
-    # Emit only allowlisted container state, never logs, configuration, or environment.
-    docker inspect --format 'Gateway state: status={{.State.Status}} running={{.State.Running}} exitCode={{.State.ExitCode}} oomKilled={{.State.OOMKilled}}' "${container_name}" 2>/dev/null || true
+  if test "${qualification_status}" -eq 0; then
+    qualification_outcome=passed
+  else
+    qualification_outcome=failed
   fi
+  # This content-free record survives cleanup; never retain Gateway logs/state.
+  mise exec -- node scripts/qualification-diagnostics.mjs "${qualification_phase}" "${qualification_outcome}" "${qualification_status}" "${container_name}" || true
   docker rm --force "${container_name}" >/dev/null 2>&1 || true
   case "${evidence_root}" in
     "${repository_root}"/build/openclaw-ci-*)
@@ -34,6 +43,7 @@ cleanup() {
 }
 trap cleanup EXIT HUP INT TERM
 
+record_phase setup
 mkdir -p "${state_root}/workspace" "${cache_root}"
 
 container_args=(
@@ -68,10 +78,12 @@ provider_archive="${temporary_root}/openclaw-qualified-provider.tgz"
 mise exec -- node scripts/stage-openclaw-provider.mjs --output "${provider_archive}"
 container_args+=(--mount "type=bind,src=${provider_archive},dst=/workspace/openclaw-qualified-provider.tgz,readonly")
 
+record_phase provider-install
 docker run --rm "${container_args[@]}" "${gateway_image}" \
   node openclaw.mjs plugins install \
     npm-pack:/workspace/openclaw-qualified-provider.tgz --force --accept-capabilities
 
+record_phase onboard
 docker run --rm "${container_args[@]}" "${gateway_image}" \
   node openclaw.mjs onboard \
     --non-interactive \
@@ -93,6 +105,7 @@ docker run --rm "${container_args[@]}" "${gateway_image}" \
     --suppress-gateway-token-output \
     --accept-risk
 
+record_phase agent-install
 docker run --rm "${container_args[@]}" "${gateway_image}" \
   node openclaw.mjs agents add deepseek-flash \
     --non-interactive \
@@ -100,10 +113,12 @@ docker run --rm "${container_args[@]}" "${gateway_image}" \
     --model deepseek/deepseek-v4-flash \
     --json
 
+record_phase plugin-install
 docker run --rm "${container_args[@]}" "${gateway_image}" \
   node openclaw.mjs plugins install --force --accept-capabilities \
     "npm-pack:/workspace/thunderclaw-candidate.tgz"
 
+record_phase configure
 docker run --rm "${container_args[@]}" --entrypoint node "${gateway_image}" -e '
   const { readFileSync } = require("node:fs");
   const { spawnSync } = require("node:child_process");
@@ -116,6 +131,7 @@ docker run --rm "${container_args[@]}" --entrypoint node "${gateway_image}" -e '
   process.exit(result.status ?? 1);
 '
 
+record_phase gateway-start
 docker run --detach \
   --name "${container_name}" \
   --init \
@@ -126,24 +142,20 @@ docker run --detach \
   "${gateway_image}" \
   node openclaw.mjs gateway run --port 18789 >/dev/null
 
-for attempt in $(seq 1 30); do
-  if docker exec "${container_name}" node openclaw.mjs gateway call health --json >/dev/null 2>&1; then
-    break
-  fi
-  if test "${attempt}" -eq 30; then
-    printf '%s\n' "The ephemeral OpenClaw Gateway did not become healthy" >&2
-    exit 1
-  fi
-  sleep 1
-done
+THUNDERCLAW_QUALIFICATION_CONTAINER="${container_name}" \
+  mise exec -- node --import tsx scripts/qualify-gateway-startup.ts
+
+record_phase pairing-initial
 
 THUNDERCLAW_QUALIFICATION_CONTAINER="${container_name}" \
 THUNDERCLAW_QUALIFICATION_STATE_ROOT="${state_root}" \
 THUNDERCLAW_QUALIFICATION_GATEWAY_IMAGE="${gateway_image}" \
   mise exec -- npm run qualify:pairing -- --no-install
 
+record_phase pairing-recovery
 THUNDERCLAW_QUALIFICATION_CONTAINER="${container_name}" \
 THUNDERCLAW_RECOVERY_OUTPUT_DIRECTORY="${evidence_root}/pairing-recovery" \
   mise exec -- npm run qualify:pairing:recovery
 
+record_phase complete
 printf '%s\n' "Ephemeral pinned-OpenClaw qualification passed."

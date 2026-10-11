@@ -6,4 +6,5 @@ export function rehearseReleaseOperations(): Promise<{
   productArtifactsBuilt: number;
   productTagsCreated: number;
   secretsRequired: false;
+  liveGitHubAdmissionVerified: false;
 }>;

@@ -7,6 +7,8 @@ import { pathToFileURL } from "node:url";
 // this file so changing the list itself invalidates existing authorization.
 export const CLASSIFIER_PATHS = Object.freeze([
   "scripts/qualification-readiness.ts",
+  "scripts/qualification-diagnostics.mjs", "scripts/qualify-gateway-startup.ts",
+  "scripts/verify-tagged-prequalification.mjs",
   "scripts/npm-pack-output.mjs", "scripts/stage-openclaw-provider.mjs",
   "scripts/preflight-openclaw-upgrade.mjs",
   "scripts/classify-openclaw-release.mjs", "scripts/classify-openclaw-upgrade.mjs",
@@ -25,6 +27,7 @@ export const CLASSIFIER_PATHS = Object.freeze([
 export const RELEASE_PATHS = Object.freeze([
   ".github/workflows/release-openclaw-plugin.yml", ".github/workflows/publish-clawhub.yml",
   ".github/workflows/complete-plugin-publication.yml",
+  ".github/workflows/qualify-release-pair.yml",
 ]);
 
 const digest = (value) => createHash("sha256").update(value).digest("hex");

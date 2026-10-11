@@ -17,12 +17,18 @@ on:
         required: false
         default: manual
         type: string
+      reuse_prequalification:
+        description: Explicit exact-byte proof reuse, admitted only for an automatic plugin tag push
+        required: false
+        default: false
+        type: boolean
     secrets:
       DEEPSEEK_API_KEY:
         required: false
       OPENCLAW_GATEWAY_TOKEN:
         required: false
 permissions:
+  actions: read
   contents: read
 
 jobs:
@@ -35,7 +41,7 @@ jobs:
     steps:
       - name: Check out tagged source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with: { persist-credentials: false }
+        with: { fetch-depth: 0, persist-credentials: false }
       - name: Install managed runtimes
         uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4
       - name: Install locked dependencies
@@ -79,7 +85,31 @@ jobs:
           fi
           echo "plugin=$candidate_plugin" >> "$GITHUB_OUTPUT"
           echo "xpi=$candidate_xpi" >> "$GITHUB_OUTPUT"
+      - name: Authenticate exact pre-tag pair and full qualification evidence
+        if: inputs.reuse_prequalification
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_LANE: ${{ inputs.release_lane }}
+          THUNDERCLAW_REUSE_PREQUALIFICATION: "true"
+          THUNDERCLAW_QUALIFICATION_COMPONENT: ${{ inputs.component }}
+          QUALIFIED_PLUGIN: ${{ steps.pair.outputs.plugin }}
+          QUALIFIED_COUNTERPART: ${{ steps.pair.outputs.xpi }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mise exec -- node scripts/verify-tagged-prequalification.mjs \
+            --plugin "$QUALIFIED_PLUGIN" --counterpart "$QUALIFIED_COUNTERPART" \
+            --output "$RUNNER_TEMP/prequalification-pair.json"
+      - name: Retain authenticated prequalification receipt
+        if: inputs.reuse_prequalification && success()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: thunderclaw-prequalification-pair-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/prequalification-pair.json
+          if-no-files-found: error
+          retention-days: 14
       - name: Create protected synthetic qualification environment
+        if: '!inputs.reuse_prequalification'
         env:
           # The selected environment owns an independently scoped value under each name.
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
@@ -100,6 +130,7 @@ jobs:
             printf 'OPENCLAW_GATEWAY_TOKEN=%s\n' "$gateway_token"
           } > .env.openclaw.local
       - name: Install exact plugin and build exact-XPI Thunderbird lane
+        if: '!inputs.reuse_prequalification'
         env:
           THUNDERCLAW_OPENCLAW_PLUGIN_TGZ: ${{ steps.pair.outputs.plugin }}
           THUNDERCLAW_E2E_XPI: ${{ steps.pair.outputs.xpi }}
@@ -108,6 +139,7 @@ jobs:
           bash scripts/bootstrap-spike.sh
           mise exec -- npm run test:e2e:thunderbird
       - name: Exercise the exact pair through the protected product harness
+        if: '!inputs.reuse_prequalification'
         env:
           THUNDERCLAW_QUALIFICATION_COMPONENT: ${{ inputs.component }}
           THUNDERCLAW_OPENCLAW_PLUGIN_TGZ: ${{ steps.pair.outputs.plugin }}
@@ -122,5 +154,5 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
       - name: Stop ephemeral qualification services
-        if: always()
+        if: always() && !inputs.reuse_prequalification
         run: docker compose -f compose.spike.yaml down

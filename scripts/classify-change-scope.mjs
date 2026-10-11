@@ -5,6 +5,12 @@ import { pathToFileURL } from "node:url";
 
 // Only reviewed internal tooling is exempt. Unknown paths affect both products.
 const internalScripts = new Set([
+  "qualification-diagnostics.mjs", "qualification-diagnostics.d.mts",
+  "qualify-gateway-startup.ts",
+  "release-status.mjs", "release-status.d.mts",
+  "verify-release-sandbox-probe.mjs", "verify-release-sandbox-probe.d.mts",
+  "verify-tagged-prequalification.mjs", "verify-tagged-prequalification.d.mts",
+  "rehearse-release-controls.mjs",
   "npm-pack-output.mjs",
   "npm-pack-output.d.mts",
   "assert-openclaw-autopilot-enabled.d.mts",

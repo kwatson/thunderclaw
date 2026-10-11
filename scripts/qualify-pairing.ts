@@ -5,7 +5,8 @@ import { cpSync, existsSync, lstatSync, mkdtempSync, mkdirSync, readFileSync, re
 import { tmpdir } from "node:os";
 import { basename, join, relative, resolve, sep } from "node:path";
 import { spawnSync } from "node:child_process";
-import { waitForQualificationReadiness } from "./qualification-readiness.js";
+import { ReadinessProbeError, qualificationCommandProbe, waitForQualificationReadiness } from "./qualification-readiness.js";
+import { writeQualificationDiagnostic } from "./qualification-diagnostics.mjs";
 
 const root = resolve(import.meta.dirname, "..");
 const compose = ["compose", "-f", "compose.spike.yaml"];
@@ -119,14 +120,12 @@ function gatewayCall(method: string, params: Record<string, unknown>): unknown {
 }
 
 async function waitForGatewayHealth(): Promise<void> {
-  for (let attempt = 0; attempt < 30; attempt += 1) {
-    try {
-      docker("exec", "-T", "gateway", "node", "openclaw.mjs", "gateway", "call", "health", "--json");
-      return;
-    } catch { /* Gateway restart is still settling. */ }
-    await new Promise((resolveDelay) => setTimeout(resolveDelay, 1_000));
-  }
-  throw new Error("the restored Gateway did not become healthy");
+  const args = qualificationContainer
+    ? ["exec", qualificationContainer, "node", "openclaw.mjs", "gateway", "call", "health", "--json"]
+    : [...compose, "exec", "-T", "gateway", "node", "openclaw.mjs", "gateway", "call", "health", "--json"];
+  await waitForQualificationReadiness((signal) => qualificationCommandProbe("docker", args, signal), {
+    observe: (event) => writeQualificationDiagnostic({ phase: "gateway-restore", ...event }),
+  });
 }
 
 function candidateArchive(): { container: string } {
@@ -146,17 +145,17 @@ function candidateArchive(): { container: string } {
   return { container: `/workspace/thunderclaw/${repositoryRelative.split(sep).join("/")}` };
 }
 
-function waitForPairingStatus(origin: string): Promise<void> {
+function waitForPairingStatus(origin: string, phase = "pairing-initial"): Promise<void> {
   return waitForQualificationReadiness(async (signal) => {
     const response = await fetch(`${origin}/thunderclaw/pairing/v1/status`, {
       signal,
       redirect: "error",
       headers: { connection: "close" },
-    });
-    if (!response.ok) throw new Error(`pairing status returned HTTP ${response.status}`);
-    const body = await response.json() as Record<string, unknown>;
-    if (body.protocolVersion !== 1 || body.pairingAvailable !== true) throw new Error("pairing v1 is unavailable");
-  });
+    }).catch(() => { throw new ReadinessProbeError("connection"); });
+    if (!response.ok) throw new ReadinessProbeError("http-status");
+    const body = await response.json().catch(() => { throw new ReadinessProbeError("protocol"); }) as Record<string, unknown>;
+    if (body.protocolVersion !== 1 || body.pairingAvailable !== true) throw new ReadinessProbeError("protocol");
+  }, { observe: (event) => writeQualificationDiagnostic({ phase, ...event }) });
 }
 
 function endpoint(): string {
@@ -301,7 +300,7 @@ async function qualify(initialOrigin: string): Promise<void> {
 
   docker("restart", "gateway");
   origin = endpoint();
-  await waitForPairingStatus(origin);
+  await waitForPairingStatus(origin, "credential-restart");
   expectStatus(await jsonCall(origin, "/thunderclaw/v1/status", { bearer: nextCredential }), 200, "credential restart persistence");
   process.stdout.write("Credential restart persistence passed.\n");
 
@@ -309,7 +308,7 @@ async function qualify(initialOrigin: string): Promise<void> {
   expectStatus(await jsonCall(origin, "/thunderclaw/v1/status", { bearer: nextCredential }), 401, "revoked credential rejection");
   docker("restart", "gateway");
   origin = endpoint();
-  await waitForPairingStatus(origin);
+  await waitForPairingStatus(origin, "revocation-restart");
   expectStatus(await jsonCall(origin, "/thunderclaw/v1/status", { bearer: nextCredential }), 401, "revocation restart persistence");
   process.stdout.write("Revocation and restart persistence passed.\n");
   scanRawCredentials([claimCredential, deviceCredential, nextCredential]);
