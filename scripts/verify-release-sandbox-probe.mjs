@@ -3,7 +3,7 @@ import path from "node:path";
 import { readFileSync } from "node:fs";
 
 // Only operator-dispatched, read-only validation runs may supply live evidence.
-export function verifyReleaseSandboxProbe({ run, jobs, repository, commit, branch, scenario }) {
+export function verifyReleaseSandboxProbe({ run, jobs, repository, commit, branch, scenario, annotations = [] }) {
   if (!Number.isSafeInteger(run?.id) || run.id <= 0 || !Number.isSafeInteger(run?.run_attempt) || run.run_attempt <= 0
       || !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u.test(repository)
       || !/^[a-f0-9]{40}$/u.test(commit) || typeof branch !== "string" || branch === "main"
@@ -18,7 +18,9 @@ export function verifyReleaseSandboxProbe({ run, jobs, repository, commit, branc
   const job = matches[0];
   if (job.status !== "completed") throw new Error("Sandbox probe is not terminal");
   if (scenario === "environment-denial") {
-    if (run.conclusion !== "failure" || job.conclusion !== "failure" || !Array.isArray(job.steps) || job.steps.length !== 0) {
+    if (run.conclusion !== "failure" || job.conclusion !== "failure" || !Array.isArray(job.steps) || job.steps.length !== 0
+        || !annotations.some((annotation) => annotation.annotation_level === "failure"
+          && annotation.message === `Branch "${branch}" is not allowed to deploy to openclaw-autopilot-mutation due to environment protection rules.`)) {
       throw new Error("The environment probe must be rejected before executing any runner step");
     }
   } else if (run.conclusion !== "cancelled" || job.conclusion !== "cancelled"
@@ -35,7 +37,7 @@ if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === imp
   try {
     const [directory, repository, commit, branch, scenario] = process.argv.slice(2);
     const result = verifyReleaseSandboxProbe({ run: JSON.parse(readFileSync(path.join(directory, "run.json"))),
-      jobs: JSON.parse(readFileSync(path.join(directory, "jobs.json"))).jobs, repository, commit, branch, scenario });
+      jobs: JSON.parse(readFileSync(path.join(directory, "jobs.json"))).jobs, repository, commit, branch, scenario, annotations: scenario === "environment-denial" ? JSON.parse(readFileSync(path.join(directory, "annotations.json"))) : [] });
     process.stdout.write(`${JSON.stringify(result)}\n`);
   } catch { process.stderr.write("Live release sandbox evidence did not pass verification\n"); process.exitCode = 1; }
 }

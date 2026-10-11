@@ -159,15 +159,14 @@ future managed npm major upgrade.
 Seven new local release-control regressions exercise lost dispatch response
 rediscovery, environment denial, cancellation, changed-main dispatch, merge
 races, denied/cancelled finalizers, and repeated closeout. These use synthetic
-records with production verifiers/state transitions. Dedicated live
-nonpublishing environment-denial and cancellation probes remain planned until
-their actual GitHub runs are recorded. Fresh upstream scheduled admission
+records with production verifiers/state transitions. Read-only live
+environment-denial and cancellation probes are recorded below. Fresh upstream scheduled admission
 also remains unproven by this maintenance work.
 
-Authenticated pre-tag protected-pair reuse is under implementation for the
+Authenticated pre-tag integration and protected-pair reuse is implemented for the
 automatic plugin lane, with exact archive/source/counterpart/request/attempt
 and trusted machinery proof required. It must not reuse manual plugin or
-extension qualification. Review and live CI evidence for that change belongs
+extension qualification. Regression and maintenance CI evidence for that change belongs
 in its maintenance PR rather than retroactively in the 0.1.18 release record.
 
 Candidate artifact retention is 14 days; qualification results currently have
@@ -192,3 +191,30 @@ authorization; historical completion never authorizes another tag replacement.
 Qualified/public archive SHA-256:
 `7ca9115e25adea035b57e58fe59bb89ea97b9b35f74a739fce047428c3ac35cf`.
 Size: 108496 bytes. Published source: `5146bb55d52369f4fbc4dc9b06365bfa47c6c12a`.
+
+
+## Maintenance validation
+
+[PR #52](https://github.com/kwatson/thunderclaw/pull/52) implements these internal
+repairs without changing product versions, archives, or tags. Local verification
+passed 483 tests, type checking, pinned actionlint, shell syntax, and the
+published-plugin scope comparison (no unreleased product findings).
+
+Read-only GitHub probes used source
+`99e11d7a334c3d1c911c4af8d26d41edd5e34892` on
+`chore/release-operations-hardening`, both attempt 1:
+
+- [Environment denial](https://github.com/kwatson/thunderclaw/actions/runs/38168492431)
+  failed as intended: the exact protected-environment job executed zero steps,
+  and GitHub recorded the branch-protection rejection annotation.
+- [Cancellation](https://github.com/kwatson/thunderclaw/actions/runs/38168550942)
+  was cancelled as intended after its harmless waiting step started.
+
+The evidence verifier binds repository, branch, commit, workflow/event, attempt,
+terminal result, exact job, and scenario-specific observations. These probes
+created no tags, submitted no versions, referenced no secrets, and changed no
+environment rules. Their expected failure/cancellation does not represent a
+production release failure. Lost App responses, merge races, and finalizer
+interruption are locally tested but still lack live isolated GitHub evidence.
+The new qualification-reuse path likewise awaits the next genuine release for
+live end-to-end confirmation.

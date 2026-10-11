@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { verifyReleaseSandboxProbe } from '../scripts/verify-release-sandbox-probe.mjs';
-const identity = {repository:'kwatson/thunderclaw',commit:'a'.repeat(40),branch:'chore/sandbox',scenario:'environment-denial'};
+const identity = {repository:'kwatson/thunderclaw',commit:'a'.repeat(40),branch:'chore/sandbox',scenario:'environment-denial',annotations:[{annotation_level:'failure',message:'Branch "chore/sandbox" is not allowed to deploy to openclaw-autopilot-mutation due to environment protection rules.'}]};
 const run = {id:1,run_attempt:1,repository:{full_name:identity.repository},event:'workflow_dispatch',path:'.github/workflows/validate-release-automation.yml',head_sha:identity.commit,head_branch:identity.branch,status:'completed',conclusion:'failure'};
 const rejected = {name:'Read-only environment rejection probe',status:'completed',conclusion:'failure',steps:[]};
 test('environment denial requires a rejected job with no executed steps',()=>{
  assert.equal(verifyReleaseSandboxProbe({...identity,run,jobs:[rejected]}).verified,true);
+ assert.throws(()=>verifyReleaseSandboxProbe({...identity,annotations:[],run,jobs:[rejected]}));
  assert.throws(()=>verifyReleaseSandboxProbe({...identity,run,jobs:[{...rejected,steps:[{name:'Unexpected admission'}]}]}));
 });
 test('probe evidence rejects unrelated runs, main branch, duplicate jobs and nonterminal runs',()=>{

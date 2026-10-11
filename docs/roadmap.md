@@ -8,19 +8,19 @@ provenance and CI artifacts.
 
 ## Now: compatibility release autopilot
 
-1. Extend sandbox evidence for environment rejection, merge races, lost dispatch
-   responses, cancellation, and repeated closeout. Executable synthetic
+1. Extend live sandbox evidence for merge races, lost dispatch responses,
+   denied/cancelled finalizers, and repeated closeout. Executable synthetic
    regressions cover lost qualification callbacks, stale candidates, authorized
    tag interruptions, shared closeout admission, and long-scan read-only recovery;
    these do not prove live negative-case behavior. The credential-free validation
    workflow exercises runner setup and synthetic HTTP publication. Seven local
    negative regressions now cover protected admission denial, cancellation,
    lost dispatch, changed main, merge races, finalizer interruption, and repeated
-   closeout. Complete the dedicated nonpublishing live environment-denial and
-   cancellation probes before claiming actual GitHub enforcement is proven.
+   closeout. Read-only live environment-denial and cancellation probes passed
+   on the maintenance branch; see the release operations audit for exact runs.
 2. Validate the next fresh upstream candidate through hourly admission and
-   publication. Reuse of authenticated pre-tag protected-pair evidence is under
-   implementation for the automatic lane only; retain exact archive, source
+   publication. Authenticated pre-tag qualification reuse is implemented and
+   regression-tested for the automatic lane only; retain exact archive, source
    tree, counterpart, request/attempt, gate, and trusted machinery binding.
    Manual plugin and extension lanes must continue running their own gates.
 3. Decide longer-term immutable qualification evidence retention. Candidate

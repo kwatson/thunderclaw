@@ -206,11 +206,16 @@ mise exec -- node scripts/rehearse-release-operations.mjs
 ```
 
 These regressions prove local decision behavior, not GitHub environment
-enforcement or cancellation event propagation. Planned live probes use a
-dedicated nonpublishing workflow/environment: intentionally deny admission and
-cancel a harmless waiting job. Neither may create a production tag, submit a
-marketplace version, expose credentials, or change a production environment.
-Record their real runs before calling live negative-case validation complete.
+enforcement or cancellation event propagation. Read-only live probes on
+`chore/release-operations-hardening` separately confirmed protected environment
+denial before any runner step and operator cancellation after the harmless
+waiting step started. See the [audit](incidents/2026-10-11-release-operations-audit.md)
+for exact runs. Dispatch `validate-release-automation.yml` on a non-main branch
+with `sandbox_probe=environment-denial` or `cancellation`; the latter requires
+cancelling only the exact authenticated synthetic run. Verify run/job evidence
+with `scripts/verify-release-sandbox-probe.mjs`; denial also requires the exact
+GitHub protection-rule annotation. These probes cannot create tags or publish
+and do not change environment rules. Other live negative paths remain unproved.
 
 ## Completion and handoff
 
@@ -223,3 +228,14 @@ release-automation validation across every completion entry point. Inspect live 
 rather than assuming this document proves their configuration. Do not claim a
 completion notification was sent unless a real notification exists.
 Keep sensitive configuration and provider credentials out of logs and documents.
+
+### Automatic tag qualification reuse
+
+Automatic plugin tag promotion verifies the complete recorded pre-tag run and
+all eight successful jobs, exact source/tree, reservation/request/attempt, result
+digest, reserved machinery, and downloaded plugin and pinned counterpart bytes.
+The integration and protected pair jobs retain a sanitized verification receipt
+instead of rerunning the same full trials. Authentication failure blocks release.
+Manual plugin releases, extension releases, and pre-tag qualification still run
+the complete trials. A future genuine release must confirm this new promotion
+path live; never create a product version just to exercise it.
