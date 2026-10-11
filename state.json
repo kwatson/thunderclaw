@@ -1,9 +1,9 @@
 {
   "format": "thunderclaw-openclaw-autopilot-state-v1",
-  "revision": 12,
-  "phase": "tagged",
-  "reservationId": "9a1fc1b40dd5de817021fdc46e8c4950",
-  "baseSha": "0bfec0849b51d05553d56c8f6a9de99f07921a35",
+  "revision": 13,
+  "phase": "ready",
+  "reservationId": "410a5aa1d95a0c21fd2b8fed28edfdb0",
+  "baseSha": "6f6fbea0d448083b6631408dfc777b6731f6a5e4",
   "baseline": {
     "format": "thunderclaw-openclaw-upgrade-preflight-v2",
     "observedAt": "2026-10-11T01:52:31.438Z",
@@ -120,78 +120,13 @@
   },
   "identitySha256": "1645b006fa9d8903d1667f75742e2cb3d9e552542d83240ea676dada814c1359",
   "firstObservedAt": "2026-10-11T01:52:31.438Z",
-  "lastObservedAt": "2026-10-11T16:54:57.039Z",
-  "soakCompletesAt": "2026-10-11T07:52:31.438Z",
+  "lastObservedAt": "2026-10-11T18:41:17.686Z",
+  "soakCompletesAt": "2026-10-11T02:52:31.438Z",
   "advisories": [
-    "operator qualification restart: operator-reviewed automation repair; all gates rerun"
+    "Maintainer recovery of unpublished openclaw-plugin-v0.1.18 after qualification failure 38158337152; every gate requires fresh bytes"
   ],
   "blockers": [],
-  "outputs": {
-    "preparation": {
-      "reservationId": "9a1fc1b40dd5de817021fdc46e8c4950",
-      "pluginVersion": "0.1.18",
-      "preparedDate": "2026-10-10",
-      "baseSha": "0bfec0849b51d05553d56c8f6a9de99f07921a35",
-      "branch": "automation/openclaw-2026.10.1-9a1fc1b4",
-      "prNumber": 48,
-      "candidateSha": "41496d30df8ef4da61c4cac5a7e2ef4679c27249",
-      "candidateTree": "e5df5ddb50fc242405a8c4b1ef559123dada749f",
-      "tag": "openclaw-plugin-v0.1.18",
-      "classificationEvidenceSha256": "2796cdcd89d3c85cac750bba99bedc110076a3fdf5d50a6dac77a8c5e346f86b",
-      "counterpart": {
-        "tag": "thunderbird-extension-v0.1.2",
-        "name": "thunderclaw-thunderbird-0.1.2.xpi",
-        "sha256": "24bd448bb0d364184e3f72958564ef12bdcbac2c9aae568e353c64209e4bd497",
-        "size": 119484,
-        "repository": "kwatson/thunderclaw"
-      },
-      "automation": {
-        "controllerWorkflowSha": "a0d2783b482693675589e1e6e341a2f67ea05f5bfcc4b09e5ecd60d82514d0c0",
-        "qualificationWorkflowSha": "604ca8bf2f695ff74d9fb5683859da119f98e293204929ae8fca04e2596c53d1",
-        "classifierSha": "b695f72175aafe79808f176eaeaac7367e1f0e7e1d64598138f609e56c8d178e",
-        "releaseWorkflowSha": "d3e9beff969ec3e3569d076541684204caca75a9c4f164299266daf2ad441013"
-      }
-    },
-    "qualificationDispatch": {
-      "requestId": "ed40ea055685c9030e224636a3f28344",
-      "workflow": ".github/workflows/qualify-openclaw-autopilot.yml",
-      "workflowCommit": "0bfec0849b51d05553d56c8f6a9de99f07921a35",
-      "workflowSha256": "604ca8bf2f695ff74d9fb5683859da119f98e293204929ae8fca04e2596c53d1",
-      "dispatchedAt": "2026-10-11T16:56:16Z"
-    },
-    "qualification": {
-      "requestId": "ed40ea055685c9030e224636a3f28344",
-      "workflow": ".github/workflows/qualify-openclaw-autopilot.yml",
-      "workflowCommit": "0bfec0849b51d05553d56c8f6a9de99f07921a35",
-      "workflowSha256": "604ca8bf2f695ff74d9fb5683859da119f98e293204929ae8fca04e2596c53d1",
-      "runId": 38157532470,
-      "runAttempt": 1,
-      "headSha": "41496d30df8ef4da61c4cac5a7e2ef4679c27249",
-      "headBranch": "automation/openclaw-2026.10.1-9a1fc1b4",
-      "event": "workflow_dispatch",
-      "conclusion": "success",
-      "evidenceSha256": "69d31515670c24a4b789814679c4122410349880903467fa8d63d7df12ac7b38",
-      "classificationEvidenceSha256": "2796cdcd89d3c85cac750bba99bedc110076a3fdf5d50a6dac77a8c5e346f86b",
-      "candidateArtifactSha256": "7ca9115e25adea035b57e58fe59bb89ea97b9b35f74a739fce047428c3ac35cf",
-      "counterpart": {
-        "repository": "kwatson/thunderclaw",
-        "tag": "thunderbird-extension-v0.1.2",
-        "name": "thunderclaw-thunderbird-0.1.2.xpi",
-        "sha256": "24bd448bb0d364184e3f72958564ef12bdcbac2c9aae568e353c64209e4bd497",
-        "size": 119484
-      }
-    },
-    "merge": {
-      "mergeSha": "88a949dd0274e768cf25bea9679d92c55e0397a9",
-      "mergeTree": "e5df5ddb50fc242405a8c4b1ef559123dada749f",
-      "tag": "openclaw-plugin-v0.1.18"
-    },
-    "tagged": {
-      "tag": "openclaw-plugin-v0.1.18",
-      "commit": "88a949dd0274e768cf25bea9679d92c55e0397a9",
-      "tree": "e5df5ddb50fc242405a8c4b1ef559123dada749f"
-    }
-  },
+  "outputs": {},
   "history": [
     {
       "intentId": "reobserve-38126102238-1",
@@ -300,6 +235,15 @@
       "from": "merged",
       "to": "tagged",
       "revision": 12
+    },
+    {
+      "intentId": "recover-unpublished-38158337152-12",
+      "type": "recover-unpublished-tag",
+      "at": "2026-10-11T18:41:17.712Z",
+      "payloadSha256": "1d10261b38ec315fc3bbf0ab3ea15a9229331305c1c8521dd917f75f66706429",
+      "from": "tagged",
+      "to": "ready",
+      "revision": 13
     }
   ]
 }
