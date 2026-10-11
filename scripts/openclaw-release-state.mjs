@@ -135,7 +135,7 @@ export function applyReleaseStateIntent(stateValue, intentValue) {
     state.reservationId = payload.reservationId; state.baseSha = payload.baseSha;
     state.outputs = {}; state.blockers = []; state.lastObservedAt = current.observedAt;
     state.soakCompletesAt = assessment.soakCompletesAt;
-    state.advisories = [...assessment.advisories, `Maintainer recovery of unpublished ${payload.evidence.tag} after startup failure ${payload.evidence.run.id}; every gate requires fresh bytes`];
+    state.advisories = [...assessment.advisories, `Maintainer recovery of unpublished ${payload.evidence.tag} after ${payload.evidence.run.conclusion === "startup_failure" ? "startup failure" : "qualification failure"} ${payload.evidence.run.id}; every gate requires fresh bytes`];
     state.phase = assessment.decision === "ready" ? "ready" : "observed";
   } else if (intent.type === "record-dispatch-admission-mismatch") {
     phase(state, "qualifying", "dispatch admission mismatch");
@@ -211,7 +211,7 @@ export function applyReleaseStateIntent(stateValue, intentValue) {
         || payload.secondObservedAt !== state.lastObservedAt || Date.parse(payload.secondObservedAt) <= Date.parse(payload.firstObservedAt)) {
       throw new Error("soak waiver requires two distinct observations of the exact same release identity");
     }
-    state.advisories = [...new Set([...state.advisories, `6-hour soak waived: ${payload.reason}`])]; state.phase = "ready";
+    state.advisories = [...new Set([...state.advisories, `1-hour soak waived: ${payload.reason}`])]; state.phase = "ready";
   } else if (intent.type === "record-qualification-failure") {
     phase(state, "qualifying", "qualification failure");
     const failure = validateQualificationFailureEvidence(payload);

@@ -15,6 +15,11 @@ container_name="thunderclaw-openclaw-ci-${$}"
 gateway_token=$(mise exec -- node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("base64url"))')
 
 cleanup() {
+  qualification_status=$?
+  if test "${qualification_status}" -ne 0; then
+    # Emit only allowlisted container state, never logs, configuration, or environment.
+    docker inspect --format 'Gateway state: status={{.State.Status}} running={{.State.Running}} exitCode={{.State.ExitCode}} oomKilled={{.State.OOMKilled}}' "${container_name}" 2>/dev/null || true
+  fi
   docker rm --force "${container_name}" >/dev/null 2>&1 || true
   case "${evidence_root}" in
     "${repository_root}"/build/openclaw-ci-*)

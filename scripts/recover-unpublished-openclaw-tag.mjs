@@ -48,6 +48,7 @@ async function audit(runId, requireTagAbsent) {
     run: Object.fromEntries(["id", "run_attempt", "event", "path", "head_sha", "head_branch", "status", "conclusion", "repository"].map((key) =>
       [key, key === "repository" ? { full_name: source.repository?.full_name } : source[key]])),
     jobCount: jobs.total_count,
+    jobs: jobs.jobs.map(({ name, status, conclusion }) => ({ name, status, conclusion })),
     githubReleaseAbsent: api(`releases/tags/${tag}`).status === 404,
     attestationsAbsent: attestation.status === 404 || attestation.data.attestations?.length === 0,
     marketplaceVersionAbsent: marketplace.status === 404,
@@ -82,7 +83,7 @@ if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === imp
       const { assertOpenClawAutopilotEnabled } = await import("./assert-openclaw-autopilot-enabled.mjs");
       const token = process.env.GH_TOKEN || process.env.GITHUB_TOKEN || execFileSync("gh", ["auth", "token"], { encoding: "utf8" }).trim();
       const result = await persistReleaseState({ state, intent, expectedCommit: stateCommit,
-        message: `Recover unpublished ${evidence.tag} after startup failure ${runId}; all gates require fresh bytes`, token,
+        message: `Recover unpublished ${evidence.tag} after ${evidence.run.conclusion} ${runId}; all gates require fresh bytes`, token,
         assertEnabled: () => assertOpenClawAutopilotEnabled({ repository, token,
           rolloutEnabled: api("actions/variables/OPENCLAW_AUTOPILOT_ENABLED").data.value }) });
       console.log(JSON.stringify({ decision: result.decision, commit: result.commit, phase: result.state.phase }));

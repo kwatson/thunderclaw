@@ -7,7 +7,7 @@ must pass. Anything outside that policy stops before publication and enters the
 manual release lane.
 
 The controller performs lightweight discovery at minute 17 every hour. The
-six-hour window still begins at first observation, and a fresh observation must
+one-hour window still begins at first observation, and a fresh observation must
 confirm unchanged upstream identities before qualification. Polling and soak
 are separate controls; GitHub scheduling delays can extend either handoff.
 Unchanged/current releases skip dependency installation and qualification.
@@ -22,7 +22,7 @@ gates. Scheduled runs cannot use the override.
 ## Upstream admission policy
 
 The controller considers only a stable release from the official
-`openclaw/openclaw` repository after a 6-hour soak. At discovery and again
+`openclaw/openclaw` repository after a 1-hour soak. At discovery and again
 immediately before tagging it records and verifies the exact:
 
 - OpenClaw release tag and commit;
