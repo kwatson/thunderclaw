@@ -21,7 +21,11 @@ test("candidate artifact validator accepts current ThunderClaw archives and repo
     const xpi = execFileSync(process.execPath, [path.join(root, "scripts/build-extension.mjs"), "--isolated-parent", temporary], {
       cwd: root, encoding: "utf8",
     }).trim();
-    const plugin = execFileSync("npm", ["run", "--silent", "pack:plugin"], {
+    // OpenClaw carries its own npm dependency, which can shadow the managed npm
+    // on lifecycle PATH. Use the CLI that started this test suite instead.
+    const npmCli = process.env.npm_execpath;
+    assert.ok(npmCli, "artifact build tests must run through the managed npm");
+    const plugin = execFileSync(process.execPath, [npmCli, "run", "--silent", "pack:plugin"], {
       cwd: root, encoding: "utf8",
     }).trim().split("\n").at(-1)!;
     for (const [kind, component, version, artifact] of [

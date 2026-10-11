@@ -79,8 +79,21 @@ export function classifyQualificationFailure({ state, run, jobs: jobsValue }) {
   const binding = oneJob(jobs, (job) => job.name === "Bind immutable source and trusted workflow", "binding job");
   const result = oneJob(jobs, (job) => job.name === "Bind successful qualification result", "result job");
   const native = jobs.filter((job) => /^Native (?:Windows|macOS) qualification$/u.test(job.name));
-  const windows = oneJob(native, (job) => job.name === "Native Windows qualification", "native Windows job");
-  const macos = oneJob(native, (job) => job.name === "Native macOS qualification", "native macOS job");
+  // GitHub skips a matrix before expansion when its dependency gate fails.
+  // Accept only its exact terminal skipped placeholder, never a missing gate
+  // or a placeholder alongside actual platform jobs.
+  const unexpanded = jobs.filter((job) => job.name === "Native ${{ matrix.platform }} qualification");
+  let windows; let macos;
+  if (unexpanded.length) {
+    if (unexpanded.length !== 1 || native.length
+        || normalizedConclusion(unexpanded[0], "unexpanded native matrix") !== "skipped") {
+      throw new Error("qualification native matrix evidence is ambiguous or not skipped");
+    }
+    windows = unexpanded[0]; macos = unexpanded[0];
+  } else {
+    windows = oneJob(native, (job) => job.name === "Native Windows qualification", "native Windows job");
+    macos = oneJob(native, (job) => job.name === "Native macOS qualification", "native macOS job");
+  }
   const jobResults = {
     binding: normalizedConclusion(binding, "binding"),
     deterministic: normalizedConclusion(oneJob(jobs, (job) => job.name === "Deterministic tests, types, and packages", "deterministic job"), "deterministic"),
