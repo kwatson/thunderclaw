@@ -37,6 +37,7 @@ const internalScripts = new Set([
   "qualify-native-filesystem.ts",
   "qualify-pairing-recovery.ts",
   "qualify-pairing.ts",
+  "qualification-readiness.ts",
   "rehearse-openclaw-autopilot.d.mts",
   "rehearse-openclaw-autopilot.mjs",
   "release-channel-dispatch.d.mts",

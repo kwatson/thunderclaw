@@ -5,6 +5,7 @@ import { cpSync, existsSync, lstatSync, mkdtempSync, mkdirSync, readFileSync, re
 import { tmpdir } from "node:os";
 import { basename, join, relative, resolve, sep } from "node:path";
 import { spawnSync } from "node:child_process";
+import { waitForQualificationReadiness } from "./qualification-readiness.js";
 
 const root = resolve(import.meta.dirname, "..");
 const compose = ["compose", "-f", "compose.spike.yaml"];
@@ -146,8 +147,9 @@ function candidateArchive(): { container: string } {
 }
 
 function waitForPairingStatus(origin: string): Promise<void> {
-  return retry(async () => {
+  return waitForQualificationReadiness(async (signal) => {
     const response = await fetch(`${origin}/thunderclaw/pairing/v1/status`, {
+      signal,
       redirect: "error",
       headers: { connection: "close" },
     });
@@ -155,15 +157,6 @@ function waitForPairingStatus(origin: string): Promise<void> {
     const body = await response.json() as Record<string, unknown>;
     if (body.protocolVersion !== 1 || body.pairingAvailable !== true) throw new Error("pairing v1 is unavailable");
   });
-}
-
-async function retry(operation: () => Promise<void>): Promise<void> {
-  let lastError: unknown;
-  for (let attempt = 0; attempt < 30; attempt += 1) {
-    try { await operation(); return; } catch (error) { lastError = error; }
-    await new Promise((resolveDelay) => setTimeout(resolveDelay, 1_000));
-  }
-  throw lastError;
 }
 
 function endpoint(): string {

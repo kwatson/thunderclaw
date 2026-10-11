@@ -6,6 +6,7 @@ import { pathToFileURL } from "node:url";
 // One reviewed list binds every admission stage to the same machinery. Include
 // this file so changing the list itself invalidates existing authorization.
 export const CLASSIFIER_PATHS = Object.freeze([
+  "scripts/qualification-readiness.ts",
   "scripts/npm-pack-output.mjs", "scripts/stage-openclaw-provider.mjs",
   "scripts/preflight-openclaw-upgrade.mjs",
   "scripts/classify-openclaw-release.mjs", "scripts/classify-openclaw-upgrade.mjs",
