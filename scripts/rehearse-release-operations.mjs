@@ -7,6 +7,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { verifyClawHubRelease } from "./verify-marketplace-notes.mjs";
 import { verifyPluginPublicationResume } from "./verify-plugin-publication-resume.mjs";
+import { rehearseReleaseControls } from "./rehearse-release-controls.mjs";
 
 // Exercises production evidence admission and HTTP verification together. The
 // only network destination is a server we bind ourselves on the loopback host.
@@ -95,9 +96,11 @@ export async function rehearseReleaseOperations() {
       cases.push(`qualification-${conclusion}`);
     }
     assert.equal(mutations, 0);
+    cases.push(...rehearseReleaseControls());
     return { format: "thunderclaw-release-operations-rehearsal-v1", cases,
       networkScope: "loopback-only", externalMutations: mutations,
-      productArtifactsBuilt: 0, productTagsCreated: 0, secretsRequired: false };
+      productArtifactsBuilt: 0, productTagsCreated: 0, secretsRequired: false,
+      liveGitHubAdmissionVerified: false };
   } finally {
     await new Promise((resolve) => server.close(resolve));
     await rm(directory, { recursive: true, force: true });

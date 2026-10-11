@@ -5,6 +5,12 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      sandbox_probe:
+        description: Operator-only read-only negative-case probe on a non-main branch
+        type: choice
+        default: none
+        options: [none, environment-denial, cancellation]
 
 permissions:
   contents: read
@@ -14,6 +20,33 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  environment-denial-probe:
+    name: Read-only environment rejection probe
+    if: github.event_name == 'workflow_dispatch' && inputs.sandbox_probe == 'environment-denial' && github.ref != 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    permissions: {}
+    environment: openclaw-autopilot-mutation
+    steps:
+      - name: Reject unexpected environment admission
+        run: |
+          echo 'The non-main sandbox probe unexpectedly entered the protected environment.' >&2
+          exit 1
+
+  cancellation-probe:
+    name: Read-only cancellation probe
+    if: github.event_name == 'workflow_dispatch' && inputs.sandbox_probe == 'cancellation' && github.ref != 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Wait for operator cancellation
+        run: |
+          echo 'Read-only sandbox probe ready for operator cancellation.'
+          sleep 240
+          echo 'No cancellation was observed during the bounded probe.' >&2
+          exit 1
+
   validate:
     name: Release automation validation
     runs-on: ubuntu-24.04
@@ -58,6 +91,11 @@ jobs:
             test/release-operations-rehearsal.test.ts \
             test/openclaw-autopilot-core.test.ts \
             test/clawhub-verification-progress.test.ts \
+            test/release-status.test.ts \
+            test/release-sandbox-probe.test.ts \
+            test/tagged-prequalification.test.ts \
+            test/qualification-diagnostics.test.ts \
+            test/openclaw-ci-diagnostics.test.ts \
             test/release-automation-fingerprint.test.ts
 
       - name: Rehearse pending publication and exact-byte recovery

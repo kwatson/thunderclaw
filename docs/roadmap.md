@@ -1,6 +1,6 @@
 # ThunderClaw roadmap
 
-Last reconciled: 2026-10-06
+Last reconciled: 2026-10-11
 
 This file contains unfinished work only. Current behavior belongs in the
 product and architecture documents; completed test results belong in release
@@ -8,24 +8,32 @@ provenance and CI artifacts.
 
 ## Now: compatibility release autopilot
 
-1. Exercise the corrected automatic ClawHub OIDC publisher on the next genuine
-   qualified plugin compatibility release. The 0.1.16 manual recovery does not
-   prove tokenless publishing end to end; do not create a release for this test.
-2. Extend sandbox evidence for GitHub App-triggered event propagation,
-   environment rejection, merge races, lost dispatch responses, cancellation,
-   and repeated closeout. Executable synthetic regressions now cover lost
-   qualification callbacks, stale candidates, authorized tag interruptions,
-   shared closeout admission, and long-scan read-only recovery; those do not
-   prove live GitHub event delivery or marketplace OIDC admission. The credential-free validation workflow exercises
-   real runner setup and synthetic HTTP publication, not marketplace admission.
-3. Consider consolidating the remaining tagged integration and real-agent pair
-   trials with authenticated pre-tag qualification. The automatic lane already
-   reuses one plugin archive and the published extension; preserve coverage and
-   exact artifact/source/counterpart binding before removing any gate.
-4. Add a deduplicated completion notification if wanted. Current workflow
+1. Extend sandbox evidence for environment rejection, merge races, lost dispatch
+   responses, cancellation, and repeated closeout. Executable synthetic
+   regressions cover lost qualification callbacks, stale candidates, authorized
+   tag interruptions, shared closeout admission, and long-scan read-only recovery;
+   these do not prove live negative-case behavior. The credential-free validation
+   workflow exercises runner setup and synthetic HTTP publication. Seven local
+   negative regressions now cover protected admission denial, cancellation,
+   lost dispatch, changed main, merge races, finalizer interruption, and repeated
+   closeout. Complete the dedicated nonpublishing live environment-denial and
+   cancellation probes before claiming actual GitHub enforcement is proven.
+2. Validate the next fresh upstream candidate through hourly admission and
+   publication. Reuse of authenticated pre-tag protected-pair evidence is under
+   implementation for the automatic lane only; retain exact archive, source
+   tree, counterpart, request/attempt, gate, and trusted machinery binding.
+   Manual plugin and extension lanes must continue running their own gates.
+3. Decide longer-term immutable qualification evidence retention. Candidate
+   archives expire after 14 days and result evidence after 90 days; status must
+   report unknown when its required retained evidence is inaccessible rather
+   than declaring completion from durable phase alone.
+4. Before upgrading managed npm beyond 11, review the plugin packer's remaining
+   array-output assumption. Provider staging/preflight accept strict npm 11/12
+   metadata; keep build-tool selection explicit and verify all consumers together.
+5. Add a deduplicated completion notification if wanted. Current workflow
    summaries expose stages; there is no separate completion notification service.
-5. Re-enable hosted macOS real-Thunderbird automation after Thunderbird 154.
-6. Add ATN reviewer-source automation if Thunderbird exposes a supported API.
+6. Re-enable hosted macOS real-Thunderbird automation after Thunderbird 154.
+7. Add ATN reviewer-source automation if Thunderbird exposes a supported API.
    Until then, source and notes remain a recorded Developer Hub handoff; add
    exact post-publication ATN API verification and signed-XPI smoke evidence.
 

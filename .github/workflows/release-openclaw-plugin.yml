@@ -264,10 +264,14 @@ jobs:
     needs: [classify, build]
     runs-on: ubuntu-24.04
     timeout-minutes: 25
+    permissions:
+      actions: read
+      contents: read
     steps:
       - name: Check out tagged source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          fetch-depth: 0
           persist-credentials: false
       - name: Install managed runtimes
         uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4
@@ -293,7 +297,24 @@ jobs:
             --for-component openclaw-plugin \
             --artifact "counterpart/$counterpart_name"
           echo "path=$GITHUB_WORKSPACE/counterpart/$counterpart_name" >> "$GITHUB_OUTPUT"
+      - name: Authenticate exact pre-tag integration and full qualification evidence
+        if: needs.classify.outputs.release_lane == 'automatic'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_LANE: ${{ needs.classify.outputs.release_lane }}
+          THUNDERCLAW_REUSE_PREQUALIFICATION: "true"
+          THUNDERCLAW_QUALIFICATION_COMPONENT: openclaw-plugin
+          QUALIFIED_PLUGIN: ${{ github.workspace }}/release/thunderclaw-openclaw-plugin-${{ needs.build.outputs.version }}.tgz
+          QUALIFIED_COUNTERPART: ${{ steps.counterpart.outputs.path }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd release && sha256sum --check SHA256SUMS)
+          mise exec -- node scripts/verify-tagged-prequalification.mjs \
+            --plugin "$QUALIFIED_PLUGIN" --counterpart "$QUALIFIED_COUNTERPART" \
+            --output "$RUNNER_TEMP/prequalification-integration.json"
       - name: Verify and qualify exact plugin bytes
+        if: needs.classify.outputs.release_lane != 'automatic'
         env:
           THUNDERCLAW_QUALIFICATION_COMPONENT: openclaw-plugin
           THUNDERCLAW_OPENCLAW_PLUGIN_TGZ: ${{ github.workspace }}/release/thunderclaw-openclaw-plugin-${{ needs.build.outputs.version }}.tgz
@@ -302,15 +323,35 @@ jobs:
         run: |
           (cd release && sha256sum --check SHA256SUMS)
           mise exec -- npm run test:integration:openclaw
+      - name: Retain authenticated prequalification receipt
+        if: needs.classify.outputs.release_lane == 'automatic' && success()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: thunderclaw-prequalification-integration-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/prequalification-integration.json
+          if-no-files-found: error
+          retention-days: 14
+      - name: Retain safe Gateway startup diagnostics
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: thunderclaw-plugin-startup-${{ github.run_id }}-${{ github.run_attempt }}
+          path: build/qualification-diagnostics/**/diagnostics.jsonl
+          if-no-files-found: ignore
+          retention-days: 7
 
   paired-qualification:
     name: Qualify exact plugin with pinned extension
     needs: [classify, build]
+    permissions:
+      actions: read
+      contents: read
     uses: ./.github/workflows/qualify-release-pair.yml
     with:
       component: openclaw-plugin
       version: ${{ needs.build.outputs.version }}
       candidate_artifact: thunderclaw-openclaw-plugin-${{ needs.build.outputs.version }}
+      reuse_prequalification: ${{ needs.classify.outputs.release_lane == 'automatic' }}
       release_lane: ${{ needs.classify.outputs.release_lane }}
     secrets: inherit
 

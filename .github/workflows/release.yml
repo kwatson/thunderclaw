@@ -356,6 +356,9 @@ jobs:
 
   paired-qualification:
     name: Qualify exact extension with pinned plugin
+    permissions:
+      actions: read
+      contents: read
     needs: build
     uses: ./.github/workflows/qualify-release-pair.yml
     with:

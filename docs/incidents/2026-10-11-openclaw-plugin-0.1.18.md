@@ -25,4 +25,38 @@ last-published 0.1.17 / OpenClaw 2026.9.9 baseline. After explicit maintainer
 approval to replace the unpublished tag, the operator tool can create a fresh
 reservation for unchanged OpenClaw 2026.10.1 and plugin 0.1.18. It requires every
 gate again and builds a new candidate once; it cannot promote the failed attempt's
-archive. No tag replacement or public completion is claimed by this record.
+archive. The audit above describes the state before authorized recovery; the completed
+outcome follows.
+
+
+## Completed recovery
+
+The maintainer explicitly approved replacement of the unpublished tag. After
+PR 49 passed and merged, a fresh absence audit confirmed all four checks. Only
+the audited annotated tag was deleted, using its exact object SHA as a lease.
+The recovery tool created a new reservation from reviewed main; the controller
+then built and qualified a fresh 0.1.18 candidate for unchanged OpenClaw 2026.10.1.
+
+[Fresh qualification](https://github.com/kwatson/thunderclaw/actions/runs/38165044046)
+passed every gate. The controller merged PR 50 and recreated the annotated tag
+at `5146bb55d52369f4fbc4dc9b06365bfa47c6c12a`. The
+[replacement release run](https://github.com/kwatson/thunderclaw/actions/runs/38165832450)
+passed both tagged qualification jobs. Its restart/persistence sequences took
+approximately 32 seconds each, demonstrating the need for more startup margin.
+The original failures' internal Gateway cause remains unknown because their
+cleanup removed detailed startup evidence.
+
+The [automatic tokenless ClawHub publisher](https://github.com/kwatson/thunderclaw/actions/runs/38166552764)
+passed public archive, source, notes, and clean-scan verification. The fresh
+qualified/public TGZ independently matched the digest above and was 108496 bytes.
+Identical bytes resulted from unchanged packaged runtime inputs; recovery did
+not reuse the failed reservation or its candidate artifact.
+
+PR 51 automatically merged the published counterpart baseline.
+[Main CI](https://github.com/kwatson/thunderclaw/actions/runs/38166944195) passed,
+and durable state reached `complete`, revision 23. The compatibility controller
+was restored to active with rollout enabled. The one-hour observation policy
+and two-minute readiness window are live.
+
+See the [full operations audit](2026-10-11-release-operations-audit.md) for the
+other repairs, retained evidence, agent lessons, and proposed improvements.
