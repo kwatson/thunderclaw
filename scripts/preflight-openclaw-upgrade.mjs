@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { readOpenClawQualification } from "./openclaw-qualification.mjs";
+import { npmPackFilename } from "./npm-pack-output.mjs";
 
 const requiredEntrypoints = [
   "./plugin-sdk/agent-runtime",
@@ -145,10 +146,7 @@ function githubReleaseIdentity(repository, version) {
 
 async function proposedPackage(directory, version) {
   const packed = JSON.parse(command("npm", ["pack", `openclaw@${version}`, "--json", "--pack-destination", directory]));
-  if (!Array.isArray(packed) || packed.length !== 1 || typeof packed[0].filename !== "string") {
-    throw new Error("npm pack did not return exactly one OpenClaw archive");
-  }
-  const archive = path.join(directory, packed[0].filename);
+  const archive = path.join(directory, npmPackFilename(packed, "openclaw", version));
   const manifest = JSON.parse(readArchiveEntry(archive, "package/package.json").toString("utf8"));
   const declarations = Object.fromEntries(declarationFiles.map((relative) => [
     relative,

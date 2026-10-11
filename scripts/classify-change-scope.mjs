@@ -5,6 +5,8 @@ import { pathToFileURL } from "node:url";
 
 // Only reviewed internal tooling is exempt. Unknown paths affect both products.
 const internalScripts = new Set([
+  "npm-pack-output.mjs",
+  "npm-pack-output.d.mts",
   "assert-openclaw-autopilot-enabled.d.mts",
   "assert-openclaw-autopilot-enabled.mjs",
   "bootstrap-spike.sh",
