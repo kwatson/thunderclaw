@@ -1,7 +1,7 @@
 {
   "format": "thunderclaw-openclaw-autopilot-state-v1",
-  "revision": 1,
-  "phase": "ready",
+  "revision": 2,
+  "phase": "prepared",
   "reservationId": "0e429dc1a4127252a6ea9ce01010b514",
   "baseSha": "87a2df82fa934af5aa35813c22b8f71cba677004",
   "baseline": {
@@ -124,7 +124,33 @@
   "soakCompletesAt": "2026-10-11T07:52:31.438Z",
   "advisories": [],
   "blockers": [],
-  "outputs": {},
+  "outputs": {
+    "preparation": {
+      "reservationId": "0e429dc1a4127252a6ea9ce01010b514",
+      "pluginVersion": "0.1.18",
+      "preparedDate": "2026-10-10",
+      "baseSha": "87a2df82fa934af5aa35813c22b8f71cba677004",
+      "branch": "automation/openclaw-2026.10.1-0e429dc1",
+      "prNumber": 44,
+      "candidateSha": "6b96f045ba4fc78525dd2767a342fb5273087ac2",
+      "candidateTree": "27c50c98f1a9a520718c6a786dd148cbaa8c8ef6",
+      "tag": "openclaw-plugin-v0.1.18",
+      "classificationEvidenceSha256": "2796cdcd89d3c85cac750bba99bedc110076a3fdf5d50a6dac77a8c5e346f86b",
+      "counterpart": {
+        "tag": "thunderbird-extension-v0.1.2",
+        "name": "thunderclaw-thunderbird-0.1.2.xpi",
+        "sha256": "24bd448bb0d364184e3f72958564ef12bdcbac2c9aae568e353c64209e4bd497",
+        "size": 119484,
+        "repository": "kwatson/thunderclaw"
+      },
+      "automation": {
+        "controllerWorkflowSha": "a0d2783b482693675589e1e6e341a2f67ea05f5bfcc4b09e5ecd60d82514d0c0",
+        "qualificationWorkflowSha": "604ca8bf2f695ff74d9fb5683859da119f98e293204929ae8fca04e2596c53d1",
+        "classifierSha": "1c3a78d4fd6e2a29f3411c07df1909f870be23b75cf4a4cc3d59333bdeea6731",
+        "releaseWorkflowSha": "d3e9beff969ec3e3569d076541684204caca75a9c4f164299266daf2ad441013"
+      }
+    }
+  },
   "history": [
     {
       "intentId": "reobserve-38126102238-1",
@@ -134,6 +160,15 @@
       "from": "observed",
       "to": "ready",
       "revision": 1
+    },
+    {
+      "intentId": "prepare-38126102238-1",
+      "type": "record-preparation",
+      "at": "2026-10-11T08:49:49Z",
+      "payloadSha256": "5dd7e134680671963974aba58e8e2577f31e82aa8be1b57871b52d35e7451610",
+      "from": "ready",
+      "to": "prepared",
+      "revision": 2
     }
   ]
 }
