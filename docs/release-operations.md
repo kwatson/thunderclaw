@@ -20,7 +20,7 @@ does not by itself prove public completion.
 
 | Evidence | Next action |
 | --- | --- |
-| No candidate yet; state is `observed` | Check immutable upstream identities and observation times. Wait for the six-hour observation window. |
+| No candidate yet; state is `observed` | Check immutable upstream identities and observation times. Wait for the one-hour observation window. |
 | Prepared or qualifying candidate, no tag | Follow the exact active request and gate results. Hourly reconciliation consumes completed evidence if its callback failed. Avoid duplicate dispatches. |
 | Candidate became stale because main advanced | Reconciliation creates a fresh reservation with the same unchanged upstream identity and reruns qualification. This differs from a failed-gate retry. |
 | State authorized a tag, but the exact tag ref is absent | Reconciliation creates only the already-authorized annotated identity. Existing refs are verified and never moved. |

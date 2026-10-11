@@ -211,7 +211,7 @@ export function applyReleaseStateIntent(stateValue, intentValue) {
         || payload.secondObservedAt !== state.lastObservedAt || Date.parse(payload.secondObservedAt) <= Date.parse(payload.firstObservedAt)) {
       throw new Error("soak waiver requires two distinct observations of the exact same release identity");
     }
-    state.advisories = [...new Set([...state.advisories, `6-hour soak waived: ${payload.reason}`])]; state.phase = "ready";
+    state.advisories = [...new Set([...state.advisories, `1-hour soak waived: ${payload.reason}`])]; state.phase = "ready";
   } else if (intent.type === "record-qualification-failure") {
     phase(state, "qualifying", "qualification failure");
     const failure = validateQualificationFailureEvidence(payload);

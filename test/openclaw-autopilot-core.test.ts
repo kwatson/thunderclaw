@@ -75,14 +75,14 @@ test("autopilot orders stable calendar versions and rejects prereleases", () => 
   assert.throws(() => validateUpgradePreflight({ ...preflight(), proposed: { ...preflight().proposed, version: "2026.9.5" } }), /newer/u);
 });
 
-test("6-hour soak requires two unchanged observations while unsigned tags and CI waivers stay advisory", () => {
+test("1-hour soak requires two unchanged observations while unsigned tags and CI waivers stay advisory", () => {
   const baseline = preflight();
-  const early = preflight("2026-09-22T06:59:59.999Z");
-  const current = preflight("2026-09-22T07:00:00.000Z");
+  const early = preflight("2026-09-22T01:59:59.999Z");
+  const current = preflight("2026-09-22T02:00:00.000Z");
   assert.equal(assessUpgradeEvidence({ baseline, current: early }).decision, "waiting");
   const assessment = assessUpgradeEvidence({ baseline, current });
   assert.equal(assessment.decision, "ready");
-  assert.equal(assessment.soakCompletesAt, "2026-09-22T07:00:00.000Z");
+  assert.equal(assessment.soakCompletesAt, "2026-09-22T02:00:00.000Z");
   assert.equal(assessUpgradeEvidence({ baseline, current: early, now: current.observedAt }).decision, "waiting");
   assert.deepEqual(assessment.blockers, []);
   assert.ok(assessment.advisories.includes("upstream release tag is unsigned or unverified"));
@@ -96,16 +96,23 @@ test("6-hour soak requires two unchanged observations while unsigned tags and CI
   assert.match(assessUpgradeEvidence({ baseline, current: missing }).blockers.join("\n"), /missing required export/u);
 });
 
-test("reobservation updates an existing observation to the current six-hour deadline", () => {
+test("reobservation updates an existing observation to the current one-hour deadline", () => {
   const state = createReleaseState(preflight(), { reservationId: hex("1", 32), baseSha: hex("2", 40) });
-  state.soakCompletesAt = "2026-09-23T01:00:00.000Z"; // Retained state from the former 24-hour policy.
-  const observedAt = "2026-09-22T06:59:59.999Z";
+  state.soakCompletesAt = "2026-09-22T07:00:00.000Z"; // Retained state from the former 6-hour policy.
+  const observedAt = "2026-09-22T01:59:59.999Z";
   const outcome = applyReleaseStateIntent(state, { format: "thunderclaw-openclaw-autopilot-intent-v1",
-    intentId: "six-hour-reobserve", expectedRevision: 0, type: "reobserve", at: observedAt,
+    intentId: "one-hour-reobserve", expectedRevision: 0, type: "reobserve", at: observedAt,
     payload: { preflight: preflight(observedAt), baseSha: hex("2", 40) } });
   assert.equal(outcome.state.phase, "observed");
-  assert.equal(outcome.state.soakCompletesAt, "2026-09-22T07:00:00.000Z");
-  assert.equal(state.soakCompletesAt, "2026-09-23T01:00:00.000Z");
+  assert.equal(outcome.state.soakCompletesAt, "2026-09-22T02:00:00.000Z");
+  assert.equal(state.soakCompletesAt, "2026-09-22T07:00:00.000Z");
+  const readyAt = "2026-09-22T02:00:00.000Z";
+  const ready = applyReleaseStateIntent(state, { format: "thunderclaw-openclaw-autopilot-intent-v1",
+    intentId: "one-hour-ready", expectedRevision: 0, type: "reobserve", at: readyAt,
+    payload: { preflight: preflight(readyAt), baseSha: hex("2", 40) } });
+  assert.equal(ready.state.phase, "ready");
+  assert.equal(ready.state.soakCompletesAt, readyAt);
+  assert.equal(decideReleaseResume(ready.state).action, "prepare");
 });
 
 test("preparation generates only canonical compatibility surfaces and detects partial state", async () => {
@@ -192,7 +199,7 @@ test("preparation accepts a durable soak waiver but never waives policy blockers
     await writeFile(path.join(temporary, file), files[file] ?? await readFile(path.join(root, file), "utf8"));
   }
   const generated = generatedLockfile(files["package-lock.json"]);
-  const waiting = preflight("2026-09-22T02:00:00.000Z");
+  const waiting = preflight("2026-09-22T01:30:00.000Z");
   await assert.rejects(prepareOpenClawUpgrade({ root: temporary, baseline: preflight(), preflight: waiting, lockfileMode: "verify", generatedLockfileContents: generated, preparedDate: "2026-09-23" }), /not ready/u);
   const accepted = await prepareOpenClawUpgrade({ root: temporary, baseline: preflight(), preflight: waiting, lockfileMode: "verify", generatedLockfileContents: generated, preparedDate: "2026-09-23", soakWaived: true });
   assert.equal(accepted.status, "prepared");
@@ -290,7 +297,7 @@ test("release state provides strict CAS, replay, and safe resume through qualifi
   const baseline = preflight();
   const state = createReleaseState(baseline, { reservationId: hex("1", 32), baseSha: hex("2", 40) });
   assert.deepEqual(decideReleaseResume(state), { action: "reobserve", revision: 0,
-    pause: { reason: "soak", until: "2026-09-22T07:00:00.000Z" } });
+    pause: { reason: "soak", until: "2026-09-22T02:00:00.000Z" } });
   const intent = (intentId: string, expectedRevision: number, type: string, payload: object, at = "2026-09-23T01:00:00.000Z") => ({ format: "thunderclaw-openclaw-autopilot-intent-v1" as const, intentId, expectedRevision, type, at, payload });
   const readyResult = applyReleaseStateIntent(state, intent("observe-2", 0, "reobserve", { preflight: preflight("2026-09-23T01:00:00.000Z"), baseSha: hex("2", 40) }, "2026-09-23T01:00:00Z") as never);
   assert.equal(readyResult.state.phase, "ready");
@@ -499,8 +506,8 @@ test("a manual expedite records an auditable one-release soak waiver", () => {
     intentId: "observe-before-expedite",
     expectedRevision: 0,
     type: "reobserve",
-    at: "2026-09-22T02:00:00.000Z",
-    payload: { preflight: preflight("2026-09-22T02:00:00.000Z"), baseSha: hex("2", 40) },
+    at: "2026-09-22T01:30:00.000Z",
+    payload: { preflight: preflight("2026-09-22T01:30:00.000Z"), baseSha: hex("2", 40) },
   } as never).state;
   assert.equal(reobserved.phase, "observed");
   const expedited = applyReleaseStateIntent(reobserved, {
@@ -508,20 +515,20 @@ test("a manual expedite records an auditable one-release soak waiver", () => {
     intentId: "manual-expedite",
     expectedRevision: 1,
     type: "waive-soak",
-    at: "2026-09-22T02:00:01.000Z",
+    at: "2026-09-22T01:30:01.000Z",
     payload: { reason: `explicit manual expedite for OpenClaw ${proposedVersion}`,
       identitySha256: reobserved.identitySha256, firstObservedAt: reobserved.firstObservedAt,
       secondObservedAt: reobserved.lastObservedAt },
   } as never).state;
   assert.equal(expedited.phase, "ready");
   assert.equal(decideReleaseResume(expedited).action, "prepare");
-  assert.ok(expedited.advisories.includes(`6-hour soak waived: explicit manual expedite for OpenClaw ${proposedVersion}`));
+  assert.ok(expedited.advisories.includes(`1-hour soak waived: explicit manual expedite for OpenClaw ${proposedVersion}`));
   assert.throws(() => applyReleaseStateIntent(state, {
     format: "thunderclaw-openclaw-autopilot-intent-v1",
     intentId: "bad-waiver",
     expectedRevision: 0,
     type: "waive-soak",
-    at: "2026-09-22T02:00:01.000Z",
+    at: "2026-09-22T01:30:01.000Z",
     payload: { reason: "", identitySha256: state.identitySha256,
       firstObservedAt: state.firstObservedAt, secondObservedAt: state.lastObservedAt },
   } as never), /reason is malformed/u);
@@ -530,7 +537,7 @@ test("a manual expedite records an auditable one-release soak waiver", () => {
     intentId: "one-observation-only",
     expectedRevision: 0,
     type: "waive-soak",
-    at: "2026-09-22T02:00:01.000Z",
+    at: "2026-09-22T01:30:01.000Z",
     payload: { reason: "not enough evidence", identitySha256: state.identitySha256,
       firstObservedAt: state.firstObservedAt, secondObservedAt: state.lastObservedAt },
   } as never), /two distinct observations/u);
@@ -539,7 +546,7 @@ test("a manual expedite records an auditable one-release soak waiver", () => {
     intentId: "wrong-identity",
     expectedRevision: 1,
     type: "waive-soak",
-    at: "2026-09-22T02:00:01.000Z",
+    at: "2026-09-22T01:30:01.000Z",
     payload: { reason: "wrong identity", identitySha256: hex("f", 64),
       firstObservedAt: reobserved.firstObservedAt, secondObservedAt: reobserved.lastObservedAt },
   } as never), /exact same release identity/u);
