@@ -41,7 +41,7 @@ maintainer authorization and absence checks; automation never moves tags.
 
 ## Recovery entry points
 
-For a tag workflow rejected at startup before any jobs, the narrowly scoped
+For an unpublished tag workflow rejected at startup or failing qualification before publication, the narrowly scoped
 operator tool can audit the unpublished-tag exception:
 
 ```text
@@ -51,7 +51,9 @@ mise exec -- node scripts/recover-unpublished-openclaw-tag.mjs audit <failed-run
 Keep automation paused while repairing and reviewing the workflow. Restore
 the unshipped compatibility candidate's generated metadata to the last-published
 baseline in that repair PR. The audit requires exactly one completed startup
-failure with zero jobs, the exact active annotated tag, no GitHub release,
+failure with zero jobs, or a completed qualification failure with both publication
+paths skipped and successful lane selection and candidate validation. It also requires
+the exact active annotated tag, no GitHub release,
 no attestation for the qualified digest, no marketplace version, and no publisher
 run for the tag. Missing or ambiguous absence evidence blocks recovery.
 
@@ -68,7 +70,8 @@ revalidates the unchanged upstream identity, and appends a compare-and-swap
 recovery intent to durable state. Dispatch the controller for the same OpenClaw
 version. A fresh reservation regenerates the same unpublished plugin version,
 builds new bytes once, and reruns all gates; old candidates cannot be promoted.
-This exception cannot recover a run that started jobs or a public artifact.
+This exception cannot recover cancellation, failed publication, ambiguous job evidence,
+or a public artifact. Qualification failures require fresh bytes and every gate again.
 
 For an automatic reservation whose qualified GitHub release already exists,
 dispatch **Complete existing OpenClaw plugin publication** on reviewed `main`

@@ -168,3 +168,39 @@ test("release classifier compares evidence structurally rather than by object ke
     tag: input.counterpart.tag, repository: input.counterpart.repository };
   assert.equal(classifyOpenClawRelease(input).releaseLane, "automatic");
 });
+
+
+test("unpublished qualification recovery requires all gates terminal and publication skipped", () => {
+  const { state } = fixture();
+  const tagged = state.outputs.tagged;
+  const jobs = [
+    ["Select fail-closed release lane", "success"],
+    ["Validate and build plugin once", "success"],
+    ["Qualify exact plugin archive", "failure"],
+    ["Qualify exact plugin with pinned extension / Protected real-agent pair qualification", "success"],
+    ["Create plugin GitHub release", "skipped"],
+    ["Promote manually qualified plugin to ClawHub", "skipped"],
+    ["Complete automatic plugin publication", "skipped"],
+  ].map(([name, conclusion]) => ({ name, conclusion, status: "completed" }));
+  const evidence = { repository: "kwatson/thunderclaw", tag: tagged.tag, commit: tagged.commit,
+    qualifiedArtifactSha256: state.outputs.qualification.candidateArtifactSha256,
+    run: { id: 321, run_attempt: 3, repository: { full_name: "kwatson/thunderclaw" }, event: "push",
+      path: ".github/workflows/release-openclaw-plugin.yml", head_sha: tagged.commit, head_branch: tagged.tag,
+      status: "completed", conclusion: "failure" },
+    jobCount: jobs.length, jobs, githubReleaseAbsent: true, attestationsAbsent: true,
+    marketplaceVersionAbsent: true, publisherRunsAbsent: true, tagAbsent: true };
+  assert.equal(authenticateUnpublishedRecovery(state, evidence), true);
+  for (const [index, change] of [
+    [4, { conclusion: "success" }], [4, { conclusion: "failure" }],
+    [2, { conclusion: "cancelled" }], [2, { status: "in_progress" }],
+    [1, { conclusion: "failure" }], [0, { name: jobs[1]!.name }],
+  ] as const) {
+    const changed = structuredClone(evidence);
+    Object.assign(changed.jobs[index]!, change);
+    assert.throws(() => authenticateUnpublishedRecovery(state, changed), /exact unpublished tag/u);
+  }
+  assert.throws(() => authenticateUnpublishedRecovery(state, { ...evidence, jobs: jobs.slice(1), jobCount: 6 }), /exact unpublished tag/u);
+  for (const field of ["githubReleaseAbsent", "attestationsAbsent", "marketplaceVersionAbsent", "publisherRunsAbsent", "tagAbsent"]) {
+    assert.throws(() => authenticateUnpublishedRecovery(state, { ...evidence, [field]: false }), /every absence check/u);
+  }
+});

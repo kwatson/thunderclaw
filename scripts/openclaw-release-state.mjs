@@ -135,7 +135,7 @@ export function applyReleaseStateIntent(stateValue, intentValue) {
     state.reservationId = payload.reservationId; state.baseSha = payload.baseSha;
     state.outputs = {}; state.blockers = []; state.lastObservedAt = current.observedAt;
     state.soakCompletesAt = assessment.soakCompletesAt;
-    state.advisories = [...assessment.advisories, `Maintainer recovery of unpublished ${payload.evidence.tag} after startup failure ${payload.evidence.run.id}; every gate requires fresh bytes`];
+    state.advisories = [...assessment.advisories, `Maintainer recovery of unpublished ${payload.evidence.tag} after ${payload.evidence.run.conclusion === "startup_failure" ? "startup failure" : "qualification failure"} ${payload.evidence.run.id}; every gate requires fresh bytes`];
     state.phase = assessment.decision === "ready" ? "ready" : "observed";
   } else if (intent.type === "record-dispatch-admission-mismatch") {
     phase(state, "qualifying", "dispatch admission mismatch");
