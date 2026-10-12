@@ -1,51 +1,51 @@
 {
   "format": "thunderclaw-openclaw-autopilot-state-v1",
-  "revision": 23,
-  "phase": "complete",
-  "reservationId": "410a5aa1d95a0c21fd2b8fed28edfdb0",
-  "baseSha": "6f6fbea0d448083b6631408dfc777b6731f6a5e4",
+  "revision": 0,
+  "phase": "observed",
+  "reservationId": "7f9425db7bc864c04ae12c52ae334e7b",
+  "baseSha": "d7468e4ee5fddab6e20c95c42225e21ca34e3eaf",
   "baseline": {
     "format": "thunderclaw-openclaw-upgrade-preflight-v2",
-    "observedAt": "2026-10-11T01:52:31.438Z",
+    "observedAt": "2026-10-12T05:55:07.233Z",
     "current": {
-      "version": "2026.9.9",
-      "releaseCommit": "bcfc88812a35243893585dbeca87ca41b48272ca",
-      "pluginVersion": "0.1.17"
+      "version": "2026.10.1",
+      "releaseCommit": "e178c39e9aae3fa440735217f9aef9574f286677",
+      "pluginVersion": "0.1.18"
     },
     "proposed": {
-      "version": "2026.10.1",
+      "version": "2026.10.2",
       "npm": {
         "package": "openclaw",
-        "version": "2026.10.1",
-        "integrity": "sha512-C072/lxy83KP1nMCnJbipr4O+EtIR9XXbjzQFM+ol7VE5ci2MkKk5XTxfSG70jxpEVaGFeXcEmObHxR/ZHLdHw==",
-        "tarball": "https://registry.npmjs.org/openclaw/-/openclaw-2026.10.1.tgz"
+        "version": "2026.10.2",
+        "integrity": "sha512-FuLLF+WI12ypwQ0r+pcKDcmB+kXus5N4QClaKEnaAn6GN4I1AitkOhwv0GFl2rVKpvuUBDQWIfglHNy6Trv/EQ==",
+        "tarball": "https://registry.npmjs.org/openclaw/-/openclaw-2026.10.2.tgz"
       },
       "providerNpm": {
         "package": "@openclaw/deepseek-provider",
-        "version": "2026.10.1",
-        "integrity": "sha512-WhalP50nl552GvX3YhGd+8aOBL73ami3jjwnGUZkrC3w3a1ZVjAjFnP1uRg1fmLrZFIt4RRnEyzrMbx/vJxKKQ==",
-        "tarball": "https://registry.npmjs.org/@openclaw/deepseek-provider/-/deepseek-provider-2026.10.1.tgz"
+        "version": "2026.10.2",
+        "integrity": "sha512-rW24ydvhrovSQL6cQLXf5VFcStWqyYvJzSh/pfyffiF6sRPz9f8H+uTSqUkFnwaUWKGxc+TYBwDSN5Ign6LrRw==",
+        "tarball": "https://registry.npmjs.org/@openclaw/deepseek-provider/-/deepseek-provider-2026.10.2.tgz"
       },
       "upstream": {
         "repository": "openclaw/openclaw",
-        "tag": "v2026.10.1",
-        "releaseTag": "v2026.10.1",
-        "commit": "e178c39e9aae3fa440735217f9aef9574f286677",
+        "tag": "v2026.10.2",
+        "releaseTag": "v2026.10.2",
+        "commit": "b8952d477f0c932d8ddc6da5c89cab5a169b6ff1",
         "verifiedTag": true,
         "tagKind": "annotated",
         "verifiedCommit": true,
         "officialRelease": true,
-        "releaseId": 409242648,
-        "releaseUrl": "https://github.com/openclaw/openclaw/releases/tag/v2026.10.1",
-        "publishedAt": "2026-10-10T23:54:03.000Z",
+        "releaseId": 410197501,
+        "releaseUrl": "https://github.com/openclaw/openclaw/releases/tag/v2026.10.2",
+        "publishedAt": "2026-10-12T05:34:44.000Z",
         "draft": false,
         "prerelease": false
       },
       "image": {
         "repository": "ghcr.io/openclaw/openclaw",
-        "tag": "2026.10.1",
-        "indexDigest": "sha256:9001e8a880d6ca028b590932b83b9335a26225e86c2a8a7aa9af7c59d6842953",
-        "linuxAmd64Digest": "sha256:d1bebaddb6422effcab8daf0bdc647be4edc3bd35cde513e2a347ba73732848d"
+        "tag": "2026.10.2",
+        "indexDigest": "sha256:32490a7091ca02acde649af3a214704d5c0fa9d774890f6ab231a8c2c958c36f",
+        "linuxAmd64Digest": "sha256:26b23e71b4bc31eb2c07a719f3f3ea4f79837a87492a237c6905f54ddf30537d"
       }
     },
     "sdk": {
@@ -68,16 +68,16 @@
         "dist/plugin-sdk/plugin-entry.d.ts"
       ],
       "currentHashes": {
-        "dist/plugin-sdk/agent-runtime.d.ts": "d61b5d19f182a3c5a9d77622c655aa21c512d88afb90d6530c5bdb9431acb570",
-        "dist/plugin-sdk/cli-argv.d.ts": "ab8a921b3fd08b69816363131b3524a98d570700758bdafdd5323a0deda1e742",
-        "dist/plugin-sdk/gateway-runtime.d.ts": "e32ee1d36dc897c98b52a7707243062cf155b3be69cff51956b8e2c83bf475cb",
-        "dist/plugin-sdk/plugin-entry.d.ts": "8e4734606c8138d7cdb54be058896bf33084f1da0f3fb4e7078d8965cc7455a1"
-      },
-      "proposedHashes": {
         "dist/plugin-sdk/agent-runtime.d.ts": "4c26b4e76470891620beeb5a3c65c7ee3fe508b77e00384d502790cf61412173",
         "dist/plugin-sdk/cli-argv.d.ts": "ab8a921b3fd08b69816363131b3524a98d570700758bdafdd5323a0deda1e742",
         "dist/plugin-sdk/gateway-runtime.d.ts": "c47306a111910b90bb22de7fcb0bb08db0d4fb0976298d9a5ae624d4af9cc952",
         "dist/plugin-sdk/plugin-entry.d.ts": "06aa533524f6e8f629e072cf1b478900e2faaf735807d4e1b38a03b074af8a59"
+      },
+      "proposedHashes": {
+        "dist/plugin-sdk/agent-runtime.d.ts": "8ce6bbbc824a28079a5fcd8c212285ef5cefe1fb1aa92776052749e44827183a",
+        "dist/plugin-sdk/cli-argv.d.ts": "ab8a921b3fd08b69816363131b3524a98d570700758bdafdd5323a0deda1e742",
+        "dist/plugin-sdk/gateway-runtime.d.ts": "e056e24c1c5fb827416362af11022c677b8573938b0a642757b7b7008db0f7ad",
+        "dist/plugin-sdk/plugin-entry.d.ts": "0830766c89c09739af94a63509650929f6c5a47ceade91c4a24c67d1b7237540"
       }
     },
     "repositoryImpact": [
@@ -105,327 +105,25 @@
     "compatibilityDecision": "not-made"
   },
   "identity": {
-    "version": "2026.10.1",
-    "npmIntegrity": "sha512-C072/lxy83KP1nMCnJbipr4O+EtIR9XXbjzQFM+ol7VE5ci2MkKk5XTxfSG70jxpEVaGFeXcEmObHxR/ZHLdHw==",
+    "version": "2026.10.2",
+    "npmIntegrity": "sha512-FuLLF+WI12ypwQ0r+pcKDcmB+kXus5N4QClaKEnaAn6GN4I1AitkOhwv0GFl2rVKpvuUBDQWIfglHNy6Trv/EQ==",
     "providerPackage": "@openclaw/deepseek-provider",
-    "providerIntegrity": "sha512-WhalP50nl552GvX3YhGd+8aOBL73ami3jjwnGUZkrC3w3a1ZVjAjFnP1uRg1fmLrZFIt4RRnEyzrMbx/vJxKKQ==",
+    "providerIntegrity": "sha512-rW24ydvhrovSQL6cQLXf5VFcStWqyYvJzSh/pfyffiF6sRPz9f8H+uTSqUkFnwaUWKGxc+TYBwDSN5Ign6LrRw==",
     "imageRepository": "ghcr.io/openclaw/openclaw",
-    "imageIndexDigest": "sha256:9001e8a880d6ca028b590932b83b9335a26225e86c2a8a7aa9af7c59d6842953",
-    "linuxAmd64Digest": "sha256:d1bebaddb6422effcab8daf0bdc647be4edc3bd35cde513e2a347ba73732848d",
+    "imageIndexDigest": "sha256:32490a7091ca02acde649af3a214704d5c0fa9d774890f6ab231a8c2c958c36f",
+    "linuxAmd64Digest": "sha256:26b23e71b4bc31eb2c07a719f3f3ea4f79837a87492a237c6905f54ddf30537d",
     "upstreamRepository": "openclaw/openclaw",
-    "releaseId": 409242648,
-    "releaseTag": "v2026.10.1",
-    "releaseCommit": "e178c39e9aae3fa440735217f9aef9574f286677",
-    "publishedAt": "2026-10-10T23:54:03.000Z"
+    "releaseId": 410197501,
+    "releaseTag": "v2026.10.2",
+    "releaseCommit": "b8952d477f0c932d8ddc6da5c89cab5a169b6ff1",
+    "publishedAt": "2026-10-12T05:34:44.000Z"
   },
-  "identitySha256": "1645b006fa9d8903d1667f75742e2cb3d9e552542d83240ea676dada814c1359",
-  "firstObservedAt": "2026-10-11T01:52:31.438Z",
-  "lastObservedAt": "2026-10-11T18:42:43.434Z",
-  "soakCompletesAt": "2026-10-11T02:52:31.438Z",
+  "identitySha256": "fe9029d081ff2dfc9d06567213069413e93c9854b05cec99eed5f586408c0a63",
+  "firstObservedAt": "2026-10-12T05:55:07.233Z",
+  "lastObservedAt": "2026-10-12T05:55:07.233Z",
+  "soakCompletesAt": "2026-10-12T06:55:07.233Z",
   "advisories": [],
   "blockers": [],
-  "outputs": {
-    "preparation": {
-      "reservationId": "410a5aa1d95a0c21fd2b8fed28edfdb0",
-      "pluginVersion": "0.1.18",
-      "preparedDate": "2026-10-10",
-      "baseSha": "6f6fbea0d448083b6631408dfc777b6731f6a5e4",
-      "branch": "automation/openclaw-2026.10.1-410a5aa1",
-      "prNumber": 50,
-      "candidateSha": "557cb334f884135d66091f477b8af69d872a2414",
-      "candidateTree": "fcfb6643329a5844974486f69af4f9bda03571bd",
-      "tag": "openclaw-plugin-v0.1.18",
-      "classificationEvidenceSha256": "2796cdcd89d3c85cac750bba99bedc110076a3fdf5d50a6dac77a8c5e346f86b",
-      "counterpart": {
-        "tag": "thunderbird-extension-v0.1.2",
-        "name": "thunderclaw-thunderbird-0.1.2.xpi",
-        "sha256": "24bd448bb0d364184e3f72958564ef12bdcbac2c9aae568e353c64209e4bd497",
-        "size": 119484,
-        "repository": "kwatson/thunderclaw"
-      },
-      "automation": {
-        "controllerWorkflowSha": "15f5cd6214c298497e5bd3643604462cc13003120d7e40eedc05b1dca0ffce81",
-        "qualificationWorkflowSha": "604ca8bf2f695ff74d9fb5683859da119f98e293204929ae8fca04e2596c53d1",
-        "classifierSha": "a0d5c7589d193d9b8cdb0cde0931ceb3ad65c752f4dac08aea3cc9b23242470f",
-        "releaseWorkflowSha": "d3e9beff969ec3e3569d076541684204caca75a9c4f164299266daf2ad441013"
-      }
-    },
-    "qualificationDispatch": {
-      "requestId": "5b55792f6ba4f905d242aaac259ff07d",
-      "workflow": ".github/workflows/qualify-openclaw-autopilot.yml",
-      "workflowCommit": "6f6fbea0d448083b6631408dfc777b6731f6a5e4",
-      "workflowSha256": "604ca8bf2f695ff74d9fb5683859da119f98e293204929ae8fca04e2596c53d1",
-      "dispatchedAt": "2026-10-11T18:43:56Z"
-    },
-    "qualification": {
-      "requestId": "5b55792f6ba4f905d242aaac259ff07d",
-      "workflow": ".github/workflows/qualify-openclaw-autopilot.yml",
-      "workflowCommit": "6f6fbea0d448083b6631408dfc777b6731f6a5e4",
-      "workflowSha256": "604ca8bf2f695ff74d9fb5683859da119f98e293204929ae8fca04e2596c53d1",
-      "runId": 38165044046,
-      "runAttempt": 1,
-      "headSha": "557cb334f884135d66091f477b8af69d872a2414",
-      "headBranch": "automation/openclaw-2026.10.1-410a5aa1",
-      "event": "workflow_dispatch",
-      "conclusion": "success",
-      "evidenceSha256": "5ee1150eb42122e06fe41c4e1a41ef8eb1b24d6b63211c966d357a421152ac13",
-      "classificationEvidenceSha256": "2796cdcd89d3c85cac750bba99bedc110076a3fdf5d50a6dac77a8c5e346f86b",
-      "candidateArtifactSha256": "7ca9115e25adea035b57e58fe59bb89ea97b9b35f74a739fce047428c3ac35cf",
-      "counterpart": {
-        "repository": "kwatson/thunderclaw",
-        "tag": "thunderbird-extension-v0.1.2",
-        "name": "thunderclaw-thunderbird-0.1.2.xpi",
-        "sha256": "24bd448bb0d364184e3f72958564ef12bdcbac2c9aae568e353c64209e4bd497",
-        "size": 119484
-      }
-    },
-    "merge": {
-      "mergeSha": "5146bb55d52369f4fbc4dc9b06365bfa47c6c12a",
-      "mergeTree": "fcfb6643329a5844974486f69af4f9bda03571bd",
-      "tag": "openclaw-plugin-v0.1.18"
-    },
-    "tagged": {
-      "tag": "openclaw-plugin-v0.1.18",
-      "commit": "5146bb55d52369f4fbc4dc9b06365bfa47c6c12a",
-      "tree": "fcfb6643329a5844974486f69af4f9bda03571bd"
-    },
-    "githubPublication": {
-      "tag": "openclaw-plugin-v0.1.18",
-      "commit": "5146bb55d52369f4fbc4dc9b06365bfa47c6c12a",
-      "artifactSha256": "7ca9115e25adea035b57e58fe59bb89ea97b9b35f74a739fce047428c3ac35cf",
-      "releaseId": 409862827
-    },
-    "clawhubVerification": {
-      "tag": "openclaw-plugin-v0.1.18",
-      "version": "0.1.18",
-      "artifactSha256": "7ca9115e25adea035b57e58fe59bb89ea97b9b35f74a739fce047428c3ac35cf",
-      "verifiedAt": "2026-10-11T19:10:11Z"
-    },
-    "closeout": {
-      "branch": "automation/counterpart-openclaw-plugin-v0.1.18",
-      "prNumber": 51,
-      "baseline": {
-        "tag": "openclaw-plugin-v0.1.18",
-        "name": "thunderclaw-openclaw-plugin-0.1.18.tgz",
-        "sha256": "7ca9115e25adea035b57e58fe59bb89ea97b9b35f74a739fce047428c3ac35cf",
-        "size": 108496,
-        "repository": "kwatson/thunderclaw"
-      },
-      "headSha": "e8294261b96128a317d433f1017274dc64e6b302",
-      "tree": "76fbafc0329687d806aa1d66200910fa6678e8a7"
-    },
-    "completion": {
-      "mergeSha": "050ddf38710e7462f05392b3275debe1d7a8b69c",
-      "mergeTree": "76fbafc0329687d806aa1d66200910fa6678e8a7"
-    }
-  },
-  "history": [
-    {
-      "intentId": "reobserve-38126102238-1",
-      "type": "reobserve",
-      "at": "2026-10-11T08:49:12Z",
-      "payloadSha256": "d8b33b3bc79d71cd37d5865b6db0009ab42c9ab1db2eeab70607cbdddccf6063",
-      "from": "observed",
-      "to": "ready",
-      "revision": 1
-    },
-    {
-      "intentId": "prepare-38126102238-1",
-      "type": "record-preparation",
-      "at": "2026-10-11T08:49:49Z",
-      "payloadSha256": "5dd7e134680671963974aba58e8e2577f31e82aa8be1b57871b52d35e7451610",
-      "from": "ready",
-      "to": "prepared",
-      "revision": 2
-    },
-    {
-      "intentId": "dispatch-6e0af4c1af6f72255795c0f6f7a8ba78",
-      "type": "record-qualification-dispatch",
-      "at": "2026-10-11T08:50:06Z",
-      "payloadSha256": "b2af687f4dca618afb86e0997814be865240faad253bf06f095e674d886c93cc",
-      "from": "prepared",
-      "to": "qualifying",
-      "revision": 3
-    },
-    {
-      "intentId": "restart-38126209991-38156605644",
-      "type": "restart-completed-qualification",
-      "at": "2026-10-11T16:43:55Z",
-      "payloadSha256": "a80c16fc5ec45657c751a0aad537b23a78b326c76a60eba6e009f6b52221b9c1",
-      "from": "qualifying",
-      "to": "ready",
-      "revision": 4
-    },
-    {
-      "intentId": "prepare-38156605644-1",
-      "type": "record-preparation",
-      "at": "2026-10-11T16:44:32Z",
-      "payloadSha256": "01f54190fa5b4a0d1ad80e5c5b1066d1c949bac4f92a2371ec973be2960b4b72",
-      "from": "ready",
-      "to": "prepared",
-      "revision": 5
-    },
-    {
-      "intentId": "dispatch-f25b72ddb74b80d9977c5427d0b52416",
-      "type": "record-qualification-dispatch",
-      "at": "2026-10-11T16:44:49Z",
-      "payloadSha256": "83a262ee7c91caa6bac8ca012c982d53f343d4b45acaae4a1101138a6206a471",
-      "from": "prepared",
-      "to": "qualifying",
-      "revision": 6
-    },
-    {
-      "intentId": "restart-38156743495-38157378072",
-      "type": "restart-completed-qualification",
-      "at": "2026-10-11T16:55:18Z",
-      "payloadSha256": "fb840d97136baa00a542c10061afe09ddc0ac263e1edd0ba95fe32bab557eb45",
-      "from": "qualifying",
-      "to": "ready",
-      "revision": 7
-    },
-    {
-      "intentId": "prepare-38157378072-1",
-      "type": "record-preparation",
-      "at": "2026-10-11T16:56:03Z",
-      "payloadSha256": "118e86cd02d862e7906a1313ad934b9ac1fc03bb3c424565fa6a01a5e10e416d",
-      "from": "ready",
-      "to": "prepared",
-      "revision": 8
-    },
-    {
-      "intentId": "dispatch-ed40ea055685c9030e224636a3f28344",
-      "type": "record-qualification-dispatch",
-      "at": "2026-10-11T16:56:16Z",
-      "payloadSha256": "bf67817eac622b724ed7e7bafcd53919dfe69cccf7c81734a68a4573f5bb22ae",
-      "from": "prepared",
-      "to": "qualifying",
-      "revision": 9
-    },
-    {
-      "intentId": "qualification-38157532470-1",
-      "type": "record-qualification",
-      "at": "2026-10-11T17:07:09Z",
-      "payloadSha256": "498f3c102c201cef5808811a3228877b7596183fc4d0217553c2f0cabb827692",
-      "from": "qualifying",
-      "to": "qualified",
-      "revision": 10
-    },
-    {
-      "intentId": "merge-88a949dd0274e768cf25bea9679d92c55e0397a9",
-      "type": "record-merge",
-      "at": "2026-10-11T17:07:19Z",
-      "payloadSha256": "67553960d3466017dd9df35ff2727da648688442d8999fbc9146e8ba4252b26e",
-      "from": "qualified",
-      "to": "merged",
-      "revision": 11
-    },
-    {
-      "intentId": "tag-openclaw-plugin-v0.1.18-88a949dd0274e768cf25bea9679d92c55e0397a9",
-      "type": "record-tag",
-      "at": "2026-10-11T17:07:21Z",
-      "payloadSha256": "24b9e01c400d532affc2c25fc780d58a9ad2e43e0f73d6d53c4c0f8004ab0322",
-      "from": "merged",
-      "to": "tagged",
-      "revision": 12
-    },
-    {
-      "intentId": "recover-unpublished-38158337152-12",
-      "type": "recover-unpublished-tag",
-      "at": "2026-10-11T18:41:17.712Z",
-      "payloadSha256": "1d10261b38ec315fc3bbf0ab3ea15a9229331305c1c8521dd917f75f66706429",
-      "from": "tagged",
-      "to": "ready",
-      "revision": 13
-    },
-    {
-      "intentId": "reobserve-38164903478-1",
-      "type": "reobserve",
-      "at": "2026-10-11T18:43:01Z",
-      "payloadSha256": "3558cf09e28b38f9f533afab9dc002fbe94acc3c8c68088673ebd15e001abddd",
-      "from": "ready",
-      "to": "ready",
-      "revision": 14
-    },
-    {
-      "intentId": "prepare-38164903478-1",
-      "type": "record-preparation",
-      "at": "2026-10-11T18:43:44Z",
-      "payloadSha256": "c6de42c650f9a099bd082aa182991cad0dbf93e0a8addb10337946249b58f012",
-      "from": "ready",
-      "to": "prepared",
-      "revision": 15
-    },
-    {
-      "intentId": "dispatch-5b55792f6ba4f905d242aaac259ff07d",
-      "type": "record-qualification-dispatch",
-      "at": "2026-10-11T18:43:56Z",
-      "payloadSha256": "87cce5aa79ed9831af1e5b3cc79c59b3db0bf7015992db5a29b4dcb3964af6ab",
-      "from": "prepared",
-      "to": "qualifying",
-      "revision": 16
-    },
-    {
-      "intentId": "qualification-38165044046-1",
-      "type": "record-qualification",
-      "at": "2026-10-11T18:55:00Z",
-      "payloadSha256": "f0030d48a3853854d171bd52d8a0f64fa5955b812b4237b5cfce60213f8998eb",
-      "from": "qualifying",
-      "to": "qualified",
-      "revision": 17
-    },
-    {
-      "intentId": "merge-5146bb55d52369f4fbc4dc9b06365bfa47c6c12a",
-      "type": "record-merge",
-      "at": "2026-10-11T18:55:08Z",
-      "payloadSha256": "36b1688c5514f240af1e898a828e51a48fb04f932deb20ae22872a6e5c48c521",
-      "from": "qualified",
-      "to": "merged",
-      "revision": 18
-    },
-    {
-      "intentId": "tag-openclaw-plugin-v0.1.18-5146bb55d52369f4fbc4dc9b06365bfa47c6c12a",
-      "type": "record-tag",
-      "at": "2026-10-11T18:55:10Z",
-      "payloadSha256": "a52d8bb7bde88b9686eb650070bde72420e042fb168e93202024a5b7bca3f2af",
-      "from": "merged",
-      "to": "tagged",
-      "revision": 19
-    },
-    {
-      "intentId": "github-38165832450-1",
-      "type": "record-github-publication",
-      "at": "2026-10-11T19:10:09Z",
-      "payloadSha256": "2aa0b7bbeeec864c5d18bfa452f91c141e169412bea75e7d348c96ed22a47697",
-      "from": "tagged",
-      "to": "github-published",
-      "revision": 20
-    },
-    {
-      "intentId": "clawhub-38165832450-1",
-      "type": "record-clawhub-verification",
-      "at": "2026-10-11T19:10:11Z",
-      "payloadSha256": "bde9f8507042c1ddb06c63ceaf4022514f9c34ba7032c25d05257d67011a088e",
-      "from": "github-published",
-      "to": "clawhub-verified",
-      "revision": 21
-    },
-    {
-      "intentId": "closeout-51",
-      "type": "open-closeout",
-      "at": "2026-10-11T19:10:12Z",
-      "payloadSha256": "6dee70f3a9afa70666eeb9e5fc51bd027a6c4e85042b15c7a51be4c1cdb4b04d",
-      "from": "clawhub-verified",
-      "to": "closeout-open",
-      "revision": 22
-    },
-    {
-      "intentId": "complete-050ddf38710e7462f05392b3275debe1d7a8b69c",
-      "type": "complete-closeout",
-      "at": "2026-10-11T19:11:25Z",
-      "payloadSha256": "8264d904f9b5729e9660313979c8804e87e714d25590baf915a1c99802d1e499",
-      "from": "closeout-open",
-      "to": "complete",
-      "revision": 23
-    }
-  ]
+  "outputs": {},
+  "history": []
 }
