@@ -97,6 +97,27 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  macos-harness:
+    name: macOS qualification harness regressions
+    needs: checks
+    if: needs.checks.outputs.run_full == 'true'
+    runs-on: macos-15
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Install managed runtimes
+        uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4
+
+      - name: Install dependencies
+        run: mise exec -- npm ci
+
+      - name: Exercise qualification harness with system Bash
+        run: mise exec -- node --import tsx --test test/openclaw-ci-diagnostics.test.ts
+
   thunderbird-e2e:
     name: Thunderbird ${{ matrix.thunderbird }}
     needs: checks

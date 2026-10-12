@@ -6,8 +6,15 @@ import { join } from 'node:path';
 import test from 'node:test';
 
 const root = new URL('../', import.meta.url);
-for (const pairingExit of [0, 7]) {
-  test(`isolated hosted cleanup retains sanitized diagnostics for pairing exit ${pairingExit}`, async () => {
+// Exercise macOS's system Bash even if a newer shell is installed on PATH.
+const bash = process.platform === 'darwin' ? '/bin/bash' : 'bash';
+for (const scenario of [
+  { name: 'pairing exit 0', pairingExit: 0, candidate: 'present', exit: 0, phase: 'complete' },
+  { name: 'pairing exit 7', pairingExit: 7, candidate: 'present', exit: 7, phase: 'pairing-initial' },
+  { name: 'unset candidate path', pairingExit: 0, candidate: 'unset', exit: 2, phase: 'setup' },
+  { name: 'empty candidate path', pairingExit: 0, candidate: 'empty', exit: 2, phase: 'setup' },
+]) {
+  test(`isolated hosted cleanup retains sanitized diagnostics for ${scenario.name}`, async () => {
     const directory = await mkdtemp(join(tmpdir(), 'thunderclaw-ci-diagnostics-'));
     try {
       await mkdir(join(directory, 'scripts'));
@@ -27,7 +34,7 @@ if [[ "$*" == 'node -e '* ]]; then
 elif [[ "$*" == 'node scripts/qualification-diagnostics.mjs '* || "$*" == 'node --import tsx scripts/qualify-gateway-startup.ts' ]]; then
   exec '${process.execPath}' "\${@:2}"
 elif [[ "$*" == 'npm run qualify:pairing -- --no-install' ]]; then
-  exit ${pairingExit}
+  exit ${scenario.pairingExit}
 fi
 `, { mode: 0o700 });
       await writeFile(join(directory, 'bin', 'docker'), `#!/usr/bin/env bash
@@ -37,25 +44,32 @@ fi
 exit 0
 `, { mode: 0o700 });
       await writeFile(join(directory, 'bin', 'npm'), '#!/usr/bin/env bash\nprintf "%s\\n" "synthetic-secret-canary"\n', { mode: 0o700 });
-      const result = spawnSync('bash', [join(directory, 'scripts', 'run-openclaw-ci.sh')], {
-        env: { ...process.env, PATH: `${join(directory, 'bin')}:${process.env.PATH}`, THUNDERCLAW_OPENCLAW_PLUGIN_TGZ: join(directory, 'candidate.tgz') },
+      const env: NodeJS.ProcessEnv = { ...process.env, PATH: `${join(directory, 'bin')}:${process.env.PATH}`, THUNDERCLAW_OPENCLAW_PLUGIN_TGZ: join(directory, 'candidate.tgz') };
+      if (scenario.candidate === 'unset') delete env.THUNDERCLAW_OPENCLAW_PLUGIN_TGZ;
+      if (scenario.candidate === 'empty') env.THUNDERCLAW_OPENCLAW_PLUGIN_TGZ = '';
+      const result = spawnSync(bash, [join(directory, 'scripts', 'run-openclaw-ci.sh')], {
+        env,
         encoding: 'utf8', timeout: 15000,
       });
-      assert.equal(result.status, pairingExit, result.stderr);
+      assert.equal(result.status, scenario.exit, result.stderr);
+      if (scenario.candidate !== 'present') {
+        assert.match(result.stderr, /THUNDERCLAW_OPENCLAW_PLUGIN_TGZ must name an existing candidate archive/u);
+        assert.doesNotMatch(result.stderr, /unbound variable|conditional binary operator/u);
+      }
       const retained = join(directory, 'build', 'qualification-diagnostics');
       const [run] = await readdir(retained);
       const text = await readFile(join(retained, run!, 'diagnostics.jsonl'), 'utf8');
       const records = text.trim().split('\n').map((line) => JSON.parse(line) as Record<string, unknown>);
       const terminal = records.at(-1)!;
-      assert.equal(terminal.outcome, pairingExit ? 'failed' : 'passed');
-      assert.equal(terminal.phase, pairingExit ? 'pairing-initial' : 'complete');
+      assert.equal(terminal.outcome, scenario.exit ? 'failed' : 'passed');
+      assert.equal(terminal.phase, scenario.phase);
       // qualification exit is distinct from Docker's exit diagnostic.
       assert.equal(terminal.containerExitCode, 137);
-      assert.equal(terminal.qualificationExitCode, pairingExit);
+      assert.equal(terminal.qualificationExitCode, scenario.exit);
       assert.equal(terminal.containerStatus, 'exited');
       assert.equal(terminal.oomKilled, true);
-      assert.equal(records.filter((record) => record.phase === 'pairing-initial' && record.outcome === 'started').length, 1);
-      assert.ok(records.some((record) => record.phase === 'gateway-start' && record.outcome === 'ready'));
+      assert.equal(records.filter((record) => record.phase === 'pairing-initial' && record.outcome === 'started').length, scenario.candidate === 'present' ? 1 : 0);
+      assert.equal(records.some((record) => record.phase === 'gateway-start' && record.outcome === 'ready'), scenario.candidate === 'present');
       assert.doesNotMatch(text, /synthetic-secret-canary|synthetic-image-or-token|candidate\.tgz|\/tmp\//u);
       assert.deepEqual(await readdir(join(directory, 'build')), ['qualification-diagnostics']);
       assert.ok(await readFile(join(directory, 'candidate.tgz'), 'utf8'));
