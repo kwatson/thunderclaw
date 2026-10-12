@@ -1,7 +1,7 @@
 {
   "format": "thunderclaw-openclaw-autopilot-state-v1",
-  "revision": 12,
-  "phase": "clawhub-verified",
+  "revision": 13,
+  "phase": "closeout-open",
   "reservationId": "27240305e5871c27359525cdc5f55865",
   "baseSha": "24f6ef68a89b5f9e331bd6558991630a776c5a23",
   "baseline": {
@@ -202,6 +202,19 @@
       "version": "0.1.19",
       "artifactSha256": "9180ee6f29e08d72514dbd80935f880d3fcbf334f12a5ba8dcb81b52ea1ee57b",
       "verifiedAt": "2026-10-12T17:03:43Z"
+    },
+    "closeout": {
+      "branch": "automation/counterpart-openclaw-plugin-v0.1.19",
+      "prNumber": 57,
+      "baseline": {
+        "tag": "openclaw-plugin-v0.1.19",
+        "name": "thunderclaw-openclaw-plugin-0.1.19.tgz",
+        "sha256": "9180ee6f29e08d72514dbd80935f880d3fcbf334f12a5ba8dcb81b52ea1ee57b",
+        "size": 108496,
+        "repository": "kwatson/thunderclaw"
+      },
+      "headSha": "35969506a1d229dfed02ac2b49aa1ed06b67d5f0",
+      "tree": "a316ec8245f0a22275a2da2cfb73824f273a6438"
     }
   },
   "history": [
@@ -312,6 +325,15 @@
       "from": "github-published",
       "to": "clawhub-verified",
       "revision": 12
+    },
+    {
+      "intentId": "closeout-57",
+      "type": "open-closeout",
+      "at": "2026-10-12T17:03:45Z",
+      "payloadSha256": "f8b5cbc55a989c80a5a4d1cb0c5ab974d5cf04fcc835926002bfe3aa0a31188c",
+      "from": "clawhub-verified",
+      "to": "closeout-open",
+      "revision": 13
     }
   ]
 }
