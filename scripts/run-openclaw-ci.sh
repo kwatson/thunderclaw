@@ -59,7 +59,7 @@ container_args=(
   --mount "type=bind,src=${repository_root},dst=/workspace/thunderclaw,readonly"
 )
 
-if [[ ! -v THUNDERCLAW_OPENCLAW_PLUGIN_TGZ || -z "${THUNDERCLAW_OPENCLAW_PLUGIN_TGZ}" ]]; then
+if [[ -z "${THUNDERCLAW_OPENCLAW_PLUGIN_TGZ:-}" ]]; then
   printf '%s\n' "THUNDERCLAW_OPENCLAW_PLUGIN_TGZ must name an existing candidate archive" >&2
   exit 2
 fi
