@@ -1,7 +1,7 @@
 {
   "format": "thunderclaw-openclaw-autopilot-state-v1",
-  "revision": 8,
-  "phase": "qualified",
+  "revision": 9,
+  "phase": "merged",
   "reservationId": "27240305e5871c27359525cdc5f55865",
   "baseSha": "24f6ef68a89b5f9e331bd6558991630a776c5a23",
   "baseline": {
@@ -180,6 +180,11 @@
         "sha256": "24bd448bb0d364184e3f72958564ef12bdcbac2c9aae568e353c64209e4bd497",
         "size": 119484
       }
+    },
+    "merge": {
+      "mergeSha": "a418b088c057768abc5e73a41f3592803f33a5bc",
+      "mergeTree": "2010be428359e37ee6b83df54f7b59d29065d99c",
+      "tag": "openclaw-plugin-v0.1.19"
     }
   },
   "history": [
@@ -254,6 +259,15 @@
       "from": "qualifying",
       "to": "qualified",
       "revision": 8
+    },
+    {
+      "intentId": "merge-a418b088c057768abc5e73a41f3592803f33a5bc",
+      "type": "record-merge",
+      "at": "2026-10-12T16:55:28Z",
+      "payloadSha256": "ba227512e95bb830aa32bd0bae889cabf3b336d72fb03b04815e1190d5219617",
+      "from": "qualified",
+      "to": "merged",
+      "revision": 9
     }
   ]
 }
