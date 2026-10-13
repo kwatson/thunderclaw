@@ -1,7 +1,7 @@
 {
   "format": "thunderclaw-openclaw-autopilot-state-v1",
-  "revision": 0,
-  "phase": "observed",
+  "revision": 1,
+  "phase": "ready",
   "reservationId": "5fdf44a1c8c52205ce41f93e6a8460b5",
   "baseSha": "c010ecda54708eda35125b71f0cf6d261595cf68",
   "baseline": {
@@ -120,10 +120,20 @@
   },
   "identitySha256": "199c04c0d1ed35e0a767de40d8d878b1fd15d76d417d07f768713b09c24a07bd",
   "firstObservedAt": "2026-10-13T19:16:13.780Z",
-  "lastObservedAt": "2026-10-13T19:16:13.780Z",
+  "lastObservedAt": "2026-10-13T23:18:14.505Z",
   "soakCompletesAt": "2026-10-13T20:16:13.780Z",
   "advisories": [],
   "blockers": [],
   "outputs": {},
-  "history": []
+  "history": [
+    {
+      "intentId": "reobserve-38483352380-1",
+      "type": "reobserve",
+      "at": "2026-10-13T23:18:27Z",
+      "payloadSha256": "44aaebca86203b1087a3a044e50e02777699dcf465c8e6a77334efde3894294b",
+      "from": "observed",
+      "to": "ready",
+      "revision": 1
+    }
+  ]
 }
