@@ -1,7 +1,7 @@
 {
   "format": "thunderclaw-openclaw-autopilot-state-v1",
-  "revision": 3,
-  "phase": "qualifying",
+  "revision": 4,
+  "phase": "qualified",
   "reservationId": "5fdf44a1c8c52205ce41f93e6a8460b5",
   "baseSha": "c010ecda54708eda35125b71f0cf6d261595cf68",
   "baseline": {
@@ -156,6 +156,28 @@
       "workflowCommit": "c010ecda54708eda35125b71f0cf6d261595cf68",
       "workflowSha256": "d099205f0c02e1b537611126f7a9a3e72eaaec7276787756455d401ed81cb164",
       "dispatchedAt": "2026-10-13T23:19:26Z"
+    },
+    "qualification": {
+      "requestId": "de56b93e10c482fa760f0e56f890051a",
+      "workflow": ".github/workflows/qualify-openclaw-autopilot.yml",
+      "workflowCommit": "c010ecda54708eda35125b71f0cf6d261595cf68",
+      "workflowSha256": "d099205f0c02e1b537611126f7a9a3e72eaaec7276787756455d401ed81cb164",
+      "runId": 38483541450,
+      "runAttempt": 1,
+      "headSha": "305c241219e10da982a3ec38130ba4c3a279d404",
+      "headBranch": "automation/openclaw-2026.10.3-5fdf44a1",
+      "event": "workflow_dispatch",
+      "conclusion": "success",
+      "evidenceSha256": "244c5ec91cbac241a22a228777258617ba4b9ddcf71b08c1091dea7f86a043f2",
+      "classificationEvidenceSha256": "8267dd54d2e7a6e3de976643d9fff31f4e007aad9b768a99cb3049c0ba3b2c86",
+      "candidateArtifactSha256": "583b420e2e90636b1fb33cb6db9fa7e56b7270142d01a5ea6df57cfc5fab4f60",
+      "counterpart": {
+        "repository": "kwatson/thunderclaw",
+        "tag": "thunderbird-extension-v0.1.2",
+        "name": "thunderclaw-thunderbird-0.1.2.xpi",
+        "sha256": "24bd448bb0d364184e3f72958564ef12bdcbac2c9aae568e353c64209e4bd497",
+        "size": 119484
+      }
     }
   },
   "history": [
@@ -185,6 +207,15 @@
       "from": "prepared",
       "to": "qualifying",
       "revision": 3
+    },
+    {
+      "intentId": "qualification-38483541450-1",
+      "type": "record-qualification",
+      "at": "2026-10-13T23:30:23Z",
+      "payloadSha256": "68d8c98f305b57f1ca817be964c358a30c741bb2bb7091927a2d74e1f4bb12e5",
+      "from": "qualifying",
+      "to": "qualified",
+      "revision": 4
     }
   ]
 }
