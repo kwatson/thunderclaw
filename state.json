@@ -1,7 +1,7 @@
 {
   "format": "thunderclaw-openclaw-autopilot-state-v1",
-  "revision": 9,
-  "phase": "closeout-open",
+  "revision": 10,
+  "phase": "complete",
   "reservationId": "5fdf44a1c8c52205ce41f93e6a8460b5",
   "baseSha": "c010ecda54708eda35125b71f0cf6d261595cf68",
   "baseline": {
@@ -213,6 +213,10 @@
       },
       "headSha": "1e4b96ab75cdf46efe3d8a958c0d07c709b69370",
       "tree": "9d287173dffa4dc4d0077dbd9a0c046476bb333c"
+    },
+    "completion": {
+      "mergeSha": "e00a9798ce1a2cfa0cc72e6da7086b78f781e062",
+      "mergeTree": "9d287173dffa4dc4d0077dbd9a0c046476bb333c"
     }
   },
   "history": [
@@ -296,6 +300,15 @@
       "from": "clawhub-verified",
       "to": "closeout-open",
       "revision": 9
+    },
+    {
+      "intentId": "complete-e00a9798ce1a2cfa0cc72e6da7086b78f781e062",
+      "type": "complete-closeout",
+      "at": "2026-10-13T23:39:49Z",
+      "payloadSha256": "40bcd889ea7ac3cf4f57ad284fee8f2fab37345aa61a41d0bcb7aa93f6d090ae",
+      "from": "closeout-open",
+      "to": "complete",
+      "revision": 10
     }
   ]
 }
