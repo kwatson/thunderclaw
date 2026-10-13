@@ -1,24 +1,24 @@
 {
   "format": "thunderclaw-openclaw-qualification-v1",
   "apiFloor": "2026.7.2-beta.7",
-  "stableVersion": "2026.10.2",
-  "supportedRange": ">=2026.7.2-beta.7 <2026.10.3-0",
-  "nextReleaseFloor": "2026.10.3-0",
+  "stableVersion": "2026.10.3",
+  "supportedRange": ">=2026.7.2-beta.7 <2026.10.4-0",
+  "nextReleaseFloor": "2026.10.4-0",
   "image": {
     "repository": "ghcr.io/openclaw/openclaw",
-    "linuxAmd64Digest": "sha256:26b23e71b4bc31eb2c07a719f3f3ea4f79837a87492a237c6905f54ddf30537d"
+    "linuxAmd64Digest": "sha256:350ec99dacc14ab44077b9b167d35c5af67e88fc350a563d4d5edb5d7ee66689"
   },
   "npm": {
-    "integrity": "sha512-FuLLF+WI12ypwQ0r+pcKDcmB+kXus5N4QClaKEnaAn6GN4I1AitkOhwv0GFl2rVKpvuUBDQWIfglHNy6Trv/EQ=="
+    "integrity": "sha512-ncl6LntMlf76K39LFhVrDXQTbaGNAG5j52f7PL5P8vIn0knWmCrvfAe9DHMslFq+47HeOWBH2CBYQH8zEb+UAA=="
   },
   "provider": {
     "package": "@openclaw/deepseek-provider",
-    "version": "2026.10.2",
-    "integrity": "sha512-rW24ydvhrovSQL6cQLXf5VFcStWqyYvJzSh/pfyffiF6sRPz9f8H+uTSqUkFnwaUWKGxc+TYBwDSN5Ign6LrRw=="
+    "version": "2026.10.3",
+    "integrity": "sha512-5X8dMUjFDDAbCwAPfnKtoibMhjRkW85vcxPLRUlN6LkQk1SC+2MzjulG6B29/KlMJdS8noc9clDgErOyhNZQRA=="
   },
   "upstream": {
     "repository": "openclaw/openclaw",
-    "releaseTag": "v2026.10.2",
-    "releaseCommit": "b8952d477f0c932d8ddc6da5c89cab5a169b6ff1"
+    "releaseTag": "v2026.10.3",
+    "releaseCommit": "59cb44796b0f1f0daa0e37af8b1495abb45d9bc1"
   }
 }
