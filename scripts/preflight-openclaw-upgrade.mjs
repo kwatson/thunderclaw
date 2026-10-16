@@ -114,9 +114,21 @@ export function summarizeUpstreamCi(releaseBody) {
   return { conclusion: "waived in official release evidence", waived: true };
 }
 
+class UpstreamReleasePendingError extends Error {}
+
 function githubReleaseIdentity(repository, version) {
   const tag = `v${version}`;
-  const release = JSON.parse(command("gh", ["api", `repos/${repository}/releases/tags/${tag}`]));
+  const response = spawnSync("gh", ["api", `repos/${repository}/releases/tags/${tag}`, "--include"],
+    { encoding: "utf8", maxBuffer: 32 * 1024 * 1024 });
+  // Only an HTTP 404 from this public release endpoint means publication is pending.
+  // Tag/commit failures and authentication, transport, or server errors remain failures.
+  if (response.status !== 0) {
+    if (/^HTTP\/[\d.]+ 404\b/u.test(response.stdout ?? "")) {
+      throw new UpstreamReleasePendingError(`Official GitHub release ${repository}@${tag} is not published yet`);
+    }
+    throw new Error(`gh failed with status ${response.status}: ${response.stderr?.trim() ?? ""}`);
+  }
+  const release = JSON.parse(response.stdout.split(/\r?\n\r?\n/u).slice(1).join("\n\n"));
   if (release.tag_name !== tag || release.draft !== false || release.prerelease !== false
       || !Number.isSafeInteger(release.id) || typeof release.html_url !== "string"
       || typeof release.published_at !== "string") {
@@ -159,10 +171,12 @@ async function proposedPackage(directory, version) {
 }
 
 function parseArguments(args) {
+  const deferUnpublished = args.at(-1) === "--defer-unpublished";
+  if (deferUnpublished) args = args.slice(0, -1);
   if (args.length !== 2 || args[0] !== "--version" || !/^\d{4}\.\d{1,2}\.\d+$/u.test(args[1])) {
-    throw new Error("Usage: preflight-openclaw-upgrade.mjs --version <YYYY.M.PATCH>");
+    throw new Error("Usage: preflight-openclaw-upgrade.mjs --version <YYYY.M.PATCH> [--defer-unpublished]");
   }
-  return args[1];
+  return { version: args[1], deferUnpublished };
 }
 
 async function preflight(version) {
@@ -217,12 +231,23 @@ async function preflight(version) {
 }
 
 if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url) {
+  let options;
   try {
-    const result = await preflight(parseArguments(process.argv.slice(2)));
+    options = parseArguments(process.argv.slice(2));
+    const result = await preflight(options.version);
     process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
     if (result.blockingFindings.length > 0) process.exitCode = 1;
   } catch (error) {
-    process.stderr.write(`${error.message}\n`);
-    process.exitCode = 1;
+    if (options?.deferUnpublished && error instanceof UpstreamReleasePendingError) {
+      process.stdout.write(`${JSON.stringify({
+        format: "thunderclaw-openclaw-discovery-pending-v1",
+        version: options.version,
+        reason: "official-github-release-pending",
+      })}\n`);
+      process.exitCode = 75;
+    } else {
+      process.stderr.write(`${error.message}\n`);
+      process.exitCode = 1;
+    }
   }
 }

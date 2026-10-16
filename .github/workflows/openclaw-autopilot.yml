@@ -65,7 +65,8 @@ jobs:
       contents: read
     outputs:
       version: ${{ steps.version.outputs.version }}
-      eligible: ${{ steps.version.outputs.eligible }}
+      eligible: ${{ steps.version.outputs.eligible == 'true' && steps.evidence.outputs.pending != 'true' }}
+      pending: ${{ steps.evidence.outputs.pending }}
       reuse_baseline: ${{ steps.version.outputs.reuse_baseline }}
     steps:
       - name: Check out trusted main
@@ -164,6 +165,7 @@ jobs:
         if: steps.version.outputs.eligible == 'true' && steps.version.outputs.reuse_baseline != 'true'
         run: mise exec -- npm ci
       - name: Collect immutable npm, provider, OCI, tag, commit, and release evidence
+        id: evidence
         if: steps.version.outputs.eligible == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
@@ -178,21 +180,49 @@ jobs:
           else
             set +e
             mise exec -- node scripts/preflight-openclaw-upgrade.mjs \
-              --version '${{ steps.version.outputs.version }}' > evidence/preflight.json
+              --version '${{ steps.version.outputs.version }}' --defer-unpublished > evidence/preflight.json
             status=$?
             set -e
+            if [[ "$status" -eq 75 ]]; then
+              jq -e --arg version '${{ steps.version.outputs.version }}' \
+                '.format == "thunderclaw-openclaw-discovery-pending-v1" and .version == $version and .reason == "official-github-release-pending"' evidence/preflight.json >/dev/null
+              echo "pending=true" >> "$GITHUB_OUTPUT"
+              echo 'Official GitHub release is not published yet. Discovery will retry on the next scheduled run; durable state is unchanged.' >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
             if [[ "$status" -ne 0 ]]; then
               jq -e '.format == "thunderclaw-openclaw-upgrade-preflight-v2" and (.blockingFindings | length > 0)' evidence/preflight.json >/dev/null || exit "$status"
             fi
           fi
       - name: Upload observation for the mutation boundary
-        if: steps.version.outputs.eligible == 'true'
+        if: steps.version.outputs.eligible == 'true' && steps.evidence.outputs.pending != 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: openclaw-autopilot-observation-${{ github.run_id }}
           path: evidence/preflight.json
           if-no-files-found: error
           retention-days: 7
+
+  cancel-pending-discovery:
+    name: Cancel discovery while upstream publication is pending
+    needs: inspect
+    if: needs.inspect.outputs.pending == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    permissions:
+      actions: write
+    steps:
+      - name: Cancel only this discovery run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api --method POST "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/cancel"
+          # Stay running until GitHub delivers cancellation; never proceed to mutations.
+          for attempt in {1..10}; do sleep 5; done
+          echo 'GitHub did not deliver the requested discovery cancellation' >&2
+          exit 1
 
   reserve:
     name: Advance the durable observation with compare-and-swap

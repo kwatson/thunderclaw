@@ -7,7 +7,13 @@ must pass. Anything outside that policy stops before publication and enters the
 manual release lane.
 
 The controller performs lightweight discovery at minute 17 every hour. The
-one-hour window still begins at first observation, and a fresh observation must
+discovery run cancels itself if npm advertises a stable version whose official
+GitHub release endpoint still returns HTTP 404. It records a summary, leaves
+durable state unchanged, and rediscovers the version on the next scheduled run.
+Other evidence errors remain failures. This applies only to discovery;
+qualification and publication cancellations still require operator review.
+
+The one-hour window still begins at first observation, and a fresh observation must
 confirm unchanged upstream identities before qualification. Polling and soak
 are separate controls; GitHub scheduling delays can extend either handoff.
 Unchanged/current releases skip dependency installation and qualification.
