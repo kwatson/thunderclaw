@@ -119,7 +119,7 @@ export function classifyChangeScope(files) {
         || file === "docs/brand/assets/raster/icons/thunderclaw-openclaw-plugin-icon-256.png"
         || file === "openclaw-qualification.json") plugin.push(file);
     else if (file.startsWith("packages/thunderbird-extension/") || extensionPackaging.has(file)) extension.push(file);
-    else if (file.startsWith(".github/") || file.startsWith("test/") || file.startsWith("fixtures/")
+    else if (file === ".mise.toml" || file.startsWith(".github/") || file.startsWith("test/") || file.startsWith("fixtures/")
         || file.startsWith("e2e/") || file.startsWith("site/") || file === "scripts/build-pages.mjs"
         || file === "openclaw-autopilot-foundation.json"
         || (file.startsWith("scripts/") && internalScripts.has(file.slice(8)))) internal.push(file);

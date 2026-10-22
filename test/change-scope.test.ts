@@ -17,7 +17,7 @@ test("internal automation repair requires checks without product qualification",
     "scripts/clawhub-publication-recovery.d.mts", "scripts/openclaw-controller-recovery.d.mts",
     "scripts/rehearse-release-operations.d.mts", "scripts/release-automation-fingerprint.mjs",
     "scripts/release-automation-fingerprint.d.mts", "scripts/openclaw-qualification-reconciliation.mjs",
-    "scripts/openclaw-qualification-reconciliation.d.mts"]);
+    "scripts/openclaw-qualification-reconciliation.d.mts", ".mise.toml"]);
   assert.equal(scope.runChecks, true);
   assert.equal(scope.qualifyPlugin, false);
   assert.equal(scope.qualifyExtension, false);
@@ -38,7 +38,7 @@ test("runtime, compatibility, packaging, and unknown inputs retain component gat
     assert.equal(scope.qualifyPlugin, false, file);
     assert.equal(scope.qualifyExtension, true, file);
   }
-  for (const file of ["package.json", "package-lock.json", ".mise.toml", "tsconfig.json", "LICENSE",
+  for (const file of ["package.json", "package-lock.json", "tsconfig.json", "LICENSE",
     "compose.spike.yaml", "scripts/new-build-tool.mjs", "new-runtime/input.ts"]) {
     const scope = classifyChangeScope([file]);
     assert.equal(scope.qualifyPlugin, true, file);
@@ -66,6 +66,10 @@ test("published product comparison permits reviewed machinery changes but catche
     await writeFile(path.join(root, "README.md"), "internal documentation\n");
     const reviewed = commit("reviewed docs");
     assert.deepEqual(assessPublishedPluginChanges(root, published, reviewed).findings, []);
+    await writeFile(path.join(root, ".mise.toml"), '[tools]\nnode = "24.22.1"\n');
+    git("add", "--force", ".mise.toml");
+    const managedRuntime = commit("reviewed managed runtime update");
+    assert.deepEqual(assessPublishedPluginChanges(root, published, managedRuntime).findings, []);
     git("mv", "LICENSE", "internal.md");
     const renamed = commit("move product input");
     assert.ok(changedFiles(root, reviewed, renamed).includes("LICENSE"));
