@@ -1,7 +1,7 @@
 {
   "format": "thunderclaw-openclaw-autopilot-state-v1",
-  "revision": 2,
-  "phase": "prepared",
+  "revision": 3,
+  "phase": "qualifying",
   "reservationId": "28b465edc057d9a3d2255a45c8e056e0",
   "baseSha": "5af2527a11b362dc4e978719d5f1d41f29a075e4",
   "baseline": {
@@ -149,6 +149,13 @@
         "classifierSha": "95ba91d36a7fedd7d3af03b2f9706140046f4c541bcbbb80a9fb2d4e002ddb4b",
         "releaseWorkflowSha": "9346190c22fdd2af3b824df75c5ba379fd31a8839cdc31646c3ffa0c013e1af2"
       }
+    },
+    "qualificationDispatch": {
+      "requestId": "426664c0ea2bd372141c3bc37ecc9386",
+      "workflow": ".github/workflows/qualify-openclaw-autopilot.yml",
+      "workflowCommit": "5af2527a11b362dc4e978719d5f1d41f29a075e4",
+      "workflowSha256": "d099205f0c02e1b537611126f7a9a3e72eaaec7276787756455d401ed81cb164",
+      "dispatchedAt": "2026-10-22T18:33:25Z"
     }
   },
   "history": [
@@ -169,6 +176,15 @@
       "from": "ready",
       "to": "prepared",
       "revision": 2
+    },
+    {
+      "intentId": "dispatch-426664c0ea2bd372141c3bc37ecc9386",
+      "type": "record-qualification-dispatch",
+      "at": "2026-10-22T18:33:25Z",
+      "payloadSha256": "3b39e900eedf62dda04e5772ae0ffe62e21310264735d705474cd25357c360c9",
+      "from": "prepared",
+      "to": "qualifying",
+      "revision": 3
     }
   ]
 }
