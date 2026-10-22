@@ -1,7 +1,7 @@
 {
   "format": "thunderclaw-openclaw-autopilot-state-v1",
-  "revision": 3,
-  "phase": "qualifying",
+  "revision": 4,
+  "phase": "blocked",
   "reservationId": "28b465edc057d9a3d2255a45c8e056e0",
   "baseSha": "5af2527a11b362dc4e978719d5f1d41f29a075e4",
   "baseline": {
@@ -123,7 +123,9 @@
   "lastObservedAt": "2026-10-22T18:32:12.616Z",
   "soakCompletesAt": "2026-10-22T14:47:00.121Z",
   "advisories": [],
-  "blockers": [],
+  "blockers": [
+    "ThunderClaw qualification run 39832457665 attempt 1 ended as blocked at gate"
+  ],
   "outputs": {
     "preparation": {
       "reservationId": "28b465edc057d9a3d2255a45c8e056e0",
@@ -156,6 +158,39 @@
       "workflowCommit": "5af2527a11b362dc4e978719d5f1d41f29a075e4",
       "workflowSha256": "d099205f0c02e1b537611126f7a9a3e72eaaec7276787756455d401ed81cb164",
       "dispatchedAt": "2026-10-22T18:33:25Z"
+    },
+    "failure": {
+      "format": "thunderclaw-openclaw-qualification-failure-v1",
+      "run": {
+        "id": 39832457665,
+        "attempt": 1,
+        "event": "workflow_dispatch",
+        "conclusion": "failure",
+        "workflowCommit": "5af2527a11b362dc4e978719d5f1d41f29a075e4",
+        "workflowPath": ".github/workflows/qualify-openclaw-autopilot.yml"
+      },
+      "reservation": {
+        "reservationId": "28b465edc057d9a3d2255a45c8e056e0",
+        "identitySha256": "8e1c253fbf8166875f3eceb54c1cce3aef497571c0ce8412b50b38fa020b3982",
+        "requestId": "426664c0ea2bd372141c3bc37ecc9386",
+        "candidateSha": "79704afd545ae4db1d6c37d102390970eba7f07b"
+      },
+      "jobs": {
+        "binding": "success",
+        "deterministic": "failure",
+        "openclawIntegration": "skipped",
+        "thunderbirdLinux": "skipped",
+        "nativeWindows": "skipped",
+        "nativeMacos": "skipped",
+        "pairQualification": "skipped",
+        "result": "failure"
+      },
+      "classification": {
+        "stage": "gate",
+        "disposition": "blocked",
+        "recoverable": false
+      },
+      "evidenceSha256": "cb882241551531776f3c9c24879ddccfb145558b7976ecad502450c6a4e291ce"
     }
   },
   "history": [
@@ -185,6 +220,15 @@
       "from": "prepared",
       "to": "qualifying",
       "revision": 3
+    },
+    {
+      "intentId": "qualification-failed-39832457665-1",
+      "type": "record-qualification-failure",
+      "at": "2026-10-22T18:34:36Z",
+      "payloadSha256": "cdd7c6dc70487d4249863d5e1166bf632b714ff9b44fb865dceba243d8e8ecb3",
+      "from": "qualifying",
+      "to": "blocked",
+      "revision": 4
     }
   ]
 }
