@@ -1,7 +1,7 @@
 {
   "format": "thunderclaw-openclaw-autopilot-state-v1",
-  "revision": 5,
-  "phase": "ready",
+  "revision": 6,
+  "phase": "prepared",
   "reservationId": "3a4a0c7e6a997077d50748d7fd328e61",
   "baseSha": "a43d539365ca9089f11855ed8ec965c58c1d13fb",
   "baseline": {
@@ -126,7 +126,33 @@
     "qualification operator retry: operator-reviewed failure; rerun every gate on trusted main"
   ],
   "blockers": [],
-  "outputs": {},
+  "outputs": {
+    "preparation": {
+      "reservationId": "3a4a0c7e6a997077d50748d7fd328e61",
+      "pluginVersion": "0.1.23",
+      "preparedDate": "2026-10-22",
+      "baseSha": "a43d539365ca9089f11855ed8ec965c58c1d13fb",
+      "branch": "automation/openclaw-2026.10.6-3a4a0c7e",
+      "prNumber": 68,
+      "candidateSha": "9bb4dc43d30d4d071619d70325d87854c5e0fa61",
+      "candidateTree": "a8a2f9e15cf25e6bd02a50e6510ea6dc063099b4",
+      "tag": "openclaw-plugin-v0.1.23",
+      "classificationEvidenceSha256": "c3f5a5a97df9c0d282ec9d92d283e802cd26f6b987bb54fee95dafee98a574cd",
+      "counterpart": {
+        "tag": "thunderbird-extension-v0.1.2",
+        "name": "thunderclaw-thunderbird-0.1.2.xpi",
+        "sha256": "24bd448bb0d364184e3f72958564ef12bdcbac2c9aae568e353c64209e4bd497",
+        "size": 119484,
+        "repository": "kwatson/thunderclaw"
+      },
+      "automation": {
+        "controllerWorkflowSha": "94b049a807aaa91e4004813e3fbf806628f9dff0a0e6f5249d79bad7e382efa4",
+        "qualificationWorkflowSha": "d099205f0c02e1b537611126f7a9a3e72eaaec7276787756455d401ed81cb164",
+        "classifierSha": "c1c6a863ef18e7579bd067c18ca590b60b1f95b3879077b4c12220ccad4091d8",
+        "releaseWorkflowSha": "9346190c22fdd2af3b824df75c5ba379fd31a8839cdc31646c3ffa0c013e1af2"
+      }
+    }
+  },
   "history": [
     {
       "intentId": "reobserve-39832159267-1",
@@ -172,6 +198,15 @@
       "from": "blocked",
       "to": "ready",
       "revision": 5
+    },
+    {
+      "intentId": "prepare-39835818975-1",
+      "type": "record-preparation",
+      "at": "2026-10-22T18:58:34Z",
+      "payloadSha256": "c5e003a6d03b3bbff9e47f90d7b1d506a8a0ab52c25895f70b82001e2bbc3457",
+      "from": "ready",
+      "to": "prepared",
+      "revision": 6
     }
   ]
 }
