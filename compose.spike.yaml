@@ -18,7 +18,7 @@ services:
       - ALL
 
   gateway:
-    image: ghcr.io/openclaw/openclaw:2026.10.6@sha256:74f88cd89e1d0eb89e270183f201c42c6d28b71b74b2db22270b5cd72c20b0c7
+    image: ghcr.io/openclaw/openclaw:2026.10.7@sha256:c8e82624d59d565afaac118c70b9380693c31bf6ec7b99dab2236c6ee0625b60
     user: "${THUNDERCLAW_COMPOSE_USER:-1000:1000}"
     env_file:
       - .env.openclaw.local
