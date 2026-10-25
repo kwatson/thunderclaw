@@ -2,8 +2,8 @@
 
 ## Supported versions
 
-Security fixes are provided for the latest published ThunderClaw release. Until
-the first public release, reports are evaluated against the default branch.
+Security fixes target the latest published ThunderClaw extension. Reports about
+the standalone development candidate are also evaluated against the default branch.
 
 ## Reporting a vulnerability
 
@@ -22,11 +22,11 @@ reporter. Please allow a reasonable remediation period before public disclosure.
 
 ## Scope
 
-Reports about ThunderClaw's extension, OpenClaw plugin, pairing protocol,
-credential boundaries, fixed HTTP routes, build artifacts, and release process
-are in scope. Vulnerabilities in Thunderbird, OpenClaw core, a model provider,
-or another dependency should also be reported to that upstream project; please
-tell us privately when the issue materially affects ThunderClaw.
+Reports about ThunderClaw's extension, inference transport, prompt handling,
+credential storage, editor boundaries, build artifacts, and release process are
+in scope. Vulnerabilities in Thunderbird, a model provider/server, or another
+dependency should also be reported to that upstream project; please tell us
+privately when the issue materially affects ThunderClaw.
 
 The security design and residual risks are documented in
 [`docs/security-and-privacy.md`](docs/security-and-privacy.md).

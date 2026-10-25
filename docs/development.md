@@ -1,109 +1,81 @@
 # ThunderClaw development
 
-> **Migration status:** The development extension now targets direct OpenAI-compatible inference. The OpenClaw-specific sections below describe the retained legacy integration. The [standalone migration](standalone-migration.md), [architecture](architecture.md), and [privacy policy](privacy-policy.md) govern the new extension; real-provider and Thunderbird release qualification remain required.
+ThunderClaw is a Thunderbird MailExtension. Its background connects directly to
+a user-configured inference API; ordinary development needs no backend service.
 
-## Runtime
+## Runtime and checks
 
-This repository uses `mise` for managed runtimes. Invoke Node.js and package
-tools through it in non-interactive shells:
+Install the runtime pinned in `.mise.toml` using [mise](https://mise.jdx.dev/).
+Use the managed runtime in non-interactive shells:
 
 ```text
-mise current
+mise install
 mise exec -- npm ci
 mise exec -- npm test
 mise exec -- npm run typecheck
-mise exec -- npm run build
-```
-
-Do not install or upgrade a system runtime to work around an inactive `mise`
-shim. Runtime-version changes must be deliberate repository changes.
-
-## Local OpenClaw environment
-
-The Docker test Gateway is defined by `compose.spike.yaml` and pinned to the
-supported OpenClaw version. Persistent state is under
-`.spike/thunderclaw-openclaw/`; generated integration evidence is under
-`.spike/evidence/` and `build/`. The Gateway and its npm subprocesses share the
-isolated, writable cache under `.spike/thunderclaw-openclaw-cache/`, and Compose
-runs the test services with the invoking host user's numeric identity so private
-bind-mounted state remains writable on local and hosted runners. These paths are
-ignored but are not disposable.
-
-The bootstrap installs and explicitly accepts the pinned provider's declared
-capabilities before non-interactive onboarding selects it. This ordering is
-required because onboarding cannot answer a first-install capability prompt.
-
-Copy `.env.example` to `.env.openclaw.local` and supply the required provider
-secret. Never print, commit, document, or place populated values in artifacts.
-
-Inspect before changing the environment:
-
-```text
-docker compose -f compose.spike.yaml ps
-docker compose -f compose.spike.yaml logs --tail=100 gateway
-```
-
-Do not use volume-removing Compose commands during ordinary work. Restart only
-the Gateway when the plugin runtime changes.
-
-Provider, model, agent, and Gateway operator configuration remains local
-OpenClaw state and must not be copied into documentation or artifacts. A broad
-Gateway operator token is not a ThunderClaw product-route credential and must
-never be placed in Thunderbird.
-
-## Build the extension
-
-```text
 mise exec -- npm run build:extension
 ```
 
-Build output belongs under `build/`. The stable extension ID is
-`thunderclaw@addons.thunderbird.net` and must not change without a planned
-migration across every dependent boundary.
+The build uses esbuild and the system `zip` tool. It writes
+`build/thunderclaw-extension.xpi` and a versioned XPI. The stable extension ID is
+`thunderclaw@addons.thunderbird.net`. Do not change it without a planned migration.
+Build output is ignored and can contain sensitive test evidence; handle it with
+care. Avoid building into the default output directory concurrently with tests.
 
-## Build and install the plugin
-
-Create the exact archive and inspect the running environment before install:
-
-```text
-mise exec -- npm run pack:plugin
-docker compose -f compose.spike.yaml ps
-docker compose -f compose.spike.yaml logs --tail=100 gateway
-```
-
-Install the archive name printed by `npm pack`, restart only the Gateway, and
-verify discovery and full runtime status:
+To produce the allowlisted reviewer source archive:
 
 ```text
-docker compose -f compose.spike.yaml exec -T gateway \
-  node openclaw.mjs plugins install --force --accept-capabilities \
-    npm-pack:/workspace/thunderclaw/build/ARCHIVE_NAME.tgz
-docker compose -f compose.spike.yaml restart gateway
-docker compose -f compose.spike.yaml exec -T gateway \
-  node openclaw.mjs plugins inspect thunderclaw --runtime --json
-docker compose -f compose.spike.yaml exec -T gateway \
-  node openclaw.mjs thunderclaw status --json
+mise exec -- npm run pack:source
 ```
 
-The pairing qualification harness provides controlled install recovery and is
-preferred when the pairing lifecycle is in scope. A direct installation should
-use its deployment's supported plugin update procedure.
+[Source review](../SOURCE_REVIEW.md) describes the reproducible build. Internal
+changes and documentation updates do not require a product version or release.
 
-## Repository map
+## Try a local build
 
-- `packages/thunderbird-extension/`: Thunderbird UI, capture, validation,
-  Preview, Apply, Undo, pairing, message translation, summaries, and shipping
-  icon derivatives
-- `packages/openclaw-plugin/`: OpenClaw plugin routes, sessions, prompts, agent
-  compatibility, fallbacks, pairing, and contracts
-- `test/`: fast deterministic unit, contract, lifecycle, and boundary tests
-- `e2e/thunderbird/`: real Thunderbird harnesses and fixtures
-- `e2e/qualification/`: exact-artifact real-agent qualification tooling
-- `scripts/`: builds and repeatable environment/qualification entry points
-- `docs/`: evergreen product, engineering, security, release, protocol, and
-  brand-source documentation
+Install the XPI from **Add-ons and Themes → gear menu → Install Add-on From File**.
+Use a disposable Thunderbird profile and synthetic email for development. Open
+settings, choose an endpoint/model, save, grant host access, and test the connection.
+See [installation](installation.md) for the full flow and provider defaults.
 
-The root workspace coordinates checks and releases, but each installable has
-its own package metadata. Do not add a runtime contract package shared by the
-extension and plugin; keep independent validators and exercise them against
-the shared conformance fixtures.
+Use your own provider account or a compatible local server for model trials.
+Never put keys into source files, command arguments, screenshots, test fixtures,
+or retained logs. A successful synthetic connection test is a bounded check;
+it does not prove language quality, prompt-injection resistance, or all model
+capabilities.
+
+## Source map
+
+| Location | Responsibility |
+| --- | --- |
+| `packages/thunderbird-extension/src/` | Settings, background inference, capture, Preview, Apply, Undo, and reading tools |
+| `test/` | Deterministic contracts, lifecycle, credential, transport, prompt, and DOM tests |
+| `e2e/thunderbird/` | Real Thunderbird harnesses and synthetic API fixtures |
+| `fixtures/` | Shared conformance examples |
+| `scripts/` | Builds, packaging, workflow checks, and qualification entry points |
+| `docs/` | Current product, engineering, security, release, and brand guidance |
+
+Start with `inference-provider.ts`, `inference-connection-controller.ts`,
+`credential-store.ts`, `inference-client.ts`, and `inference-output.ts` for the
+connection path. Capture and editor code remain responsible for local state and
+safe mutations. Some internal lifecycle types retain older terminology; they do
+not imply network sessions or a separately installed backend.
+
+Retained legacy source, dependencies, and local harnesses are not part of the
+standalone runtime or release gates. Do not use them as current setup guidance.
+Do not delete or overwrite populated ignored state such as `.spike/`, local
+environment files, or qualification evidence while making ordinary changes.
+
+## Change boundaries
+
+Keep credentials and network requests in the background. Treat email, user
+preferences, model output, model labels, and provider errors as untrusted input.
+Preserve strict output validation, local request/target bindings, separate Preview
+and Apply, stale-result rejection, and verified Undo. Models must never send
+mail, change recipients/headers/attachments, or supply HTML for insertion.
+
+Read [architecture](architecture.md), [product behavior](product-contract.md),
+[security](security-and-privacy.md), and [testing](testing.md) before changing these
+boundaries. For a release, follow the [release policy](release.md) and
+[operations runbook](release-operations.md); a local build is not a published or
+qualified release.

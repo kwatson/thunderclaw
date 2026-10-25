@@ -3,7 +3,7 @@
 ## Project identity
 
 This project is named **ThunderClaw**. Use `ThunderClaw` in user-facing text
-and `thunderclaw` in package names, plugin IDs, routes, environment variables,
+and `thunderclaw` in package names, routes, environment variables,
 Docker resources, and generated artifacts.
 
 ## Runtime and verification
@@ -26,7 +26,6 @@ mise exec -- npm run build:extension
 
 ## Repository layout
 
-- `packages/openclaw-plugin/`: OpenClaw plugin and package metadata
 - `packages/thunderbird-extension/`: Thunderbird extension source and icons
 - `test/`: deterministic unit, contract, lifecycle, and boundary tests
 - `e2e/`: real Thunderbird and protected qualification tooling
@@ -35,15 +34,15 @@ mise exec -- npm run build:extension
 - `docs/`: evergreen product, protocol, security, release, and brand material
 - `docs/roadmap.md`: the authoritative unfinished priority list
 
-The two components are independently packaged. Do not add a shared runtime
-contract library across their HTTP boundary; use independent validators and
-shared conformance fixtures.
+The background and Thunderbird mutation boundaries independently validate product
+data. Use conformance fixtures; do not collapse their validation responsibilities.
 
 ## Product and architecture invariants
 
 - ThunderClaw is a standalone Thunderbird MailExtension that calls a user-configured
   OpenAI-compatible inference endpoint. Do not add a mandatory relay, native helper,
-  agent framework, or OpenClaw core patch. Legacy plugin source remains during migration.
+  agent framework, or core application patch. Retained legacy source is not part
+  of the standalone runtime.
 - Thunderbird owns message and compose DOM mutation. Never insert
   model-produced HTML, let a model send mail, or let it change recipients,
   attachments, or headers.
@@ -62,9 +61,8 @@ shared conformance fixtures.
 
 ## Local state and sensitive data
 
-The Docker test Gateway is defined by `compose.spike.yaml`. Persistent local
-state under `.spike/`, populated environment files, generated `build/` output,
-and retained qualification evidence are ignored but may contain credentials,
+Persistent local state under `.spike/`, populated environment files, generated
+`build/` output, and retained qualification evidence are ignored but may contain credentials,
 message content, and environment details.
 
 - Do not print, commit, document, copy, or package populated values.
@@ -91,6 +89,6 @@ Only the standalone Thunderbird extension is published. Its manifest version,
 component-scoped root changelog entry, `thunderbird-extension-vX.Y.Z` tag, and
 GitHub release identify one XPI and one allowlisted Mozilla reviewer source ZIP.
 Build candidates once, record their digests, qualify those exact bytes, and
-promote them without rebuilding. No OpenClaw counterpart or ClawHub gate belongs
-to this release path. Historical plugin releases, local source/validation tools,
-immutable tags, and local Gateway state remain intact during migration.
+promote them without rebuilding. No companion artifact belongs to this release
+path. Preserve historical releases, immutable tags, retained validation tools, and
+private local state during separately scoped legacy cleanup.

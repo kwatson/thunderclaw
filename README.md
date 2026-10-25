@@ -20,13 +20,13 @@
 <p align="center">
   <a href="#what-it-can-do">Features</a> ·
   <a href="#how-it-stays-safe">Safety</a> ·
-  <a href="docs/installation-and-pairing.md">Installation</a> ·
+  <a href="docs/installation.md">Installation</a> ·
   <a href="docs/development.md">Development</a> ·
   <a href="CONTRIBUTING.md">Contributing</a>
 </p>
 
 > [!NOTE]
-> The development branch is migrating to a standalone extension with direct OpenAI-compatible connections, including DeepSeek, OpenRouter, Ollama and LM Studio. Published older releases use OpenClaw. See the [migration status](docs/standalone-migration.md) and [connection setup](docs/installation-and-pairing.md).
+> This checkout contains the standalone extension. It connects directly to your chosen provider or local model. The standalone candidate has not yet completed marketplace publication; check the exact version and release notes when downloading an older published build.
 
 ## AI assistance without handing over your inbox
 
@@ -83,7 +83,7 @@ eligibility rules.
 
 ## Your inference connection
 
-The standalone development extension connects directly to OpenAI, OpenRouter,
+ThunderClaw connects directly to OpenAI, OpenRouter,
 DeepSeek, Ollama, LM Studio, or a custom OpenAI-compatible endpoint. Choose the
 endpoint and model in settings, provide a key if needed, grant host access,
 save, and run the synthetic connection test. Keys are remembered locally across
@@ -111,19 +111,23 @@ endpoint or model. The project operates no inference or analytics service.
 - HTTPS is required remotely; explicit loopback HTTP is supported. Redirects
   and automatic endpoint/model fallback are rejected.
 
-See [architecture](docs/architecture.md) and [migration status](docs/standalone-migration.md).
+See [architecture](docs/architecture.md) and [security and privacy](docs/security-and-privacy.md).
 
 ## Installation
 
-The development candidate is not yet a newly published marketplace release.
-Build the extension from this checkout, install its XPI in Thunderbird, and
-follow [connection setup](docs/installation-and-pairing.md). No OpenClaw plugin
-or ThunderClaw companion service is required for the new extension.
+Install the XPI through Thunderbird's **Add-ons and Themes → gear menu →
+Install Add-on From File**, then open ThunderClaw settings. Choose a provider,
+load or enter a model, save your key and connection, grant host access, and click
+**Test connection**. Your key stays saved across restarts.
 
-Older published extensions use OpenClaw. Their instructions remain available
-at their release tags. Upgrading does not transfer OpenClaw provider keys or
-agent memory. Configure your inference connection explicitly and revoke the old
-paired device separately.
+For this development candidate, build the XPI from the checkout using the commands
+below. See [installation and connection setup](docs/installation.md) for provider
+presets, local servers, troubleshooting, and upgrade guidance. Installing a newer
+XPI updates the existing add-on; uninstalling first is unnecessary.
+
+The response limit defaults to **16,384 tokens**. Thinking defaults to **Off** for
+DeepSeek and **Model default** elsewhere. Both are configurable; model support
+varies. See [response controls](docs/inference-prompts.md#response-limit-and-thinking).
 
 ## Development
 
@@ -136,35 +140,21 @@ mise exec -- npm run typecheck
 mise exec -- npm run build
 ```
 
-The monorepo keeps both sides of the boundary reviewable together while
-packaging them independently:
+The main source and verification paths are:
 
 ```text
-packages/openclaw-plugin/         Legacy OpenClaw plugin (migration maintenance)
-packages/thunderbird-extension/   Thunderbird extension source and icons
-test/                             Unit, contract, lifecycle, and boundary tests
-e2e/                              Real Thunderbird and qualification tooling
-fixtures/                         Cross-boundary conformance fixtures
-scripts/                          Build and qualification entry points
-docs/                             Product, protocol, security, and release docs
+packages/thunderbird-extension/   Extension source, settings, and icons
+test/                             Deterministic unit and boundary tests
+e2e/thunderbird/                   Real Thunderbird harnesses and fixtures
+fixtures/                         Conformance fixtures
+scripts/                          Build, packaging, and qualification tools
+docs/                             Product, engineering, security, and release docs
 ```
 
-Shared fixtures test conformance, but each component independently validates
-the runtime contract across the HTTP boundary. Start with the
-[development guide](docs/development.md), [testing guide](docs/testing.md), and
-[contribution guide](CONTRIBUTING.md).
-
-## Project status
-
-ThunderClaw `v0.1.0` is the first public release and is available from
-[Thunderbird Add-ons](https://addons.thunderbird.net/en-US/thunderbird/addon/thunderclaw/)
-and [ClawHub](https://clawhub.ai/thunderclaw/plugins/openclaw-plugin). The
-[roadmap](docs/roadmap.md) is the authoritative list of unfinished work and
-post-release hardening.
-
-Bug reports, documentation improvements, tests, and focused code changes are
-welcome. For substantial behavior, protocol, dependency, or UI changes, please
-open an issue before investing in an implementation.
+Start with the [development guide](docs/development.md),
+[testing guide](docs/testing.md), and [contribution guide](CONTRIBUTING.md).
+The [roadmap](docs/roadmap.md) tracks unfinished qualification and hardening.
+Bug reports, documentation improvements, tests, and focused changes are welcome.
 
 ## Documentation
 
@@ -173,12 +163,13 @@ open an issue before investing in an implementation.
 - [Compatibility](docs/compatibility.md) — supported runtimes and upgrade policy
 - [Security and privacy](docs/security-and-privacy.md) — trust, credentials, disclosure, and residual risks
 - [Privacy policy](docs/privacy-policy.md) — ATN-ready data practices and listing disclosure collateral
-- [Installation and pairing](docs/installation-and-pairing.md) — installation and operator/user pairing
-- [Development](docs/development.md) — development environment and plugin updates
+- [Installation and connection setup](docs/installation.md) — providers, keys, local servers, and troubleshooting
+- [Development](docs/development.md) — build environment and local extension trials
 - [Testing](docs/testing.md) — test layers and qualification matrices
 - [Release process](docs/release.md) — artifact acceptance and publication policy
-- [OpenClaw upgrade runbook](docs/openclaw-upgrade-runbook.md) — compatibility-bump and publication sequence
-- [Protocol reference](docs/reference/) — normative boundary contracts
+- [Inference boundary](docs/reference/inference-boundary.md) — transport, local identity, validation, and safe errors
+- [Prompts and formatting](docs/inference-prompts.md) — action rules, response limits, and thinking
+- [Upgrade guide](docs/upgrading.md) — existing installations and retained review behavior
 - [Brand](docs/brand/) — assets, specification, licensing, and provenance
 
 ## Community and license

@@ -20,8 +20,8 @@ discussed.
 
 ## Development
 
-ThunderClaw is a monorepo containing a Thunderbird extension and an OpenClaw
-plugin. The repository uses Node.js through `mise`:
+ThunderClaw is a standalone Thunderbird extension that calls a user-configured
+inference API. The repository uses Node.js through `mise`:
 
 ```text
 mise exec -- npm ci

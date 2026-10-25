@@ -1,10 +1,9 @@
 # ThunderClaw release policy
 
-ThunderClaw ships a standalone Thunderbird extension. OpenClaw plugin publication,
-ClawHub promotion, upstream discovery, paired release qualification, and automatic
-counterpart closeout are retired. Historical releases, tags, attestations, incident
-records, and local Gateway state remain intact. Legacy plugin source and its local
-validation tools are retained during migration; they are not release dependencies.
+ThunderClaw ships a standalone Thunderbird extension. Only the extension XPI and
+matching reviewer source are published. Historical releases, tags, and attestations
+remain intact. Retained legacy source and local validation tools are not release
+dependencies. Historical documentation is available in Git history.
 
 ## Product and internal changes
 
@@ -19,8 +18,7 @@ extension packaging when relevant inputs change. Documentation-only changes stil
 report the required CI context. Unknown paths conservatively qualify the extension.
 Expensive Linux and Windows Thunderbird qualification is explicitly requested
 through CI's `release_qualification` dispatch input and runs for tagged releases.
-No OpenClaw container, Gateway key, ClawHub scan, plugin archive, or counterpart
-baseline is required by standalone CI or release jobs.
+Standalone CI and release jobs require no companion backend or paired artifact.
 
 ## Active workflows
 
@@ -33,8 +31,7 @@ baseline is required by standalone CI or release jobs.
 | `publish-thunderbird-addons.yml` | Protected ATN submission and public verification |
 
 The required main checks are **Tests, types, and packages** and **Signoffs**.
-The retired **Release automation validation** context is removed from main's
-ruleset when retiring the old automation; workflow regressions run in ordinary CI.
+Workflow regressions run in ordinary CI.
 Changes to external GitHub settings require authorization from the current task.
 Keep main pull-request admission, release approvals, restricted credentials, and
 immutable historical tag protections. The `release` environment admits extension
@@ -49,10 +46,10 @@ development orchestration metadata. Release notes come from exactly one nonempty
 matching `Thunderbird extension [X.Y.Z]` section in the root changelog.
 
 Only canonical `thunderbird-extension-vX.Y.Z` tags can enter the publication
-pipeline. The tag must resolve to a reviewed commit contained in main. Plugin tags,
-historical combined tags, branches, and channel mismatches cannot dispatch a new
-publication. Shared historical verification helpers may still recognize earlier
-public formats; that does not authorize republishing them.
+pipeline. The tag must resolve to a reviewed commit contained in main. Other
+tag formats, branches, and channel mismatches cannot dispatch a new publication.
+Shared historical verification helpers may still recognize earlier public formats;
+that does not authorize republishing them.
 
 Once a version has a public artifact, GitHub release, or attestation, its tag,
 source identity and qualified bytes are immutable. A correction to published
@@ -75,14 +72,14 @@ candidate. A rebuilt or guessed candidate cannot substitute for the qualified XP
 All required jobs must succeed before the protected `release` environment can
 attest and create the GitHub release. Action references and downloaded tools remain
 cryptographically pinned. Promotion downloads the qualified artifacts and verifies
-their checksums; it does not rebuild them. The release requires no backend plugin.
+their checksums; it does not rebuild them.
 
 ## ATN submission and completion
 
 The protected `thunderbird-addons` job accepts only the extension's canonical tag.
 It verifies source, checksums, notes, provenance, and attestations from the immutable
 GitHub release before submitting the exact XPI. Credentials never enter untrusted
-pull-request code. There is no scheduled or automatic ClawHub publisher.
+pull-request code.
 
 ATN's upload API cannot attach reviewer source or private testing notes. A maintainer
 must complete that version's Developer Hub handoff using the matching source ZIP,

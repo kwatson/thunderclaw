@@ -1,10 +1,8 @@
 # ThunderClaw release operations
 
 This runbook covers the standalone Thunderbird extension. The
-[release policy](release.md) is authoritative. OpenClaw compatibility admission,
-ClawHub publishing/recovery, paired release qualification, and counterpart closeout
-are retired; historical source and incident records remain available for audits.
-Do not follow old autopilot commands to publish the standalone extension.
+[release policy](release.md) is authoritative. Use current workflows; historical
+backend deployment and publication commands do not apply to this extension.
 
 Use the verified `kwatson/thunderclaw` checkout. Respect the current user's scope
 and authorization; this document grants no publication or settings permission.
@@ -61,22 +59,6 @@ submission. After its signing API accepts the XPI:
 
 A workflow summary must distinguish accepted upload, manual handoff, review, and
 verified public completion. Retain evidence without credentials or real mail.
-
-## Retiring the old automation
-
-The standalone source removes nine OpenClaw-related workflows and their dedicated
-controller/recovery/rehearsal code. The live cutover also disables those workflow
-IDs and removes only the obsolete **Release automation validation** required check
-from main's ruleset. Keep **Tests, types, and packages**, **Signoffs**, pull-request
-admission, and historical immutable tag protections.
-
-Before changing settings, inspect active runs and existing rules. Disable the
-OpenClaw rollout flag as well as its workflows when authorized, so older code
-cannot continue routine admissions. Preserve published releases, tags, attestations,
-state branches, and local Gateway data. Obsolete credentials/environments can be
-retired separately after checking their remaining consumers; never revoke shared
-credentials blindly. Repository workflow removal takes effect after merge; live
-workflow disabling stops new admissions earlier.
 
 ## Validate internal repairs
 
