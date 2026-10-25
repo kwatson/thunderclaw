@@ -6,9 +6,9 @@ ThunderClaw provides user-initiated writing and reading assistance in Thunderbir
 
 ## Data sent
 
-When you request a compose action, ThunderClaw sends the selected target, visible authored draft context, chosen action, custom instruction, and applicable writing preferences. It does not send recipient addresses, attachment contents, arbitrary headers, or extracted quoted history through compose inference. It reads additional local state to detect stale results before applying an edit.
+When you request a compose action, ThunderClaw sends the selected target, visible authored draft context, chosen action, custom instruction, and applicable writing preferences. It does not send recipient addresses, attachment contents, arbitrary headers, or extracted quoted history through compose inference. It reads additional local state to detect stale results before applying an edit. These exclusions refer to separate message fields; sensitive details already present in the selected text or authored context are still sent.
 
-Reading actions send eligible visible message text, including visible signatures and quoted history, and useful subject context. They do not fetch unrelated messages or attachment contents. Connection tests send synthetic text rather than your mail; listing models and testing may contact the configured provider, and a generation test may incur provider charges.
+Reading actions send eligible visible message text, including visible signatures and quoted history. They do not fetch unrelated messages or attachment contents. Connection tests send synthetic text rather than your mail; listing models and testing may contact the configured provider, and a generation test may incur provider charges.
 
 Operational requests identify the selected model and desired output format. Request/run ownership, selection offsets, and stale-result identity are maintained locally. API keys are transmitted only as authentication to their explicitly configured endpoint. Redirects and automatic endpoint/model fallback are rejected.
 
@@ -20,7 +20,7 @@ Email snapshots, previews, and jobs are held in memory for the active workflow. 
 
 ## User controls and limitations
 
-Change or remove a saved connection/key in settings. Local removal does not revoke a provider key or old OpenClaw device remotely. Changing configuration invalidates work from the former connection. Cancel discards local results and aborts the request, but cannot guarantee that a remote server stops processing or charging.
+Change or remove a saved connection/key in settings. Local removal does not revoke a provider key remotely. Changing configuration invalidates work from the former connection. Cancel discards local results and aborts the request, but cannot guarantee that a remote server stops processing or charging.
 
 A loopback server can forward requests to cloud services. OpenRouter may route to an upstream provider. Choose the model/server configuration appropriate for your data. ThunderClaw does not silently switch your connection.
 

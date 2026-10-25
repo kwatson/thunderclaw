@@ -1,124 +1,85 @@
 # ThunderClaw security and privacy
 
-> **Migration status:** The development extension now targets direct OpenAI-compatible inference. The OpenClaw-specific sections below describe the retained legacy integration. The [standalone migration](standalone-migration.md), [architecture](architecture.md), and [privacy policy](privacy-policy.md) govern the new extension; real-provider and Thunderbird release qualification remain required.
-
 ## Trust boundaries
 
-ThunderClaw treats email, quoted history, signatures, model output, backend
-errors, endpoint responses, and device-provided labels as untrusted input.
+ThunderClaw trusts Thunderbird and its installed extension code to capture and
+edit mail safely. Email bodies, signatures, quoted text, user preferences,
+provider replies/errors, and model output are untrusted data. The chosen endpoint
+and any upstream model provider receive the content necessary for an action and
+have their own retention, privacy, and billing policies.
 
-The trusted boundary includes:
+The project operates no inference or analytics service. A local API address can
+still route to hosted models. OpenRouter can route to upstream providers. Choose
+a connection appropriate for your mail. See the [privacy policy](privacy-policy.md)
+for what is transmitted and stored.
 
-- Thunderbird and the installed ThunderClaw extension;
-- the configured OpenClaw Gateway and ThunderClaw plugin;
-- other enabled Gateway plugins and hooks with access to agent-run events;
-- the selected configured agent and its workspace context; and
-- the configured model provider.
+## Model authority and prompt injection
 
-Invoking an action sends the relevant email text and any selected agent context
-that OpenClaw supplies to the configured provider. Onboarding and user-facing
-privacy copy must disclose this.
+Fixed system instructions describe one action and its bounded output schema.
+Email, custom instructions, language values, and writing preferences are serialized
+as user data. They cannot replace application rules or grant authority. Prompt
+rules reduce risk but do not guarantee a model will resist malicious instructions
+or produce a faithful edit. A plausible but misleading result can still pass
+structural validation; review it before accepting it.
 
-## Model authority
+Models receive no callable tools. They cannot send mail, choose recipients,
+change headers or attachments, select a different endpoint, or supply HTML for
+insertion. The background validates the output, then local capture/display/editor
+boundaries independently validate typed product operations. Unknown fields,
+unsafe structures, mismatched segment counts, oversize responses, refusals,
+truncation, and stale completions fail closed. Partial results are not applied.
 
-The model cannot send mail, directly mutate Thunderbird, select recipients,
-change headers or attachments, or return HTML for insertion. Model-callable
-OpenClaw tools and trajectory are disabled. Results pass strict plugin and
-extension validation and remain proposals until explicit Apply.
+Request/run identity, connection epochs, compose generations, target/context
+hashes, and message identities bind each result locally. Models return content,
+not authorization metadata. Preview, Apply, Undo, and normal Send remain separate
+user decisions. Configuration changes invalidate outstanding work. Undo is
+rejected when intervening edits make exact restoration unsafe.
 
-Every result is bound to exact request, run, connection, generation, agent,
-message/compose, target, context, and hash identities. Unknown fields,
-oversized bodies, stale results, unsafe structures, and mismatched identities
-fail closed.
+## Credentials and local persistence
 
-## Credentials
+Users supply their own API key when required. The background stores credentials
+in extension-origin IndexedDB scoped to the exact provider and canonical API
+base URL. Settings accept key entry but public connection state exposes only
+whether a key is saved. Keys do not belong in email scripts, feature messages,
+diagnostics, synchronized storage, exported settings, source, or artifacts.
 
-The extension contains no provider credential or broad OpenClaw Gateway token.
-The raw paired per-device credential is generated and retained by the
-Thunderbird background context. UI contexts receive only safe identifiers and
-validated product data.
-
-A Thunderbird-profile compromise may expose the device credential. The
-mitigations are narrow capabilities, per-device identity, fixed expiry,
-rotation, independent revocation, Disconnect, and Forget. Reversible
-encryption with a key stored in the same profile is not treated as an
-independent security boundary.
-
-The plugin stores only domain-separated verifiers for uniformly random
-high-entropy device and claim secrets. Email bodies, recipients, headers,
-attachments, provider/Gateway credentials, raw device credentials, and claim
-secrets never belong in the pairing registry.
-
-## Pairing registry
-
-The plugin-owned SQLite registry is the supported persistence boundary for an
-archive-installed plugin. It uses private plugin state, strict schema and
-bounded fields, transactional state changes, integrity checks, WAL, full
-synchronous durability, foreign keys, secure deletion, bounded busy waits, and
-fail-closed schema/filesystem validation.
-
-On tested POSIX systems, directories and database files are restricted to
-private modes and unsafe symlink/non-regular/hard-link shapes are rejected.
-POSIX modes are not a Windows ACL guarantee. Windows ACL, reparse-point,
-junction, antivirus, locking, atomic-replacement, backup/restore, restart, and
-upgrade behavior remain explicit platform qualification requirements.
-
-OpenClaw backups can contain broad state and must be handled as sensitive even
-when the registry itself contains only verifiers and metadata. Supported
-backup/restore creates and verifies a coherent isolated database; copying a
-live SQLite file without its transactional context is not a portability
-procedure.
+Keys persist across Thunderbird restarts. Local profile storage is not an
+encrypted vault or operating-system keychain. Device/profile compromise or an
+exposed backup can reveal keys. Use provider-side restrictions where available
+and revoke compromised keys at the provider. Forgetting local settings does not
+revoke a key remotely. Changing an endpoint never silently sends its former key
+to the new address.
 
 ## Network boundary
 
-Remote endpoints require HTTPS. Cleartext HTTP is limited to canonical
-`127.0.0.1` and `[::1]`; `localhost` aliases are not accepted as equivalent.
-Endpoint canonicalization, fixed-route confinement, manual redirect rejection,
-response-size limits, deadlines, and runtime host-permission checks apply at
-the background boundary.
+Remote API bases require HTTPS. HTTP is allowed only for explicit `127.0.0.1`
+or `[::1]`; `localhost` aliases are not accepted. Canonicalization rejects unsafe
+URL forms. The background constructs only fixed models and Chat Completions
+routes beneath the configured base, checks host permission, omits cookies, and
+rejects redirects. No automatic endpoint/model fallback or generation retry runs.
 
-Thunderbird host permission is origin-pattern based and can be broader in port
-and path than the product routes. ThunderClaw compensates by canonicalizing the
-configured origin and allowing the client to call only its fixed route map.
-Permission acquisition, retention, revocation, denial, endpoint change, and
-certificate failure are release-qualified behaviors.
+Thunderbird's host permission patterns can be broader than an exact API path or
+port. The application therefore enforces its own endpoint/credential scope in
+addition to browser permission checks. Saved configuration and key changes require
+an explicit synthetic test. Permission loss and connection changes invalidate
+work from the old binding.
 
-## Ambient OpenClaw hooks
+Requests and replies have byte limits and deadlines as well as a configured
+response-token budget. Cancellation aborts transport and invalidates local work;
+it cannot promise remote processing or billing stops. Timeout is distinct from
+user cancellation. Safe local error messages distinguish recognized output-limit,
+filtering, refusal, invalid-JSON, and context/settings failures without showing raw
+provider text or mail.
 
-Caller-owned sessions, disabled tools, and disabled trajectory do not disable
-OpenClaw's global plugin-hook runner. A `before_prompt_build` handler can receive
-prompt and prepared-message content. The pinned environment's `memory-core`
-handler returned without standing-intent matching because ThunderClaw labels
-compose and probe runs with `trigger: "manual"`, but it remains trusted code
-with technical access.
+## Data lifetime and residual risks
 
-ThunderClaw can guarantee its own ephemeral manager and model tool policy; it
-cannot claim that arbitrary installed Gateway hooks cannot observe or modify
-email content. A deployment needing stronger separation must use a controlled
-Gateway profile. Hook behavior must be re-audited for each supported OpenClaw
-release and material plugin-set change because dynamic registrations are not
-reliably represented by inventory counts.
+Snapshots, previews, and jobs are held in memory for the active workflow.
+ThunderClaw does not intentionally retain prompt/completion history or telemetry.
+The endpoint may retain requests independently. Avoid copying mail, keys, raw
+provider replies, or populated settings into bug reports and test evidence.
 
-## Persistence and telemetry
-
-ThunderClaw does not deliberately persist normal email prompts, model output,
-or transformation transcripts in OpenClaw session state. Qualification scans
-Gateway state, logs, SQLite sidecars, and retained artifacts for synthetic
-content and secret canaries.
-
-The pinned runtime may retain opaque session/run identifiers as content-free
-operational lifecycle telemetry. Production privacy documentation and
-retention policy must distinguish this metadata from email or model content.
-
-## Threat/control summary
-
-| Threat | Required control | Residual qualification |
-| --- | --- | --- |
-| Network interception or redirect | HTTPS remotely; canonical loopback exception; redirects rejected | Remote certificate-failure matrix |
-| Prompt injection from email | Email is delimited as untrusted data; tools disabled; strict output contracts | Provider/model regression testing |
-| Model overreach | No send/header/attachment/HTML authority; Preview before Apply | UI and DOM boundary tests |
-| Stale mutation | Exact generations, epochs, identities, and hashes | Concurrency and delayed-completion tests |
-| Credential theft | Background custody, narrow scope, rotation/revocation/expiry | Windows profile and permission qualification |
-| Registry theft/corruption | Verifiers only, private files, integrity/schema checks, fail closed | Windows and hostile-filesystem matrix |
-| Ambient Gateway plugin access | Disclosed trust boundary and repeatable hook audit | Re-audit every supported runtime/plugin set |
-| Secret leakage in evidence | In-memory secrets, redaction, content scans, sensitive artifact handling | Release-environment review |
+[Prompt evaluation](inference-prompts.md#evaluation-and-security-limits) and
+[testing](testing.md) distinguish deterministic boundary checks from real-model
+quality and native-platform evidence. A valid result or successful test is not a
+privacy or accuracy guarantee. Report vulnerabilities privately through the
+[security policy](../SECURITY.md).

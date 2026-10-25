@@ -59,7 +59,7 @@ automatically.
 ## Formatting path
 
 Supported rich selections include the existing editor-parsed paragraph blocks
-and bold, italic, and underline spans. These original blocks now travel with the
+and bold, italic, and underline spans. These original blocks travel with the
 selected text through capture, validation, target hashing, and the inference
 payload. Flat lists retain their separate item representation. The model is
 instructed to preserve supported structure and emphasis unless an explicit edit

@@ -1,7 +1,5 @@
 # ThunderClaw product contract
 
-> **Migration status:** The development extension now targets direct OpenAI-compatible inference. The OpenClaw-specific sections below describe the retained legacy integration. The [standalone migration](standalone-migration.md), [architecture](architecture.md), and [privacy policy](privacy-policy.md) govern the new extension; real-provider and Thunderbird release qualification remain required.
-
 This document describes current behavior. It is a product contract, not a
 record of how the behavior was developed.
 
@@ -12,15 +10,15 @@ follow a custom instruction for an eligible selection.
 
 Generate does not mutate the draft. Preview shows only a validated result.
 Apply is allowed only while the compose generation, connection binding,
-selected agent, target identity, target hash, context hash, headers, recipients,
-and attachments still match the authoritative state captured for the result.
+selected provider/model, target identity, target hash, context hash, headers,
+recipients, and attachments still match the authoritative state captured for the result.
 Undo is rejected after a newer user edit or another state change makes exact
 restoration unsafe.
 
 ## Plain selected text
 
 Thunderbird 128 and newer support bounded text-range replacement. Replacement
-text is canonicalized independently by the plugin and extension:
+text is canonicalized at the inference and editor boundaries:
 
 - an isolated model newline, including surrounding horizontal whitespace, is
   display wrapping and becomes one space;
@@ -66,9 +64,9 @@ containing only:
 - non-empty text spans; and
 - canonical bold, italic, and underline marks.
 
-The model returns neither HTML nor Markdown. The plugin, direct client, and
-compose boundary validate the tree independently. Preview builds local DOM
-with `createElement` and `createTextNode`; Apply serializes only the same local
+The model returns neither HTML nor Markdown. The inference adapter and compose
+boundary validate the tree independently. Preview builds local DOM with
+`createElement` and `createTextNode`; Apply serializes only the same local
 allowlist for the qualified Thunderbird editor command.
 
 Unknown fields, model HTML, URLs, attributes, links, styles, headings, tables,
@@ -94,10 +92,9 @@ affirmative numbered-list instruction requires ordered-list blocks. Structurally
 valid paragraph output does not satisfy those instructions. Negated,
 descriptive, or mixed paragraph/list wording remains unconstrained.
 
-The plugin and extension enforce the same bounded intent policy. A repair uses
-the same restricted in-memory session. Compose transformations allow at most
-two bounded repair calls after the primary response; malformed or empty output
-may be repairable, while unsafe, stale, mismatched, or oversized output is not.
+The extension enforces the bounded intent policy after validating the output.
+Invalid results fail closed. It does not automatically retry generation or
+make repair calls.
 
 ## Apply, rollback, and Undo
 
@@ -119,8 +116,8 @@ message structure, links, images, tables, attributes, and styles remain owned
 by Thunderbird.
 
 Displayed-message work is bound to the exact message identity and message
-hash. Cancellation uses the exact request, run, and message identities; aborting
-the local fetch is not a substitute for server cancellation.
+hash. Cancellation invalidates the exact local request/run/message invocation
+and aborts transport. It cannot guarantee remote processing or billing stops.
 
 ## Explicit exclusions
 

@@ -2,7 +2,7 @@
 
 Status: approved character and toolbar-icon directions
 
-Last updated: 2026-08-10
+Last updated: 2026-10-24
 
 ## The character
 
@@ -23,19 +23,16 @@ This mirrors the product boundary:
 3. The user explicitly applies it.
 4. Thunderbird's ordinary Send action remains separate.
 
-## Relationship to OpenClaw
+## Independent identity
 
-The crustacean is a quiet acknowledgment that ThunderClaw is powered by an
-OpenClaw agent. It is not an adaptation of OpenClaw's mascot or visual identity.
-ThunderClaw is differentiated by:
+ThunderClaw's mailbox-carrying hermit crab represents helpful, reviewable email
+assistance. The identity is independent of the model provider or server selected
+by the user. Preserve these defining features:
 
-- crab anatomy rather than lobster anatomy;
-- a compact teal body rather than a red crustacean;
-- a terrestrial mail-courier story rather than a space motif;
+- a compact teal crab body;
+- a terrestrial mail-courier story;
 - a cream rural-mailbox shell with a mustard thunderbolt; and
 - a restrained, screen-printed editorial style.
-
-This distinction is a design rule, not a trademark-clearance opinion.
 
 ## Canonical pose
 
@@ -149,9 +146,7 @@ offering rather than a mechanical reflection.
   Shipping derivatives are under
   `packages/thunderbird-extension/src/icons/` at 16, 20, 24, 32, 48, 64, 96,
   and 128 pixels.
-- [`assets/raster/icons/thunderclaw-openclaw-plugin-icon-256.png`](assets/raster/icons/thunderclaw-openclaw-plugin-icon-256.png):
-  256×256 transparent OpenClaw plugin-catalog derivative of the approved
-  toolbar icon master, sized to remain within OpenClaw's fetched-icon limit.
+
 
 The transparent family was isolated from the approved character using a
 flat-chroma background and local alpha removal. It is a derivative rather than

@@ -1,6 +1,7 @@
 # ThunderClaw architecture
 
-The development extension connects directly to a user-configured OpenAI-compatible inference endpoint. It requires no OpenClaw plugin, ThunderClaw server, native helper, or agent framework. The OpenClaw plugin and its tests remain in this repository as legacy components during migration; their historical artifacts remain immutable.
+ThunderClaw connects directly to a user-configured OpenAI-compatible inference
+endpoint. It requires no companion backend, native helper, or agent framework.
 
 ```text
 Thunderbird snapshot -> background-owned inference client -> selected endpoint/model
@@ -14,11 +15,11 @@ Thunderbird owns capture, DOM eligibility, mutation, postconditions, rollback, a
 
 The background owns provider configuration, credential access, host permissions, trusted prompts, transport, response parsing, strict payload validation, and local jobs. Request/run identities, connection epoch, compose generation, target offsets, target/context hashes, and document state remain locally bound to each invocation. Configuration changes retire outstanding jobs and previews. Models return content, not authorization metadata. Translation output is bound to the exact captured segments before the independent message-display validator sees it.
 
-The existing local compose lifecycle and product types retain some legacy protocol terminology as compatibility plumbing. Local open/close/cancel operations do not call an OpenClaw server. The shipped entry point must not include the old pairing controller or OpenClaw HTTP client.
+The existing local compose lifecycle and product types retain some legacy protocol terminology as compatibility plumbing. Open/close/cancel operations are local lifecycle operations. The shipped entry point includes only the standalone inference graph.
 
 ## Inference boundary
 
-One configured provider and model are active. Presets cover OpenAI, OpenRouter, DeepSeek, Ollama, LM Studio, and custom compatible servers. Configuration contains a canonical API base, model, structured-output mode, and optional writing style. Provider differences are explicit; there is no automatic endpoint/model fallback.
+One configured provider and model are active. Presets cover OpenAI, OpenRouter, DeepSeek, Ollama, LM Studio, and custom compatible servers. Configuration contains a canonical API base, model, structured-output mode, response-token limit, thinking level, and optional writing style. Provider differences are explicit; there is no automatic endpoint/model fallback.
 
 Calls use nonstreaming Chat Completions with bounded JSON output. JSON Schema is preferred where supported; JSON-object mode accommodates DeepSeek and compatible servers. Both modes use the same local product validation. Model names and API errors are untrusted data. Reject tool calls, refusals, truncation, invalid shapes, oversize output, and stale completions.
 
@@ -34,4 +35,4 @@ Compose inference uses selected text and authored draft context, without recipie
 
 Cancellation aborts local transport and invalidates the invocation; the provider may continue processing or charging. A successful connection test demonstrates a bounded synthetic operation, not all model behavior or privacy guarantees. A loopback endpoint can itself forward to a cloud model. OpenRouter is a routing service, so its upstream selection follows the user's provider settings.
 
-Provider compatibility regressions do not automatically create product releases. Keep deterministic contract, lifecycle and DOM tests; qualify representative real providers and exact XPI bytes before release. See [standalone migration](standalone-migration.md) for the rollout and remaining qualification.
+Provider compatibility regressions do not automatically create product releases. Keep deterministic contract, lifecycle and DOM tests; qualify representative real providers and exact XPI bytes before release. See [compatibility](compatibility.md), [testing](testing.md), and the [roadmap](roadmap.md) for coverage and remaining qualification.

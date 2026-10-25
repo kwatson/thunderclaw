@@ -1,36 +1,10 @@
-# ThunderClaw OpenClaw plugin
+# Retired backend source
 
-This package is the OpenClaw half of ThunderClaw. It exposes the fixed,
-paired-device HTTP routes used by the separately installed ThunderClaw
-extension for Mozilla Thunderbird.
+This workspace is retained for historical validation and migration maintenance.
+It is not required by the standalone ThunderClaw extension and is not published
+by the active release pipeline. Do not install it as part of current setup.
 
-Install the exact release archive through OpenClaw or ClawHub, enable the
-`thunderclaw` plugin, then use the operator command to review pairing requests:
-
-```text
-openclaw plugins install --accept-capabilities clawhub:@thunderclaw/openclaw-plugin
-openclaw plugins enable thunderclaw
-openclaw gateway restart
-openclaw thunderclaw
-```
-
-Capability consent during installation and approval of a Thunderbird pairing
-request are separate operator decisions.
-
-ThunderClaw lists existing configured OpenClaw agents and does not create one
-during installation or pairing. The default `main` agent is supported. A
-dedicated agent is optional when separate mail personality, workspace, memory,
-or model configuration is desirable; create one with `openclaw agents add
-ThunderClaw`, then verify it from ThunderClaw's Thunderbird settings.
-
-Provider credentials, configured agents, models, and model fallbacks remain in
-OpenClaw. The Thunderbird extension receives only a narrow paired-device
-credential. See the ThunderClaw repository's installation, security, and
-compatibility documentation before enabling the plugin.
-
-The package includes `assets/icon.png` as a copy of its
-256-pixel catalog artwork. OpenClaw loads the identical public brand derivative
-through OpenClaw's fixed local plugin-icon convention.
-
-Licensed under Apache-2.0. The ThunderClaw name and marks are governed by the
-repository's trademark policy.
+See the root README and `docs/installation.md` for the current extension.
+Historical installation and protocol documentation is available at the matching
+release tag. Preserve local private state and immutable published artifacts when
+retiring an older deployment.
