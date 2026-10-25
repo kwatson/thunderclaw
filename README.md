@@ -5,7 +5,7 @@
 <h1 align="center">ThunderClaw</h1>
 
 <p align="center">
-  <strong>OpenClaw-powered writing and reading assistance for Thunderbird.</strong>
+  <strong>AI writing and reading assistance for Thunderbird, using your chosen provider or local model.</strong>
   <br>
   Your inbox, your decisions, your control.
 </p>
@@ -26,9 +26,7 @@
 </p>
 
 > [!NOTE]
-> **OpenClaw requirement:** ThunderClaw supports OpenClaw from
-> `2026.7.2-beta.7` through the `2026.10.7` release line. See the
-> [compatibility policy](docs/compatibility.md) for details.
+> The development branch is migrating to a standalone extension with direct OpenAI-compatible connections, including DeepSeek, OpenRouter, Ollama and LM Studio. Published older releases use OpenClaw. See the [migration status](docs/standalone-migration.md) and [connection setup](docs/installation-and-pairing.md).
 
 ## AI assistance without handing over your inbox
 
@@ -42,7 +40,7 @@ Every compose change follows the same deliberate flow:
 **Generate → Preview → Apply → Undo**
 
 The current Thunderbird content remains authoritative throughout. Results are
-validated on both sides of the connection, and stale results fail closed.
+validated in the background and at the Thunderbird editing boundary, and stale results fail closed.
 
 ## See it in action
 
@@ -83,111 +81,49 @@ underlined spans. Unsupported shapes are rejected rather than guessed at.
 See the [product contract](docs/product-contract.md) for exact capability and
 eligibility rules.
 
-## Data sent to OpenClaw
+## Your inference connection
 
-ThunderClaw sends email content only after you invoke a writing, translation,
-or summary action:
+The standalone development extension connects directly to OpenAI, OpenRouter,
+DeepSeek, Ollama, LM Studio, or a custom OpenAI-compatible endpoint. Choose the
+endpoint and model in settings, provide a key if needed, grant host access,
+save, and run the synthetic connection test. Keys are remembered locally across
+restarts. They are not synchronized or an encrypted vault.
 
-- **Compose actions** send the selected target, the entire visible authored
-  draft body, extracted quoted message history, subject, and To/Cc/Bcc
-  recipients.
-- **Message actions** send the entire visible rendered message body—including
-  visible quoted history and signatures—plus its subject and author.
+Compose requests send the selected text and authored draft context, without
+recipient addresses or extracted quoted history. Reading requests send eligible
+visible message segments. Local state fingerprints still detect changes to
+recipients, headers, attachments and the captured text before Apply. Read the
+[privacy policy](docs/privacy-policy.md) for details.
 
-ThunderClaw does not send attachment contents, hidden message content, or
-message headers other than those listed above through its transformation
-routes. The content passes through the OpenClaw Gateway you configure to the
-selected agent and configured model provider. Configured fallback providers
-and hooks installed in that Gateway may also process it. ThunderClaw's
-developer operates no service that receives this content.
-
-Read the full [privacy policy](docs/privacy-policy.md) before use.
+A loopback endpoint can itself forward to hosted models. OpenRouter may route
+to an upstream provider. ThunderClaw never silently changes your configured
+endpoint or model. The project operates no inference or analytics service.
 
 ## How it stays safe
 
-Email is untrusted input, so ThunderClaw is intentionally narrow by design.
+- Thunderbird owns DOM changes, validation, rollback, and Undo. Models return
+  bounded typed data; model HTML is never inserted.
+- Sending remains manual. Models cannot change recipients, headers, or attachments.
+- Request/run identity, generations, target/context hashes, connection epochs,
+  output limits and exact segment mapping reject stale or misplaced changes.
+- The background owns credentials, prompts and transport. Settings and feature
+  messages are restricted to their trusted extension pages.
+- HTTPS is required remotely; explicit loopback HTTP is supported. Redirects
+  and automatic endpoint/model fallback are rejected.
 
-- **Thunderbird owns every mutation.** Models return strictly validated data,
-  never HTML to insert into a message.
-- **Sending stays ordinary and manual.** ThunderClaw cannot invoke Send or
-  alter recipients, attachments, or headers.
-- **Model runs are isolated.** The selected compatible OpenClaw agent runs with
-  in-memory sessions, model-callable tools disabled, and trajectory disabled.
-- **Results are bound to their context.** Request identity, generation, target
-  hashes, context hashes, output limits, and segment IDs prevent stale or
-  misplaced changes.
-- **Credentials stay scoped.** Thunderbird stores only its narrow paired
-  ThunderClaw credential—never provider keys or a broad Gateway token.
-- **The boundary is reviewable.** The extension and plugin communicate only
-  over fixed HTTP(S) routes, with independent validators on each side.
+See [architecture](docs/architecture.md) and [migration status](docs/standalone-migration.md).
 
-Read the full [security and privacy model](docs/security-and-privacy.md) and
-[architecture](docs/architecture.md).
+## Installation
 
-## Architecture
+The development candidate is not yet a newly published marketplace release.
+Build the extension from this checkout, install its XPI in Thunderbird, and
+follow [connection setup](docs/installation-and-pairing.md). No OpenClaw plugin
+or ThunderClaw companion service is required for the new extension.
 
-ThunderClaw has exactly two independently packaged components:
-
-```mermaid
-flowchart LR
-    U["You in Thunderbird"] -->|"Generate / Preview / Apply / Undo"| T["Thunderbird MailExtension"]
-    T -->|"Fixed HTTP(S) routes<br>strict JSON contracts"| P["ThunderClaw OpenClaw plugin"]
-    P -->|"Restricted, isolated run"| A["Your configured compatible agent"]
-    T -.->|"Only Thunderbird mutates<br>message and compose DOM"| M["Mail content"]
-```
-
-There is no native helper, Native Messaging host, alternate transport, or
-OpenClaw core patch. Provider, model, agent, and provider-key configuration
-remain in OpenClaw.
-
-ThunderClaw does not keep its own provider allowlist. It uses OpenClaw as the
-model router and applies the same runtime capability probe to every configured
-provider. DeepSeek is the current paid release-qualification baseline, not the
-only supported backend; see the [compatibility policy](docs/compatibility.md).
-
-## Installation and pairing
-
-ThunderClaw supports OpenClaw from `2026.7.2-beta.7` through the `2026.10.7`
-release line. See the [compatibility policy](docs/compatibility.md) before
-installing.
-
-Install the current compatible pair: Thunderbird extension `0.1.2` and
-OpenClaw plugin `0.1.10`:
-
-1. Install **ThunderClaw** from its
-   [Thunderbird Add-ons listing](https://addons.thunderbird.net/en-US/thunderbird/addon/thunderclaw/).
-2. Install and enable the
-   [`@thunderclaw/openclaw-plugin` package on ClawHub](https://clawhub.ai/thunderclaw/plugins/openclaw-plugin)
-   on the OpenClaw host:
-
-   ```bash
-   openclaw plugins install --accept-capabilities clawhub:@thunderclaw/openclaw-plugin
-   openclaw plugins enable thunderclaw
-   openclaw gateway restart
-   ```
-
-   `--accept-capabilities` records the OpenClaw operator's approval of the
-   plugin's declared capabilities. It is separate from approving a Thunderbird
-   device during ThunderClaw pairing.
-
-ThunderClaw lists the agents already configured in OpenClaw; it does not create
-one while installing or pairing. Using `main` is fully supported. A dedicated
-agent is optional when separate mail personality, workspace, memory, or model
-configuration is desirable—not a required security boundary. See
-[installation and pairing](docs/installation-and-pairing.md#choose-an-openclaw-agent)
-for the tradeoffs and setup command.
-
-Thunderbird initiates pairing and displays a short approval code. An
-authenticated OpenClaw operator approves the matching request with:
-
-```text
-openclaw thunderclaw
-```
-
-The user then explicitly claims that approval in Thunderbird. Approval and
-claim are separate decisions; neither happens automatically. See
-[installation and pairing](docs/installation-and-pairing.md) for the complete
-flow and [development](docs/development.md) for running from source today.
+Older published extensions use OpenClaw. Their instructions remain available
+at their release tags. Upgrading does not transfer OpenClaw provider keys or
+agent memory. Configure your inference connection explicitly and revoke the old
+paired device separately.
 
 ## Development
 
@@ -204,7 +140,7 @@ The monorepo keeps both sides of the boundary reviewable together while
 packaging them independently:
 
 ```text
-packages/openclaw-plugin/         OpenClaw plugin and package metadata
+packages/openclaw-plugin/         Legacy OpenClaw plugin (migration maintenance)
 packages/thunderbird-extension/   Thunderbird extension source and icons
 test/                             Unit, contract, lifecycle, and boundary tests
 e2e/                              Real Thunderbird and qualification tooling

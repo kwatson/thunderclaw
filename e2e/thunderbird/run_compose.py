@@ -20,7 +20,7 @@ from marionette_driver.addons import Addons
 from marionette_driver.by import By
 from marionette_driver.marionette import Marionette
 
-from stub_backend import start_stub
+from stub_backend import RICH_FORMATTING_INSTRUCTION, RICH_SOURCE_BLOCKS, RICH_SOURCE_TEXT, start_stub
 
 
 EXTENSION_ID = "thunderclaw@addons.thunderbird.net"
@@ -33,6 +33,8 @@ BODY_TEXT_ORIGINAL = "Water testing is automated. Results are reported wirelessl
 BODY_TEXT_PREVIEW = "<ul><li>Automated testing</li><li>Water level monitoring</li><li>Wireless reporting</li></ul>"
 PARAGRAPH_ORIGINAL = "Quick update: The cPanel api is finished. I'll update our api documentation website later this week."
 PARAGRAPH_PREVIEW = "<p>Quick update: the cPanel API is finished.</p><p>I'll update our API documentation later this week.</p>"
+RICH_SOURCE_HTML = "<p>This <b>draft</b> keeps <i>important</i> and <u>timely</u> details.</p>"
+RICH_FORMATTING_PREVIEW = RICH_SOURCE_HTML.replace("<b>draft</b>", "<b>final</b>")
 
 
 def wait_until(description: str, operation: Callable[[], Any], timeout: float = 20.0) -> Any:
@@ -91,13 +93,21 @@ def chrome(client: Marionette, script: str, args: list[Any] | None = None) -> An
     return client.execute_script(script, script_args=args or [])
 
 
+def quit_thunderbird(client: Marionette) -> None:
+    # The runner launches Thunderbird itself; Marionette.quit requires an owned instance.
+    chrome(client, r"""
+Services.tm.dispatchToMainThread(() => Services.startup.quit(Ci.nsIAppStartup.eForceQuit));
+return true;
+""")
+
+
 FIND_EXTENSION_DOCUMENT = r"""
 const suffix = arguments[0];
 const windows = Services.wm.getEnumerator(null);
 while (windows.hasMoreElements()) {
   const win = windows.getNext();
   const documents = [win.document];
-  const tab = win.gTabmail?.currentTabInfo;
+  const tab = (win.gTabmail ?? win.document.getElementById("tabmail"))?.currentTabInfo;
   for (const browser of [tab?.browser, tab?.chromeBrowser]) {
     try { if (browser?.contentDocument) documents.push(browser.contentDocument); } catch (_) {}
   }
@@ -122,7 +132,7 @@ const windows = Services.wm.getEnumerator(null);
 while (windows.hasMoreElements()) {
   const win = windows.getNext();
   const documents = [win.document];
-  const tab = win.gTabmail?.currentTabInfo;
+  const tab = (win.gTabmail ?? win.document.getElementById("tabmail"))?.currentTabInfo;
   for (const browser of [tab?.browser, tab?.chromeBrowser]) {
     try { if (browser?.contentDocument) documents.push(browser.contentDocument); } catch (_) {}
   }
@@ -135,15 +145,76 @@ while (windows.hasMoreElements()) {
       if (action === "text") return document.querySelector(value)?.textContent ?? null;
       if (action === "html") return document.querySelector(value)?.innerHTML ?? null;
       if (action === "value") return document.querySelector(value)?.value ?? null;
+      if (action === "model-options") {
+        const picker = document.querySelector("#available-models");
+        return picker && !document.querySelector("#model-choices")?.hidden ? Array.from(document.querySelectorAll("#model-options [role=option]"), item => item.dataset.value) : [];
+      }
+      if (action === "pointer-target") {
+        const element = document.querySelector(value.selector);
+        if (!element) throw new Error("Pointer target is missing");
+        if (value.scroll) element.scrollIntoView({ block: "center" });
+        const host = Array.from(win.document.querySelectorAll("browser")).find(item => item.contentDocument === document);
+        if (!host) throw new Error("Options browser is missing");
+        if (!document.documentElement.dataset.pickerProbeInstalled) {
+          document.documentElement.dataset.pickerProbeInstalled = "true";
+          document.addEventListener("mousemove", event => {
+            document.documentElement.dataset.pickerPointerX = String(event.clientX);
+            document.documentElement.dataset.pickerPointerY = String(event.clientY);
+          });
+        }
+        const bounds = element.getBoundingClientRect(), frame = host.getBoundingClientRect();
+        return { x: Math.round(frame.left + bounds.left + bounds.width / 2), y: Math.round(frame.top + bounds.top + bounds.height / 2),
+          clientX: Math.round(bounds.left + bounds.width / 2), clientY: Math.round(bounds.top + bounds.height / 2) };
+      }
+      if (action === "pointer-position") {
+        return { x: Number(document.documentElement.dataset.pickerPointerX), y: Number(document.documentElement.dataset.pickerPointerY) };
+      }
+      if (action === "picker-open") {
+        const picker = document.querySelector("#available-models"), options = document.querySelector("#model-options");
+        return picker?.getAttribute("aria-expanded") === "true" && options && !options.hidden;
+      }
+      if (action === "picker-style") {
+        const field = document.defaultView.getComputedStyle(document.querySelector("#model"));
+        const picker = document.defaultView.getComputedStyle(document.querySelector("#available-models"));
+        return ["backgroundColor", "color", "fontFamily", "fontSize", "borderTopWidth", "borderTopStyle", "borderTopColor", "borderTopLeftRadius"].every(property => field[property] === picker[property]);
+      }
+      if (action === "save-inference") {
+        const picker = document.querySelector("#available-models"), options = document.querySelector("#model-options");
+        const form = document.querySelector("#connection-form");
+        if (!form || picker?.getAttribute("aria-expanded") !== "false" || !options?.hidden) return false;
+        if (document.querySelector("#model")?.value !== "fixture-model") return false;
+        document.querySelector("#consent-accepted").checked = true;
+        const userInput = win.windowUtils.setHandlingUserInput(true);
+        try { form.requestSubmit(); } finally { userInput.destruct(); }
+        return true;
+      }
       if (action === "hidden") return document.querySelector(value)?.hidden ?? null;
+      if (action === "checked") return document.querySelector(value)?.checked ?? null;
       if (action === "dataset") {
         const element = document.querySelector(value.selector);
         return element?.dataset?.[value.name] ?? null;
       }
+      if (action === "probe-credentials") {
+        const request = document.defaultView.indexedDB.open("thunderclaw-inference-credentials-v1");
+        request.onupgradeneeded = () => { document.documentElement.dataset.credentialProbe = "missing"; request.transaction.abort(); };
+        request.onerror = () => { document.documentElement.dataset.credentialProbe ??= String(request.error?.name ?? "open-error"); };
+        request.onsuccess = () => {
+          const db = request.result;
+          if (!db.objectStoreNames.contains("credentials")) { document.documentElement.dataset.credentialProbe = "missing-store"; db.close(); return; }
+          const transaction = db.transaction("credentials", "readonly");
+          const count = transaction.objectStore("credentials").count();
+          count.onsuccess = () => { document.documentElement.dataset.credentialProbe = `records:${count.result}`; };
+          transaction.onerror = () => { document.documentElement.dataset.credentialProbe = String(transaction.error?.name ?? "transaction-error"); };
+          transaction.oncomplete = transaction.onabort = () => db.close();
+        };
+        return true;
+      }
       if (action === "click") {
         const element = document.querySelector(value);
         if (!element) return false;
-        element.click();
+        const userInput = win.windowUtils.setHandlingUserInput(true);
+        try { element.click(); }
+        finally { userInput.destruct(); }
         return true;
       }
       if (action === "confirm-click") {
@@ -167,6 +238,27 @@ while (windows.hasMoreElements()) {
         element.dispatchEvent(new Event("change", { bubbles: true }));
         return true;
       }
+      if (action === "inference") {
+        const provider = document.querySelector("#provider");
+        const endpoint = document.querySelector("#endpoint");
+        const model = document.querySelector("#model");
+        const key = document.querySelector("#api-key");
+        const consent = document.querySelector("#consent-accepted");
+        const form = document.querySelector("#connection-form");
+        if (!provider || !endpoint || !model || !key || !consent || !form) return false;
+        provider.value = "deepseek";
+        provider.dispatchEvent(new Event("change", { bubbles: true }));
+        endpoint.value = value.endpoint;
+        model.value = "";
+        key.value = "thunderclaw-synthetic-e2e-key";
+        for (const input of [endpoint, model, key]) input.dispatchEvent(new Event("input", { bubbles: true }));
+        consent.checked = true;
+        // Discovery must work before selecting a model or saving the connection.
+        const userInput = win.windowUtils.setHandlingUserInput(true);
+        try { document.querySelector("#load-models").click(); }
+        finally { userInput.destruct(); }
+        return true;
+      }
       if (action === "pair") {
         const endpoint = document.querySelector("#endpoint");
         const consent = document.querySelector("#consent-accepted");
@@ -181,7 +273,7 @@ while (windows.hasMoreElements()) {
         pair.click();
         return true;
       }
-    } catch (_) {}
+    } catch (error) { if (action === "save-inference") return { pickerFailure: String(error.message) }; }
   }
 }
 return null;
@@ -244,6 +336,82 @@ def configure_connection(
             "selector": "#connection-panel", "name": "phase",
         }) in initial_phases,
     )
+    standalone = extension_document(client, "options.html", "value", "#provider") is not None
+    if standalone:
+        configured = extension_document(client, "options.html", "inference", {
+            "endpoint": f"http://127.0.0.1:{port}/v1",
+        })
+        if configured is not True:
+            raise RuntimeError(f"Could not configure standalone extension at {url}")
+        if extension_document(client, "options.html", "value", "#thinking") != "none":
+            raise AssertionError("DeepSeek thinking did not default off")
+        if extension_document(client, "options.html", "value", "#max-response-tokens") != "16384":
+            raise AssertionError("The response token limit did not default to 16384")
+        try:
+            prompt = accept_permission_prompt(client)
+        except TimeoutError as error:
+            message = extension_document(client, "options.html", "text", "#result")
+            raise RuntimeError(f"Inference permission prompt did not appear; settings status: {message}") from error
+        wait_until("visible discovered model choices", lambda: "fixture-model" in extension_document(
+            client, "options.html", "model-options", None
+        ))
+        if extension_document(client, "options.html", "value", "#model") != "":
+            raise AssertionError("Discovery selected a model without a user choice")
+        def pointer_click(selector: str, scroll: bool = False) -> None:
+            point = extension_document(client, "options.html", "pointer-target", {"selector": selector, "scroll": scroll})
+            if not isinstance(point, dict) or "x" not in point:
+                raise AssertionError(f"Could not locate picker pointer target: {point!r}")
+            # W3C pointer actions exercise actual focus and pointer/mouse event order
+            # on both pinned Gecko versions without version-specific windowUtils hooks.
+            client.actions.sequence("pointer", "model-picker", {"pointerType": "mouse"}).pointer_move(
+                point["x"], point["y"], duration=100, origin="viewport"
+            ).perform()
+            observed = extension_document(client, "options.html", "pointer-position", None)
+            # Chrome viewport origins differ between Thunderbird generations. Measure
+            # their offset using mouse movement, never an extra activation click.
+            click_x = point["clientX"] + point["x"] - observed["x"]
+            click_y = point["clientY"] + point["y"] - observed["y"]
+            client.actions.sequence("pointer", "model-picker", {"pointerType": "mouse"}).pointer_move(
+                click_x, click_y, duration=100, origin="viewport"
+            ).click().perform()
+        pointer_click("#available-models", scroll=True)
+        wait_until("single pointer click opens model picker", lambda: extension_document(client, "options.html", "picker-open", None) is True)
+        if extension_document(client, "options.html", "picker-style", None) is not True:
+            raise AssertionError("Model picker styling does not match form fields")
+        pointer_click('#model-options [data-value="fixture-model"]')
+        wait_until("single pointer click selects model", lambda: extension_document(client, "options.html", "value", "#model") == "fixture-model")
+        chosen = extension_document(client, "options.html", "save-inference", None)
+        if chosen is not True:
+            raise AssertionError(f"Could not choose the discovered model and save: {chosen!r}")
+        wait_until("saved inference connection", lambda: extension_document(
+            client, "options.html", "dataset", {"selector": "#connection-panel", "name": "phase"}
+        ) == "untested")
+        if extension_document(client, "options.html", "click", "#test") is not True:
+            raise RuntimeError("Test inference connection button was not available")
+        try:
+            wait_until("tested inference connection", lambda: extension_document(
+                client, "options.html", "dataset", {"selector": "#connection-panel", "name": "phase"}
+            ) == "ready")
+        except TimeoutError as error:
+            message = extension_document(client, "options.html", "text", "#result")
+            raise RuntimeError(f"Inference test did not pass; settings status: {message}") from error
+        # Reopening settings must read the saved background credential without revealing it.
+        open_options(client)
+        wait_until("reopened inference connection", lambda: extension_document(
+            client, "options.html", "dataset", {"selector": "#connection-panel", "name": "phase"}
+        ) == "ready")
+        if extension_document(client, "options.html", "value", "#api-key") != "":
+            raise AssertionError("Reopened settings exposed the saved API key")
+        if "A key is saved" not in (extension_document(client, "options.html", "text", "#key-status") or ""):
+            raise AssertionError("Reopened settings did not retain the synthetic API key")
+        if extension_document(client, "options.html", "value", "#thinking") != "none":
+            raise AssertionError("Reopened settings did not retain DeepSeek thinking off")
+        if extension_document(client, "options.html", "value", "#max-response-tokens") != "16384":
+            raise AssertionError("Reopened settings did not retain the response token limit")
+        return {"optionsUrl": url, "permissionPrompt": prompt, "standalone": True,
+                "savedKeyOnReopen": True, "reopenedPasswordBlank": True, "deepSeekModelDiscovery": True, "singleClickStyledPicker": True,
+                "deepSeekThinkingDefaultOff": True, "responseTokenDefault": 16384}
+    # Retain legacy setup only for exact older-counterpart qualification.
     configured = extension_document(client, "options.html", "pair", {
         "endpoint": f"http://127.0.0.1:{port}/thunderclaw/v1",
     })
@@ -431,6 +599,27 @@ return { html: body.innerHTML, identities: { before: refs.before.isConnected && 
 """)
 
 
+def set_and_select_rich_paragraph(client: Marionette, backward: bool = False) -> dict[str, Any]:
+    return chrome(client, r"""
+const win = Services.wm.getMostRecentWindow("msgcompose"), editor = win.document.getElementById("messageEditor");
+const doc = editor.contentDocument, body = doc.body;
+const make = value => { const paragraph = doc.createElement("p"); paragraph.setAttribute("_moz_dirty", "");
+  paragraph.append(doc.createTextNode(value)); return paragraph; };
+const before = make("BEFORE_CANARY"), target = make("This "), after = make("AFTER_CANARY");
+for (const [tag, text, following] of [["b", "draft", " keeps "], ["i", "important", " and "], ["u", "timely", " details."]]) {
+  const mark = doc.createElement(tag); mark.append(doc.createTextNode(text));
+  target.append(mark, doc.createTextNode(following));
+}
+body.replaceChildren(before, target, after); editor.contentWindow.__thunderclawParagraphRefs = { before, target, after };
+const selection = editor.contentWindow.getSelection(), range = doc.createRange();
+range.setStart(target.firstChild, 0); range.setEnd(target.lastChild, target.lastChild.data.length);
+body.focus(); selection.removeAllRanges();
+if (arguments[0]) selection.setBaseAndExtent(target.lastChild, target.lastChild.data.length, target.firstChild, 0);
+else selection.addRange(range);
+return { html: body.innerHTML, text: range.toString() };
+""", [backward])
+
+
 def open_compose_action(client: Marionette) -> dict[str, Any]:
     action_id = "thunderclaw_addons_thunderbird_net-composeAction-toolbarbutton"
 
@@ -475,10 +664,15 @@ if (browser?.currentURI?.spec === "about:blank") browser.dispatchEvent(new Event
 def exercise_popup(client: Marionette) -> dict[str, Any]:
     action = open_compose_action(client)
     wait_until("compose action popup", lambda: chrome(client, FIND_EXTENSION_DOCUMENT, ["popup.html"]))
-    selected = wait_until(
-        "captured compose selection",
-        lambda: extension_document(client, "popup.html", "text", "#status") == f"{len(ORIGINAL)} characters selected",
-    )
+    try:
+        selected = wait_until(
+            "captured compose selection",
+            lambda: extension_document(client, "popup.html", "text", "#status") == f"{len(ORIGINAL)} characters selected",
+        )
+    except TimeoutError as error:
+        status = extension_document(client, "popup.html", "text", "#status")
+        detail = extension_document(client, "popup.html", "text", "#error")
+        raise RuntimeError(f"Compose popup did not capture selection: {status}; {detail}") from error
     before_preview = compose_body(client)
     if extension_document(client, "popup.html", "click", "#run") is not True:
         raise RuntimeError("Generate preview button was not available")
@@ -619,6 +813,57 @@ frame.contentDocument.body.focus(); return frame.contentDocument.execCommand("re
             "undone": undone, "redoReturned": redo, "redone": redone}
 
 
+def exercise_rich_formatting_popup(client: Marionette) -> dict[str, Any]:
+    action = open_compose_action(client)
+    wait_until("rich formatting compose popup", lambda: chrome(client, FIND_EXTENSION_DOCUMENT, ["popup.html"]))
+    wait_until("rich formatting selection capture", lambda: extension_document(client, "popup.html", "text", "#status")
+               == f"{len(RICH_SOURCE_TEXT)} characters selected")
+    if extension_document(client, "popup.html", "set", {"selector": "#action", "value": "ask"}) is not True:
+        raise RuntimeError("Custom instruction action was unavailable")
+    if extension_document(client, "popup.html", "set", {
+        "selector": "#instruction", "value": RICH_FORMATTING_INSTRUCTION,
+    }) is not True:
+        raise RuntimeError("Custom instruction field was unavailable")
+    original = paragraph_state(client)
+    expected_original = f"<p>BEFORE_CANARY</p>{RICH_SOURCE_HTML}<p>AFTER_CANARY</p>"
+    if original["html"] != expected_original or not all(original["identities"].values()):
+        raise AssertionError(f"Unexpected rich formatting fixture: {original!r}")
+    if extension_document(client, "popup.html", "click", "#run") is not True:
+        raise RuntimeError("Generate preview was unavailable for rich formatting")
+    # The inference fixture only returns this replacement after checking the
+    # selected original paragraph's exact text, blocks, and all three marks.
+    wait_until("source-verified rich formatting preview", lambda: extension_document(client, "popup.html", "text", "#status")
+               == "Preview ready", 30.0)
+    preview_html = extension_document(client, "popup.html", "html", "#replacement")
+    after_preview = paragraph_state(client)
+    if preview_html != RICH_FORMATTING_PREVIEW or after_preview != original:
+        raise AssertionError("Rich formatting Preview lost marks or mutated the compose DOM or selection")
+    if extension_document(client, "popup.html", "click", "#apply") is not True:
+        raise RuntimeError("Apply was unavailable for rich formatting")
+    wait_until("rich formatting Apply", lambda: extension_document(client, "popup.html", "text", "#status")
+               == "Applied — Thunderbird still controls Send")
+    applied = paragraph_state(client)
+    expected_applied = f"<p>BEFORE_CANARY</p>{RICH_FORMATTING_PREVIEW}<p>AFTER_CANARY</p>"
+    if applied["html"] != expected_applied or applied["identities"] != {"before": True, "target": False, "after": True}:
+        raise AssertionError(f"Rich formatting Apply lost marks or surrounding nodes: {applied!r}")
+    if extension_document(client, "popup.html", "click", "#discard") is not True:
+        raise RuntimeError("Undo was unavailable for rich formatting")
+    wait_until("rich formatting Undo", lambda: extension_document(client, "popup.html", "text", "#status") == "Change undone")
+    undone = paragraph_state(client)
+    if undone != original:
+        raise AssertionError(f"Rich formatting Undo was not exact: {undone!r}")
+    redo = chrome(client, r"""
+const frame = Services.wm.getMostRecentWindow("msgcompose").document.getElementById("messageEditor");
+frame.contentDocument.body.focus(); return frame.contentDocument.execCommand("redo");
+""")
+    redone = paragraph_state(client)
+    if redo is not True or redone != applied:
+        raise AssertionError(f"Rich formatting native Redo was not exact: {redone!r}")
+    return {"action": action, "instruction": RICH_FORMATTING_INSTRUCTION, "sourceBlocksVerifiedByFixture": RICH_SOURCE_BLOCKS,
+            "original": original, "previewHtml": preview_html, "afterPreview": after_preview, "applied": applied,
+            "undone": undone, "redoReturned": redo, "redone": redone}
+
+
 def save_screenshot(client: Marionette, path: Path) -> None:
     try:
         encoded = client.screenshot(full=True)
@@ -673,14 +918,51 @@ def run_trial(
                 raise AssertionError(
                     f"Expected Thunderbird {expected_version} build {expected_build_id}, got {runtime!r}"
                 )
-            installed_id = Addons(client).install(str(xpi), temp=True)
+            # Install in the disposable profile so a real restart exercises saved credentials.
+            installed_id = Addons(client).install(str(xpi), temp=False)
             if installed_id != EXTENSION_ID:
                 raise AssertionError(f"Installed unexpected extension ID: {installed_id!r}")
             wait_until("extension startup", lambda: chrome(client, r"""
 const { ExtensionParent } = ChromeUtils.importESModule("resource://gre/modules/ExtensionParent.sys.mjs");
-return ExtensionParent.GlobalManager.extensionMap.has(arguments[0]);
+return ExtensionParent.GlobalManager.extensionMap.get(arguments[0])?.backgroundState === "running";
 """, [EXTENSION_ID]))
             connection = configure_connection(client, stub_port)
+            if connection.get("standalone"):
+                quit_thunderbird(client)
+                process.wait(timeout=15)
+                client = None
+                process = subprocess.Popen(command, stdout=log, stderr=subprocess.STDOUT, text=True)
+                wait_for_port(marionette_port, process)
+                client = Marionette(host="127.0.0.1", port=marionette_port)
+                client.start_session()
+                wait_until("installed extension after restart", lambda: chrome(client, r"""
+const { ExtensionParent } = ChromeUtils.importESModule("resource://gre/modules/ExtensionParent.sys.mjs");
+return ExtensionParent.GlobalManager.extensionMap.get(arguments[0])?.backgroundState === "running";
+""", [EXTENSION_ID]))
+                open_options(client)
+                try:
+                    wait_until("saved connection after restart", lambda: extension_document(
+                        client, "options.html", "dataset", {"selector": "#connection-panel", "name": "phase"}
+                    ) == "ready")
+                except TimeoutError as error:
+                    state = extension_document(client, "options.html", "text", "#state")
+                    detail = extension_document(client, "options.html", "text", "#result")
+                    key_status = extension_document(client, "options.html", "text", "#key-status")
+                    extension_document(client, "options.html", "probe-credentials", None)
+                    probe = wait_until("credential store diagnostic", lambda: extension_document(
+                        client, "options.html", "dataset", {"selector": "html", "name": "credentialProbe"}
+                    ), 3)
+                    raise RuntimeError(f"Connection after restart: {state}; {detail}; {key_status}; IDB {probe}") from error
+                if extension_document(client, "options.html", "value", "#api-key") != "":
+                    raise AssertionError("Settings exposed the saved API key after restart")
+                if "A key is saved" not in (extension_document(client, "options.html", "text", "#key-status") or ""):
+                    raise AssertionError("Synthetic API key was not retained across Thunderbird restart")
+                extension_document(client, "options.html", "click", "#test")
+                wait_until("authenticated inference after restart", lambda: extension_document(
+                    client, "options.html", "text", "#result"
+                ) == "The selected model passed the synthetic connection test.")
+                connection["savedKeyAcrossRestart"] = True
+                connection["authenticatedTestAfterRestart"] = True
             open_compose(client)
             initial = set_and_select_body(client, ORIGINAL)
             if initial != ORIGINAL:
@@ -688,6 +970,7 @@ return ExtensionParent.GlobalManager.extensionMap.has(arguments[0]);
             compose = exercise_popup(client)
             body_text_list = None
             paragraph_expansion = None
+            rich_formatting = None
             if expected_version.startswith("153."):
                 extension_document(client, "popup.html", "close", None)
                 wait_until("first compose popup close", lambda: not chrome(client, FIND_EXTENSION_DOCUMENT, ["popup.html"]))
@@ -702,6 +985,12 @@ return ExtensionParent.GlobalManager.extensionMap.has(arguments[0]);
                                "text": PARAGRAPH_ORIGINAL}:
                     raise AssertionError(f"Unexpected paragraph expansion fixture: {fixture!r}")
                 paragraph_expansion = exercise_paragraph_expansion_popup(client)
+                extension_document(client, "popup.html", "close", None)
+                wait_until("paragraph expansion popup close", lambda: not chrome(client, FIND_EXTENSION_DOCUMENT, ["popup.html"]))
+                fixture = set_and_select_rich_paragraph(client, backward=number == 2)
+                if fixture != {"html": f"<p>BEFORE_CANARY</p>{RICH_SOURCE_HTML}<p>AFTER_CANARY</p>", "text": RICH_SOURCE_TEXT}:
+                    raise AssertionError(f"Unexpected rich formatting fixture: {fixture!r}")
+                rich_formatting = exercise_rich_formatting_popup(client)
             result = {
                 "trial": number,
                 "status": "passed",
@@ -712,6 +1001,7 @@ return ExtensionParent.GlobalManager.extensionMap.has(arguments[0]);
                 "compose": compose,
                 "bodyTextListConversion": body_text_list,
                 "paragraphExpansion": paragraph_expansion,
+                "richSourceFormatting": rich_formatting,
             }
             (trial_dir / "result.json").write_text(json.dumps(result, indent=2, sort_keys=True), encoding="utf-8")
             return result
@@ -724,7 +1014,7 @@ return ExtensionParent.GlobalManager.extensionMap.has(arguments[0]);
         finally:
             if client is not None:
                 try:
-                    client.quit(in_app=True)
+                    quit_thunderbird(client)
                 except BaseException:
                     pass
             stop_process(process)

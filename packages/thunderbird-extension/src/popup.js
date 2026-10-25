@@ -1,8 +1,10 @@
 const elements = {
   status: document.querySelector("#status"),
   agent: document.querySelector("#agent"),
+  connection: document.querySelector("#connection"),
   action: document.querySelector("#action"),
   instruction: document.querySelector("#instruction"),
+  instructionLabel: document.querySelector("#instruction-label"),
   run: document.querySelector("#run"),
   preview: document.querySelector("#preview"),
   replacement: document.querySelector("#replacement"),
@@ -30,6 +32,24 @@ function setBusy(busy, label) {
   elements.apply.disabled = busy || applied;
   elements.discard.disabled = busy;
   if (label) elements.status.textContent = label;
+}
+
+function instructionRequirement() {
+  const requirements = {
+    tone: { label: "Desired tone (required)", placeholder: "For example: warm and professional", error: "Describe the tone you want before generating a preview." },
+    translate: { label: "Target language (required)", placeholder: "For example: translate to Spanish", error: "Enter a target language before generating a preview." },
+    ask: { label: "Instruction (required)", placeholder: "Describe how to revise the selected text", error: "Enter an instruction before generating a preview." },
+  };
+  return requirements[elements.action.value];
+}
+
+function updateAction() {
+  const requirement = instructionRequirement();
+  elements.instructionLabel.textContent = requirement?.label || "Instruction (optional)";
+  elements.instruction.placeholder = requirement?.placeholder || "For example: make this warmer";
+  elements.instruction.required = Boolean(requirement);
+  elements.instruction.removeAttribute("aria-invalid");
+  elements.error.hidden = true;
 }
 
 function renderReplacement(result) {
@@ -134,13 +154,14 @@ async function initialize() {
   for (const agent of state.agents) {
     const option = document.createElement("option");
     option.value = agent.agentId;
-    const verification = agent.compatibility?.state === "verified" ? "" : ` (${agent.compatibility?.state || "unverified"})`;
-    option.textContent = agent.model ? `${agent.displayName} — ${agent.model}${verification}` : `${agent.displayName}${verification}`;
+    option.textContent = agent.model || agent.displayName;
     option.selected = agent.agentId === state.selectedAgentId;
     elements.agent.append(option);
   }
-  if (!state.agents.length) throw new Error("No compatible OpenClaw agents are available.");
-  elements.agent.disabled = false;
+  if (!state.agents.length) throw new Error("Choose a model in ThunderClaw connection settings.");
+  elements.agent.disabled = true;
+  const selected = state.agents.find((agent) => agent.agentId === state.selectedAgentId);
+  elements.connection.textContent = selected?.provider ? `Connected to ${selected.provider}` : "Configured model";
   elements.run.disabled = false;
   elements.status.textContent = `${state.selection.text.length} characters selected`;
   if (state.job) {
@@ -149,8 +170,16 @@ async function initialize() {
   }
 }
 
+elements.action.addEventListener("change", updateAction);
+elements.instruction.addEventListener("input", () => elements.instruction.removeAttribute("aria-invalid"));
 elements.run.addEventListener("click", async () => {
   elements.error.hidden = true;
+  const requirement = instructionRequirement();
+  if (requirement && !elements.instruction.value.trim()) {
+    elements.instruction.setAttribute("aria-invalid", "true");
+    elements.instruction.focus();
+    return showError(new Error(requirement.error));
+  }
   elements.preview.hidden = true;
   suggestionId = undefined;
   applied = false;
@@ -211,4 +240,5 @@ window.addEventListener("unload", () => {
   if (pollTimer) clearTimeout(pollTimer);
 });
 
+updateAction();
 void initialize().catch(showError);

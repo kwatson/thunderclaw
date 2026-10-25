@@ -1,131 +1,37 @@
 # ThunderClaw architecture
 
-## System shape
-
-ThunderClaw has exactly two installable components:
+The development extension connects directly to a user-configured OpenAI-compatible inference endpoint. It requires no OpenClaw plugin, ThunderClaw server, native helper, or agent framework. The OpenClaw plugin and its tests remain in this repository as legacy components during migration; their historical artifacts remain immutable.
 
 ```text
-Thunderbird MailExtension
-    -> background-owned direct HTTP(S) client
-    -> paired credential and fixed /thunderclaw routes
-ThunderClaw OpenClaw plugin
-    -> selected configured OpenClaw agent
-    -> strict JSON result
+Thunderbird snapshot -> background-owned inference client -> selected endpoint/model
+                    <- bounded, validated JSON content
 Thunderbird Preview -> Apply -> Undo -> normal Send
 ```
 
-There is no companion executable, native helper, Native Messaging host,
-privileged host registration, alternate transport, or OpenClaw fork. Remote
-origins require HTTPS. Cleartext HTTP is allowed only for canonical
-`127.0.0.1` and `[::1]` loopback endpoints.
+## Ownership and authority
 
-Both components live in this repository under `packages/`, but they remain
-separate installables with no shared runtime dependency. Independent request and
-response validators on each side of the fixed HTTP boundary are exercised
-against common conformance fixtures.
+Thunderbird owns capture, DOM eligibility, mutation, postconditions, rollback, and Undo. Model output never reaches an HTML parser. Models cannot send mail or change recipients, attachments, headers, or the selected endpoint. The current Thunderbird snapshot is authoritative.
 
-## Ownership
+The background owns provider configuration, credential access, host permissions, trusted prompts, transport, response parsing, strict payload validation, and local jobs. Request/run identities, connection epoch, compose generation, target offsets, target/context hashes, and document state remain locally bound to each invocation. Configuration changes retire outstanding jobs and previews. Models return content, not authorization metadata. Translation output is bound to the exact captured segments before the independent message-display validator sees it.
 
-### Thunderbird extension
+The existing local compose lifecycle and product types retain some legacy protocol terminology as compatibility plumbing. Local open/close/cancel operations do not call an OpenClaw server. The shipped entry point must not include the old pairing controller or OpenClaw HTTP client.
 
-The extension owns:
+## Inference boundary
 
-- capture of the authoritative compose or displayed-message snapshot;
-- feature UI and locally authored error text;
-- selection and DOM eligibility;
-- Preview construction without draft mutation;
-- Apply, postcondition validation, rollback, and Undo;
-- reversible message translation and separate summary rendering; and
-- the final Send decision through Thunderbird's normal UI.
+One configured provider and model are active. Presets cover OpenAI, OpenRouter, DeepSeek, Ollama, LM Studio, and custom compatible servers. Configuration contains a canonical API base, model, structured-output mode, and optional writing style. Provider differences are explicit; there is no automatic endpoint/model fallback.
 
-Only Thunderbird mutates message or compose DOM. Model values never reach an
-HTML parser or an unrestricted HTML insertion surface.
+Calls use nonstreaming Chat Completions with bounded JSON output. JSON Schema is preferred where supported; JSON-object mode accommodates DeepSeek and compatible servers. Both modes use the same local product validation. Model names and API errors are untrusted data. Reject tool calls, refusals, truncation, invalid shapes, oversize output, and stale completions.
 
-### Extension background
+Remote endpoints require HTTPS. HTTP is restricted to explicit loopback addresses. Build only fixed models/chat-completions routes under the configured base, reject redirects, and omit cookies. Host permissions do not replace exact application-level origin/path checks.
 
-The background owns:
+## Credentials and context
 
-- endpoint canonicalization and runtime host permission;
-- background-only custody of the paired device credential;
-- direct transport, deadlines, response-size limits, and redirect rejection;
-- connection epochs and retirement of old work;
-- compose/message job coordination and explicit cancellation; and
-- independent reconstruction and validation of plugin responses.
+Keys persist locally by default so normal restarts do not require re-entry. Public connection state reveals only whether a key is saved. Keys never belong in content-script messages, diagnostics, synchronization, or exported settings. Local persistence is not an encrypted vault. Endpoint changes require explicit key handling rather than reusing the previous endpoint's key.
 
-Popup, compose, and message-display contexts receive validated product data,
-not credentials, authorization headers, client objects, or backend error text.
+Compose inference uses selected text and authored draft context, without recipient addresses or quoted history. Reading inference uses eligible visible message segments. Complete local compose fingerprints still include recipients, headers, and attachment metadata to reject stale results without transmitting those fields.
 
-### OpenClaw plugin
+## Cancellation and compatibility
 
-The plugin owns:
+Cancellation aborts local transport and invalidates the invocation; the provider may continue processing or charging. A successful connection test demonstrates a bounded synthetic operation, not all model behavior or privacy guarantees. A loopback endpoint can itself forward to a cloud model. OpenRouter is a routing service, so its upstream selection follows the user's provider settings.
 
-- fixed product and pairing routes;
-- compatible-agent discovery and explicit verification;
-- caller-owned, compose-scoped in-memory sessions;
-- tools-disabled and trajectory-disabled embedded-agent execution;
-- prompts, cancellation, bounded repair, and configured model fallbacks;
-- strict request and result contracts; and
-- the plugin-owned pairing registry and `openclaw thunderclaw` administration.
-
-Agent, model, provider, provider credential, fallback, and reasoning defaults
-remain OpenClaw configuration. ThunderClaw may select a compatible configured
-agent but does not duplicate provider settings in Thunderbird.
-
-## Authoritative state and lifecycle
-
-The current Thunderbird snapshot is authoritative. Agent session history can
-help refine a suggestion, but it never replaces the snapshot used for request,
-target, and stale-result validation.
-
-Every operation retains the identities needed for its scope, including request
-ID, run ID, compose generation, target ID, context hash, target hash, selected
-agent, and connection binding. Endpoint, permission, or credential changes
-advance the connection epoch and make prior work ineligible for publication or
-Apply. Cleanup uses the captured old client and can never be retargeted to the
-new connection.
-
-Compose windows use separate random session IDs, session keys, and in-memory
-managers. A repair or configured fallback attempt keeps the same manager,
-configuration snapshot, cancellation signal, and total time budget. Closing,
-expiry, replacement, or retirement aborts active work and removes the manager.
-
-## Review boundary
-
-These remain separate decisions:
-
-1. Generate and receive a Preview.
-2. Review the proposed change.
-3. Apply the change to the validated target.
-4. Optionally Undo the applied change.
-5. Use Thunderbird's ordinary Send action.
-
-The model cannot combine or bypass these decisions.
-
-## Persistent state
-
-The extension persists connection configuration, installation identity, and a
-narrow paired credential in background-only profile storage. A local profile
-compromise can expose that credential; encryption with a key in the same
-profile would not create a separate security boundary.
-
-The plugin stores pairing metadata and domain-separated verifiers—not raw
-device or claim secrets—in a plugin-owned SQLite registry. Email content,
-recipients, headers, attachments, model responses, and provider or Gateway
-credentials do not belong in that registry.
-
-Embedded transformation transcripts are held in caller-owned memory and are
-not deliberately written as ordinary OpenClaw session transcripts. OpenClaw
-may retain content-free operational lifecycle telemetry. Installed Gateway
-plugins and hooks remain part of the trusted execution boundary; see
-[`security-and-privacy.md`](security-and-privacy.md).
-
-## Architectural invariants
-
-- Never patch or fork OpenClaw core.
-- Never add an operating-system helper or alternate transport.
-- Never let the model send mail or modify recipients, headers, or attachments.
-- Never insert model-produced HTML.
-- Never give Thunderbird a provider credential or broad Gateway token.
-- Never infer agent compatibility from catalog presence alone.
-- Never merge Generate, Apply, Undo, and Send into one action.
-- Never weaken exact identity, hash, generation, size, and stale-result checks.
+Provider compatibility regressions do not automatically create product releases. Keep deterministic contract, lifecycle and DOM tests; qualify representative real providers and exact XPI bytes before release. See [standalone migration](standalone-migration.md) for the rollout and remaining qualification.

@@ -1,8 +1,14 @@
 # Thunderbird extension source review
 
+The standalone extension calls a user-configured OpenAI-compatible inference
+endpoint directly. It does not require OpenClaw, a native helper, or a ThunderClaw
+backend. Provider keys persist in local extension storage; the project supplies
+no key and local persistence is not an encrypted vault. Test with synthetic
+content and a local compatible fixture or reviewer-owned provider account.
+
 This archive contains the complete allowlisted source and build configuration
 for the ThunderClaw Thunderbird extension. It intentionally excludes the
-OpenClaw plugin, tests that require a protected environment, dependencies,
+OpenClaw plugin runtime, tests that require a protected environment, dependencies,
 generated output, local state, and credentials.
 
 ## Build environment
@@ -52,3 +58,8 @@ unzip -p build/thunderclaw-extension.xpi manifest.json
 The extension source is under `packages/thunderbird-extension/src/`; the build
 entry point is `scripts/build-extension.mjs`. The root `package.json`, workspace
 package metadata, `.mise.toml`, and lockfile define the complete build toolchain.
+
+Legacy pairing source and the legacy plugin workspace manifest remain as inactive
+migration/development inputs; esbuild includes only the new inference entry graph
+in the standalone XPI. The root lockfile retains legacy test dependencies; those
+are build/development dependencies and are not bundled as inference runtimes.

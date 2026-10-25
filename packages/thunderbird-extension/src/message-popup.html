@@ -12,7 +12,9 @@
       <div><strong>ThunderClaw</strong><small id="status">Connecting…</small></div>
     </header>
     <main>
-      <label>Agent<select id="agent" disabled></select></label>
+      <label>Model<select id="agent" disabled></select></label>
+      <small id="connection"></small>
+      <a href="options.html" target="_blank" rel="noopener">Connection settings</a>
       <label>Action<select id="action">
         <option value="summarize">Summarize</option>
         <option value="translate">Translate</option>
@@ -38,7 +40,7 @@
         </div>
         <button id="dismiss">Dismiss result</button>
       </section>
-      <p id="privacy-note"><small>The entire visible rendered message body, including visible quoted history and signatures, plus its subject and author are sent through your configured OpenClaw agent.</small></p>
+      <p id="privacy-note"><small>The visible message body is sent to your configured model. Translations preserve the original message, and summaries appear in a separate card.</small></p>
       <p id="error" role="alert" hidden></p>
     </main>
     <script src="message-popup.js"></script>

@@ -1,5 +1,7 @@
 # OpenClaw compatibility autopilot
 
+> **Retired automation — historical reference only:** OpenClaw plugin publishing and its dedicated workflows/scripts have been removed. Commands below describe the earlier architecture and may no longer exist. Use the [standalone release policy](release.md) and [release operations](release-operations.md) for current work. Published versions and incident records remain immutable.
+
 ThunderClaw automatically prepares, qualifies, and publishes routine OpenClaw
 compatibility releases. The automatic lane is intentionally narrow: it may
 change compatibility metadata only, and every ThunderClaw qualification gate

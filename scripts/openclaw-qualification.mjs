@@ -94,7 +94,7 @@ async function readJson(root, relative) {
 
 export async function verifyOpenClawQualification({ root }) {
   const qualification = await readOpenClawQualification(root);
-  const { apiFloor, stableVersion, supportedRange, nextReleaseFloor, image, npm, provider } = qualification;
+  const { apiFloor, stableVersion, supportedRange, image, npm, provider } = qualification;
   const imageTag = `${image.repository}:${stableVersion}`;
   const pinnedImage = `${imageTag}@${image.linuxAmd64Digest}`;
   const providerSpec = `${provider.package}@${provider.version}`;
@@ -124,7 +124,6 @@ export async function verifyOpenClawQualification({ root }) {
     pairing: await readText(root, "scripts/qualify-pairing.ts"),
     realAgent: await readText(root, "e2e/qualification/real-agent/run.mjs"),
     fingerprint: await readText(root, "packages/openclaw-plugin/src/compatibility-fingerprint.ts"),
-    workflow: await readText(root, ".github/workflows/ci.yml"),
     providerStager: await readText(root, "scripts/stage-openclaw-provider.mjs"),
   };
   const escapedRepository = image.repository.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
@@ -133,8 +132,6 @@ export async function verifyOpenClawQualification({ root }) {
     new RegExp(`^\\s+image: (${escapedRepository}:\\S+)\\s*$`, "gmu"), pinnedImage);
   captureOne("packages/openclaw-plugin/src/compatibility-fingerprint.ts", activeFiles.fingerprint,
     /^export const PINNED_OPENCLAW_COMPATIBILITY_VERSION = "([^"]+)";$/gmu, apiFloor);
-  captureOne(".github/workflows/ci.yml", activeFiles.workflow,
-    /^\s+name: (Pinned qualified OpenClaw integration)$/gmu, "Pinned qualified OpenClaw integration");
   for (const [file, contents] of [
     ["scripts/run-openclaw-ci.sh", activeFiles.ciScript],
     ["scripts/bootstrap-spike.sh", activeFiles.bootstrap],
@@ -159,13 +156,6 @@ export async function verifyOpenClawQualification({ root }) {
 
   const checks = [
     ["packages/openclaw-plugin/src/openclaw-agent-sessions.d.ts", `OpenClaw ${apiFloor} publishes`, 1],
-    ["README.md", `through the \`${stableVersion}\``, 2],
-    ["README.md", `\`${apiFloor}\` through`, 2],
-    ["docs/installation-and-pairing.md", `Stable OpenClaw \`${stableVersion}\``, 1],
-    ["docs/testing.md", `runs stable \`${stableVersion}\``, 1],
-    ["docs/compatibility.md", `\`${supportedRange}\``, 1],
-    ["docs/compatibility.md", `excludes the ${nextReleaseFloor.replace(/-0$/u, "")}`, 1],
-    ["site/index.html", `from ${apiFloor} through the ${stableVersion} release line`, 1],
   ];
   for (const [file, expected, minimum] of checks) {
     requireText(file, await readText(root, file), expected, minimum);

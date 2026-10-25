@@ -60,12 +60,39 @@ jobs:
     environment:
       name: thunderbird-addons
     steps:
+      - name: Reject unsupported publication tags
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+        shell: bash
+        run: |
+          [[ "$RELEASE_TAG" =~ ^thunderbird-extension-v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || {
+            echo "Release tag must have canonical form thunderbird-extension-vX.Y.Z" >&2
+            exit 1
+          }
+
       - name: Check out the tagged publication automation
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ inputs.tag }}
           fetch-depth: 0
           persist-credentials: false
+
+      - name: Verify publication tag commit belongs to main
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          commit=$(git rev-parse "refs/tags/$RELEASE_TAG^{commit}")
+          test "$(git rev-parse HEAD)" = "$commit" || {
+            echo "Checked out source must match the publication tag commit" >&2
+            exit 1
+          }
+          git fetch --no-tags origin '+refs/heads/main:refs/remotes/origin/main'
+          git merge-base --is-ancestor "$commit" refs/remotes/origin/main || {
+            echo "Release tag commit must be contained in origin/main" >&2
+            exit 1
+          }
 
       - name: Install managed runtimes
         uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4
@@ -81,16 +108,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          [[ "$RELEASE_TAG" =~ ^thunderbird-extension-v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || {
-            echo "Release tag must have canonical form thunderbird-extension-vX.Y.Z" >&2
-            exit 1
-          }
-          commit=$(git rev-parse "$RELEASE_TAG^{commit}")
-          git fetch --no-tags origin '+refs/heads/main:refs/remotes/origin/main'
-          git merge-base --is-ancestor "$commit" refs/remotes/origin/main || {
-            echo "Release tag commit must be contained in origin/main" >&2
-            exit 1
-          }
+          commit=$(git rev-parse "refs/tags/$RELEASE_TAG^{commit}")
           version=${RELEASE_TAG#thunderbird-extension-v}
           mkdir -p release/assets
           mkdir release/canonical

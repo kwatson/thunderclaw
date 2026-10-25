@@ -1,8 +1,15 @@
-import { sameConnectionBinding } from "./direct-client-contract.js";
-import type { ConnectionBinding, MessageTransformResult, RichBlock } from "./direct-client-contract.js";
+import { inferenceFailureMessage } from "./inference-client.js";
+import { DirectClientError, sameConnectionBinding } from "./direct-client-contract.js";
+import type { ConnectionBinding, MessageTransformResult, RichBlock, ThunderClawDirectClient } from "./direct-client-contract.js";
 import { DirectComposeLifecycleRegistry } from "./direct-client-lifecycle.js";
-import type { BackgroundFeatureLease, ConnectionController } from "./connection-controller.js";
 import { randomId } from "./random-id.js";
+import { validateRichTargetBlocks } from "./direct-client-validators.js";
+type BackgroundFeatureLease = { client: ThunderClawDirectClient; binding: ConnectionBinding };
+type FeatureConnectionController = {
+  acquireFeatureLease(): Promise<BackgroundFeatureLease>;
+  isFeatureBindingCurrent(binding: ConnectionBinding): boolean;
+  addFeatureRetirementHandler(handler: (lease: BackgroundFeatureLease) => void | Promise<void>): void;
+};
 
 declare const browser: any;
 
@@ -52,7 +59,131 @@ type MessageJob = {
   error?: string;
 };
 
-export function installFeatureBackground(controller: ConnectionController): void {
+// Restrict errors leaving the background to fixed, reviewed UI messages. API
+// exceptions can include endpoints, credentials, or message content.
+const featureErrorMessages = new Set([
+  "A tracked compose node is outside the editor.",
+  "A tracked compose node was detached.",
+  "Focusing the compose editor changed the exact list selection.",
+  "Focusing the compose editor changed the exact rich-block selection.",
+  "Grant access to the selected inference endpoint in settings.",
+  "Save and test a valid inference connection in settings.",
+  "The connection changed. Try the action again.",
+  "Open ThunderClaw from a message compose window.",
+  "Open ThunderClaw while viewing a message.",
+  "Quoted history and signatures are context only and cannot be edited.",
+  "Rich Apply is disabled for this draft because exact rollback could not be verified.",
+  "Rich Apply requires an exact rich-block operation.",
+  "Select non-empty text in the message body.",
+  "Describe the tone you want before generating a preview.",
+  "Enter a target language before generating a preview.",
+  "Enter an instruction before generating a preview.",
+  "Select text in the message body before opening ThunderClaw.",
+  "Text Apply requires an exact text-range operation.",
+  "The ThunderClaw connection changed.",
+  "The ThunderClaw popup request is invalid.",
+  "The ThunderClaw result does not match the captured selection shape.",
+  "The compose editor returned an invalid flat-list snapshot.",
+  "The compose editor returned an invalid rich-block snapshot.",
+  "The compose session was replaced while it was opening.",
+  "The configured model is no longer available. Check ThunderClaw settings.",
+  "The current ThunderClaw connection does not support flat-list item replacement.",
+  "The current ThunderClaw connection does not support rich-block replacement.",
+  "The displayed message changed while ThunderClaw was capturing it.",
+  "The displayed message changed while ThunderClaw was working.",
+  "The displayed message changed.",
+  "The displayed message changed. Generate the translation again.",
+  "The displayed message changed. Run ThunderClaw again.",
+  "The displayed message is no longer available. Reopen ThunderClaw.",
+  "The draft changed after Apply, so ThunderClaw will not overwrite the newer edit.",
+  "The draft changed after this suggestion was created. Run ThunderClaw again.",
+  "The draft changed while ThunderClaw was generating the preview. Run ThunderClaw again.",
+  "The original list selection changed.",
+  "The original list selection changed. Run ThunderClaw again.",
+  "The original rich-block selection changed. Run ThunderClaw again.",
+  "The original selected text changed.",
+  "The original selection direction changed.",
+  "The original selection direction changed. Run ThunderClaw again.",
+  "The original selection is no longer available.",
+  "The preview is no longer available.",
+  "The preview is stale.",
+  "The preview was discarded.",
+  "The rich-block suggestion is invalid or stale. Run ThunderClaw again.",
+  "The selected list changed. Run ThunderClaw again on the current draft.",
+  "The selected text changed. Run ThunderClaw again on the current draft.",
+  "The selection is outside the message body.",
+  "The whole-list suggestion is invalid or stale. Run ThunderClaw again.",
+  "This ThunderClaw action is only available from its popup.",
+  "This applied change can no longer be undone.",
+  "This message result is no longer current.",
+  "This preview is no longer current.",
+  "This suggestion is no longer available.",
+  "Thunderbird rejected the exact whole-list replacement and restored the draft.",
+  "Thunderbird could not verify exact whole-list rollback. Rich Apply is disabled for this draft.",
+  "Thunderbird rejected the exact rich-block replacement and restored the draft.",
+  "Thunderbird could not verify exact rich-block rollback. Rich Apply is disabled for this draft.",
+  "Thunderbird could not select the exact rich-block wrappers.",
+  "Thunderbird could not undo the applied change.",
+  "Thunderbird could not verify exact rich-block Undo. Rich Apply is disabled for this draft.",
+  "Thunderbird could not verify exact whole-list Undo. Rich Apply is disabled for this draft.",
+  "Thunderbird did not apply the replacement through its editor.",
+  "Unsupported compose DOM node.",
+  "Whole-list Apply requires an exact flat-list item operation.",
+  "Whole-list editing currently requires complete flat list items containing plain text only.",
+  "Whole-list editing currently requires plain text list items.",
+  "Whole-list editing requires Thunderbird 153 or newer."
+]);
+function featureErrorMessage(error: unknown): string {
+  if (error instanceof DirectClientError) {
+    const safeMessage = inferenceFailureMessage(error.code);
+    if (safeMessage) return safeMessage;
+    const messages: Record<string, string> = {
+      configuration: "Check the inference connection settings and test the selected model.",
+      permission: "Grant access to the selected inference endpoint in settings.",
+      authentication: "The inference server rejected the API key. Replace it in settings.",
+      rate_limit: "The inference server rate limit was reached. Try again later.",
+      network: "Unable to contact the inference server. Check its address and availability.",
+      timeout: "The inference request exceeded its time limit. Try again.",
+      cancellation: "The inference request was cancelled. Try again.",
+      contract: "The model returned an invalid structured result. Check its structured output support.",
+      capability: "The configured model does not support this action.",
+      backend: "The inference server could not complete the request. Try again later.",
+    };
+    return messages[error.kind] ?? "ThunderClaw could not complete this action. Check settings and try again.";
+  }
+  return error instanceof Error && featureErrorMessages.has(error.message)
+    ? error.message : "ThunderClaw could not complete this action. Check settings and try again.";
+}
+
+function validPopupMessage(message: Record<string, unknown>): boolean {
+  if (!Number.isSafeInteger(message.tabId) || (message.tabId as number) <= 0) return false;
+  const fields: Record<string, string[]> = {
+    "popup.initialize": [], "popup.job": [],
+    "popup.transform": ["agentId", "action", "instruction"],
+    "popup.apply": ["suggestionId", "jobId"], "popup.undo": ["suggestionId", "jobId"],
+    "popup.discard": ["jobId"], "popup.cancel": ["jobId"],
+    "messagePopup.initialize": [], "messagePopup.job": [],
+    "messagePopup.transform": ["agentId", "action", "sourceLanguage", "targetLanguage"],
+    "messagePopup.original": ["jobId"], "messagePopup.translation": ["jobId"], "messagePopup.dismiss": ["jobId"],
+  };
+  const required = fields[message.type as string];
+  if (!required || Object.keys(message).length !== required.length + 2
+      || Object.keys(message).some((key) => !["type", "tabId", ...required].includes(key))) return false;
+  const text = (key: string, max: number, empty = false) => typeof message[key] === "string"
+    && (empty || (message[key] as string).trim().length > 0) && (message[key] as string).length <= max;
+  if (required.includes("agentId") && !text("agentId", 256)) return false;
+  if (required.includes("jobId") && !text("jobId", 128)) return false;
+  if (required.includes("suggestionId") && !text("suggestionId", 128)) return false;
+  if (message.type === "popup.transform") return ["improve", "proofread", "shorten", "tone", "translate", "summarize", "ask"].includes(message.action as string)
+    && text("instruction", 4000, true);
+  if (message.type === "messagePopup.transform") return ["translate", "summarize"].includes(message.action as string)
+    && (message.sourceLanguage === null || text("sourceLanguage", 100))
+    && (message.targetLanguage === null || text("targetLanguage", 100))
+    && (message.action !== "translate" || text("targetLanguage", 100));
+  return true;
+}
+
+export function installFeatureBackground(controller: FeatureConnectionController): void {
   const minimumSameKindListThunderbirdMajor = 153;
   const runtimeCapabilityInstance = randomId();
   const runtimeCapability = Promise.resolve().then(() => browser.runtime.getBrowserInfo()).then((info: any) => {
@@ -160,7 +291,6 @@ export function installFeatureBackground(controller: ConnectionController): void
         throw new Error("The compose session was replaced while it was opening.");
       }
       sessions.set(tabId, session);
-      await browser.storage.local.set({ selectedAgentId: agentId });
       return session;
     } finally {
       if (pendingSessions.get(tabId) === session) pendingSessions.delete(tabId);
@@ -168,11 +298,7 @@ export function installFeatureBackground(controller: ConnectionController): void
   }
 
   function compatibleAgents(listed: any): any[] {
-    return listed.agents
-      .filter((agent: any) => ["verified", "partially_verified"].includes(agent.compatibility?.state))
-      .map((agent: any) => agent.compatibility.state === "partially_verified"
-        ? { ...agent, displayName: `${agent.displayName} (partially verified)` }
-        : agent);
+    return listed.agents.filter((agent: any) => ["verified", "partially_verified"].includes(agent.compatibility?.state));
   }
 
   async function requireUsableAgent(lease: BackgroundFeatureLease, agentId: string, signal: AbortSignal): Promise<void> {
@@ -182,14 +308,21 @@ export function installFeatureBackground(controller: ConnectionController): void
     }
     const selected = listed.value.agents.find((agent: any) => agent.agentId === agentId);
     if (!selected || !["verified", "partially_verified"].includes(selected.compatibility?.state)) {
-      throw new Error("The selected agent is not verified for the current configuration. Verify it in ThunderClaw settings.");
+      throw new Error("The configured model is no longer available. Check ThunderClaw settings.");
     }
+  }
+
+  function targetFingerprint(snapshot: any): Promise<string> {
+    // Bind supported formatting as well as text so a same-text format change retires the preview.
+    return sha256(snapshot.selectionShape === "rich-blocks"
+      ? JSON.stringify({ text: snapshot.text, blocks: validateRichTargetBlocks(snapshot.blocks, snapshot.text) })
+      : snapshot.text);
   }
 
   async function validateSuggestionSnapshot(tabId: number, suggestion: any): Promise<any> {
     const current = await composeMessage(tabId, { type: "thunderclaw.inspect", targetId: suggestion.targetId });
     const [{ contextHash }, targetHash, composeState] = await Promise.all([
-      composeContext(tabId, current), sha256(current.text), composeStateFingerprint(tabId),
+      composeContext(tabId, current), targetFingerprint(current), composeStateFingerprint(tabId),
     ]);
     if (contextHash !== suggestion.contextHash || targetHash !== suggestion.targetHash
         || composeState.hash !== suggestion.composeStateHash || composeState.identity !== suggestion.composeStateIdentity
@@ -220,11 +353,10 @@ export function installFeatureBackground(controller: ConnectionController): void
     if (!existingJob) captures.set(tabId, selection);
     const lease = await controller.acquireFeatureLease();
     const requestId = randomId();
-    const [hello, listed, stored] = await Promise.all([lease.client.hello(), lease.client.listAgents(requestId), browser.storage.local.get("selectedAgentId")]);
+    const [hello, listed] = await Promise.all([lease.client.hello(), lease.client.listAgents(requestId)]);
     if (!bindingCurrent(lease.binding)) throw new Error("The ThunderClaw connection changed.");
     const agents = compatibleAgents(listed.value);
-    const selectedAgentId = agents.some((agent: any) => agent.agentId === stored.selectedAgentId)
-      ? stored.selectedAgentId : agents.find((agent: any) => agent.isDefault)?.agentId || agents[0]?.agentId || null;
+    const selectedAgentId = agents.find((agent: any) => agent.isDefault)?.agentId || agents[0]?.agentId || null;
     return { hello: hello.value, agents, selectedAgentId, selection, job: composeJobView(existingJob) };
   }
 
@@ -252,7 +384,7 @@ export function installFeatureBackground(controller: ConnectionController): void
     const [{ document, contextHash }, composeState] = await Promise.all([
       composeContext(tabId, snapshot), composeStateFingerprint(tabId),
     ]);
-    const targetHash = await sha256(snapshot.text);
+    const targetHash = await targetFingerprint(snapshot);
     try {
       await requireUsableAgent(lease, agentId, job.abort.signal);
     } catch (error) {
@@ -273,7 +405,8 @@ export function installFeatureBackground(controller: ConnectionController): void
         target: { targetId: snapshot.targetId, text: snapshot.text, start: 0, end: snapshot.text.length,
           selectionShape: snapshot.selectionShape === "flat-list-items" ? "flat-list-items"
             : snapshot.selectionShape === "rich-blocks" ? "rich-blocks" : "text-range",
-          ...(snapshot.selectionShape === "flat-list-items" ? { items: snapshot.items } : {}) },
+          ...(snapshot.selectionShape === "flat-list-items" ? { items: snapshot.items } : {}),
+          ...(snapshot.selectionShape === "rich-blocks" ? { blocks: structuredClone(snapshot.blocks) } : {}) },
         limits: { maxOperations: 1, maxOutputCharacters: 12_000 },
       }, { signal: job.abort.signal });
       if (jobs.get(tabId) !== job || !bindingCurrent(job.binding) || !sameConnectionBinding(completion.binding, job.binding)) throw new Error("The preview is stale.");
@@ -285,7 +418,7 @@ export function installFeatureBackground(controller: ConnectionController): void
       }
       const postSnapshot = await composeMessage(tabId, { type: "thunderclaw.inspect", targetId: snapshot.targetId });
       const [{ contextHash: postContextHash }, postTargetHash, postGenerationState] = await Promise.all([
-        composeContext(tabId, postSnapshot), sha256(postSnapshot.text), composeStateFingerprint(tabId),
+        composeContext(tabId, postSnapshot), targetFingerprint(postSnapshot), composeStateFingerprint(tabId),
       ]);
       if (postContextHash !== contextHash || postTargetHash !== targetHash || postGenerationState.hash !== composeState.hash
           || postGenerationState.identity !== composeState.identity) {
@@ -337,6 +470,11 @@ export function installFeatureBackground(controller: ConnectionController): void
   }
 
   async function startTransform(tabId: number, agentId: string, action: any, instruction: string): Promise<any> {
+    if (!instruction.trim()) {
+      if (action === "tone") throw new Error("Describe the tone you want before generating a preview.");
+      if (action === "translate") throw new Error("Enter a target language before generating a preview.");
+      if (action === "ask") throw new Error("Enter an instruction before generating a preview.");
+    }
     const existing = jobs.get(tabId);
     if (existing?.state === "running") return composeJobView(existing);
     discardSuggestionState(tabId);
@@ -347,8 +485,9 @@ export function installFeatureBackground(controller: ConnectionController): void
         && ((snapshot.listKind !== "ul" && snapshot.listKind !== "ol") || !Array.isArray(snapshot.items))) {
       throw new Error("The compose editor returned an invalid flat-list snapshot.");
     }
-    if (snapshot.selectionShape === "rich-blocks" && snapshot.text.trim().length === 0) {
-      throw new Error("The compose editor returned an invalid rich-block snapshot.");
+    if (snapshot.selectionShape === "rich-blocks") {
+      try { snapshot.blocks = validateRichTargetBlocks(snapshot.blocks, snapshot.text); }
+      catch { throw new Error("The compose editor returned an invalid rich-block snapshot."); }
     }
     captures.set(tabId, snapshot);
     const lease = await controller.acquireFeatureLease();
@@ -359,7 +498,7 @@ export function installFeatureBackground(controller: ConnectionController): void
       job.state = "ready"; job.result = result;
     }).catch((error) => {
       if (jobs.get(tabId) !== job || !bindingCurrent(job.binding)) return;
-      job.state = "error"; job.error = error instanceof Error ? error.message : String(error);
+      job.state = "error"; job.error = featureErrorMessage(error);
     });
     return composeJobView(job);
   }
@@ -430,12 +569,12 @@ export function installFeatureBackground(controller: ConnectionController): void
   async function initializeMessage(tabId: number): Promise<any> {
     const lease = await controller.acquireFeatureLease();
     const [hello, listed, stored, acceptLanguages, uiLanguage, captured] = await Promise.all([
-      lease.client.hello(), lease.client.listAgents(randomId()), browser.storage.local.get(["selectedAgentId", "messageTargetLanguage"]),
+      lease.client.hello(), lease.client.listAgents(randomId()), browser.storage.local.get("messageTargetLanguage"),
       browser.i18n.getAcceptLanguages(), browser.i18n.getUILanguage(), captureDisplayedMessage(tabId),
     ]);
     if (!bindingCurrent(lease.binding)) throw new Error("The ThunderClaw connection changed.");
     const agents = compatibleAgents(listed.value);
-    const selectedAgentId = agents.some((agent: any) => agent.agentId === stored.selectedAgentId) ? stored.selectedAgentId : agents.find((agent: any) => agent.isDefault)?.agentId || agents[0]?.agentId || null;
+    const selectedAgentId = agents.find((agent: any) => agent.isDefault)?.agentId || agents[0]?.agentId || null;
     const preferredLanguage = stored.messageTargetLanguage || acceptLanguages[0] || uiLanguage || "en-US";
     const running = messageJobs.get(tabId);
     if (running && (running.messageId !== captured.messageId || running.messageHash !== captured.messageHash || running.displayInstanceId !== captured.displayInstanceId)) void invalidateMessage(tabId);
@@ -490,7 +629,7 @@ export function installFeatureBackground(controller: ConnectionController): void
         job.state = "ready"; job.result = completion.value.result;
       } catch (error) {
         if (messageJobs.get(tabId) !== job || !bindingCurrent(job.lease.binding)) return;
-        job.state = "error"; job.error = error instanceof Error ? error.message : String(error);
+        job.state = "error"; job.error = featureErrorMessage(error);
       }
     })();
     return messageJobView(job);
@@ -531,8 +670,7 @@ export function installFeatureBackground(controller: ConnectionController): void
     return Promise.allSettled(cleanups).then(() => undefined);
   });
 
-  browser.runtime.onMessage.addListener((message: any) => {
-    if (!message || typeof message !== "object" || !Number.isInteger(message.tabId)) return undefined;
+  async function dispatchPopupMessage(message: any): Promise<any> {
     if (message.type === "messagePopup.initialize") return initializeMessage(message.tabId);
     if (message.type === "messagePopup.transform") return startMessageTransform(message.tabId, message.agentId, message.action, message.sourceLanguage, message.targetLanguage);
     if (message.type === "messagePopup.job") return Promise.resolve(messageJobView(messageJobs.get(message.tabId)));
@@ -561,6 +699,26 @@ export function installFeatureBackground(controller: ConnectionController): void
       return Promise.resolve({ cancelled: Boolean(active) });
     }
     return undefined;
+  }
+
+  browser.runtime.onMessage.addListener((message: any, sender: any) => {
+    if (!message || typeof message !== "object" || typeof message.type !== "string"
+        || (!message.type.startsWith("popup.") && !message.type.startsWith("messagePopup."))) return undefined;
+    const reading = message.type.startsWith("messagePopup.");
+    const expectedUrl = browser.runtime.getURL(reading ? "message-popup.html" : "popup.html");
+    // Thunderbird may include tab metadata for an extension action popup.
+    // The extension identity and exact page URL establish the trusted sender.
+    if (sender?.id !== browser.runtime.id || sender?.url !== expectedUrl) {
+      return Promise.reject(new Error("This ThunderClaw action is only available from its popup."));
+    }
+    if (!validPopupMessage(message)) return Promise.reject(new Error("The ThunderClaw popup request is invalid."));
+    return (async () => {
+      const tab = await browser.tabs.get(message.tabId);
+      if (reading ? !["mail", "messageDisplay"].includes(tab?.type) : tab?.type !== "messageCompose") {
+        throw new Error(reading ? "Open ThunderClaw while viewing a message." : "Open ThunderClaw from a message compose window.");
+      }
+      return dispatchPopupMessage(message);
+    })().catch((error) => { throw new Error(featureErrorMessage(error)); });
   });
 
   browser.tabs.onRemoved.addListener((tabId: number) => { void Promise.allSettled(closeTab(tabId)); });

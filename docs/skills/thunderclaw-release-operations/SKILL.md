@@ -1,42 +1,37 @@
 ---
 name: thunderclaw-release-operations
-description: Diagnose, qualify, publish, or recover ThunderClaw OpenClaw compatibility releases and verify their completion. Use for ThunderClaw release operations or release-automation validation, not general OpenClaw administration or unrelated plugin development.
+description: Diagnose, validate, publish, or recover standalone ThunderClaw Thunderbird extension releases and verify exact-byte completion. Use for release operations and release-automation validation.
 ---
 
 # ThunderClaw release operations
 
-Use the current ThunderClaw checkout. Verify its remote is
-`kwatson/thunderclaw`; do not assume the shell starts in this repository.
-This skill is maintained in that repo under
-`docs/skills/thunderclaw-release-operations/`. A local discovery link may point
-there; resolve its physical location if locating the repo from the skill.
-
-Read the checkout's `AGENTS.md`, [release policy](../../release.md), and
-[release operations runbook](../../release-operations.md) before choosing a
-release mutation. For a new compatibility candidate, also read the
-[autopilot design](../../openclaw-autopilot.md) or
-[manual upgrade runbook](../../openclaw-upgrade-runbook.md), as appropriate.
-The [0.1.16 incident](../../incidents/2026-10-06-openclaw-plugin-0.1.16.md)
-provides historical evidence when investigating a recurring failure.
-
-Establish the exact release stage from active reservation, source/run/attempt,
-qualified bytes, publication acceptance, public verification, and baseline CI.
-Follow the runbook's decision tree; run existing verifiers instead of inventing
-equivalent checks. A historical failed workflow can contain successful gates;
-a successful manual publisher does not validate automatic OIDC publication.
+Use the current ThunderClaw checkout and verify its remote is
+`kwatson/thunderclaw`. Read `AGENTS.md`, [release policy](../../release.md), and
+[release operations](../../release-operations.md) before choosing a release or
+settings mutation. These documents govern the standalone extension; old OpenClaw
+compatibility publishing, recovery, and counterpart-closeout automation is retired.
 
 Apply the user's current scope and authorization, including approvals already
-given. This skill grants no permission to publish, approve, move tags, broaden
-environments, or send notifications. If authorization is missing, complete
-read-only investigation and prepare the concrete action before asking.
+given. This skill grants no permission to publish, approve, change settings, move
+tags, or send notifications. Complete authorized reviewable work before asking
+for any missing authorization.
 
-Internal automation repairs need CI, regression coverage, or sandbox evidence,
-not another product release. For publication recovery, preserve the existing
-qualified archive and immutable source identity. Inspect accepted pending
-ClawHub attempts before retrying an upload, respect intentional cancellation,
-and distinguish terminal rejection from slow scans or ambiguous network errors.
+Establish the exact extension tag/source/run/attempt, qualified XPI and reviewer
+source digests, qualification gates, GitHub release, ATN acceptance, Developer Hub
+handoff, and public verification before choosing recovery. Preserve qualified
+bytes and immutable public identity. A slow review, repaired workflow, or
+historical failed run does not justify another product version or another upload.
 
-Finish by verifying public bytes/source/notes/scans, merged counterpart baseline
-and its CI, durable completion, and the requested automation settings. State
-which path was actually exercised and link the evidence. Keep historical facts
-and unimplemented roadmap work distinct from current behavior.
+Internal workflow, tool, documentation, and test-harness changes need ordinary CI
+and relevant regressions, not a product tag. Preserve tests/types, exact-candidate
+Thunderbird qualification, reviewer-source reproduction, checksums/provenance,
+protected promotion, signing-payload verification, and the mandatory ATN handoff.
+
+For authorized GitHub cleanup, inspect live rules/workflows before editing them,
+retain the standalone CI and sign-off requirements, and remove only obsolete
+OpenClaw admission/publication requirements. Do not delete public releases,
+immutable tags, audit state, secrets, or local Gateway state as a side effect.
+
+Finish by verifying the requested repository/settings changes and reporting
+which checks and external paths actually ran. Keep private mail, provider keys,
+backend responses, and populated environment values out of logs and documents.

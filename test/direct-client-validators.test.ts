@@ -18,6 +18,7 @@ import {
   validateCloseComposeResponse,
   validateGatewayStatus,
   validateOpenComposeResponse,
+  validateTransformComposeRequest,
   validateTransformComposeResponse,
   validateTransformMessageResponse,
 } from "../packages/thunderbird-extension/src/direct-client-validators.js";
@@ -626,4 +627,48 @@ test("message results reject controls and enforce output and summary shape limit
   const tooMany = structuredClone(messageResponse(summaryRequest));
   ((tooMany.result as Record<string, unknown>).summary as Record<string, unknown>).bullets = Array(9).fill("item");
   assert.throws(() => validateTransformMessageResponse(tooMany, summaryRequest), contractCode("INVALID_BACKEND_RESPONSE"));
+});
+
+
+test("rich request inputs preserve validated paragraph boundaries and canonical inline marks", () => {
+  const blocks = [
+    { type: "paragraph", spans: [{ text: "First ", marks: ["bold", "italic", "underline"] }, { text: "paragraph" }] },
+    { type: "paragraph", spans: [{ text: "Second paragraph", marks: ["italic"] }] },
+  ];
+  const text = "First paragraph\n\nSecond paragraph";
+  const request = { ...composeRequest(), target: { targetId: "target-rich", text, start: 0, end: text.length, selectionShape: "rich-blocks", blocks } };
+  const validated = validateTransformComposeRequest(request);
+  assert.deepEqual(validated.target.blocks, blocks);
+  assert.notEqual(validated.target.blocks, blocks);
+  blocks[0]!.spans[0]!.text = "changed";
+  assert.equal(validated.target.blocks?.[0]?.type === "paragraph" && validated.target.blocks[0].spans[0]?.text, "First ");
+  const { blocks: _blocks, ...legacyTarget } = request.target;
+  assert.equal(validateTransformComposeRequest({ ...request, target: legacyTarget }).target.blocks, undefined,
+    "legacy rich requests can omit source blocks");
+});
+
+test("rich request inputs reject malformed, inconsistent, oversized or non-rich blocks", () => {
+  const paragraph = { type: "paragraph", spans: [{ text: "Draft" }] };
+  const base = { ...composeRequest(), target: { targetId: "target-rich", text: "Draft", start: 0, end: 5, selectionShape: "rich-blocks" } };
+  for (const blocks of [
+    null, [], Array(51).fill(paragraph),
+    [{ type: "html", html: "<b>Draft</b>" }],
+    [{ ...paragraph, extra: true }],
+    [{ type: "paragraph", spans: [] }],
+    [{ type: "paragraph", spans: [{ text: "Other" }] }],
+    [{ type: "paragraph", spans: [{ text: "Draft", marks: ["italic", "bold"] }] }],
+    [{ type: "paragraph", spans: [{ text: "Draft", marks: ["bold", "bold"] }] }],
+    [{ type: "paragraph", spans: [{ text: "Draft", marks: ["link"] }] }],
+    [{ type: "paragraph", spans: [{ text: "Draft", marks: [] }] }],
+    [{ type: "paragraph", spans: [{ text: "Dra\nft" }] }],
+    [{ type: "paragraph", spans: Array(101).fill({ text: "x" }) }],
+    [{ type: "paragraph", spans: [{ text: "x".repeat(12_001) }] }],
+    [{ type: "ordered_list", items: [{ spans: [{ text: "Draft" }] }], extra: true }],
+  ]) assert.throws(() => validateTransformComposeRequest({ ...base, target: { ...base.target, blocks } }), contractCode("INVALID_REQUEST"));
+  for (const selectionShape of [undefined, "text-range", "flat-list-items"]) {
+    assert.throws(() => validateTransformComposeRequest({ ...base, target: { ...base.target,
+      selectionShape, ...(selectionShape === "flat-list-items" ? { items: ["Draft"] } : {}), blocks: [paragraph] } }), contractCode("INVALID_REQUEST"));
+  }
+  const blocks = [{ type: "ordered_list", items: [{ spans: [{ text: "First" }] }, { spans: [{ text: "Second" }] }] }];
+  assert.deepEqual(validateTransformComposeRequest({ ...base, target: { ...base.target, text: "First\nSecond", end: 12, blocks } }).target.blocks, blocks);
 });

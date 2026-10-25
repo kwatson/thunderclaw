@@ -187,26 +187,8 @@ jobs:
           name: thunderclaw-release-${{ needs.build.outputs.version }}
           path: release
 
-      - name: Download and verify pinned OpenClaw plugin counterpart
-        id: counterpart
-        env:
-          GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          counterpart_tag=$(jq -r '."openclaw-plugin".tag' e2e/qualification/counterpart-baselines.json)
-          counterpart_name=$(jq -r '."openclaw-plugin".name' e2e/qualification/counterpart-baselines.json)
-          mkdir counterpart
-          gh release download "$counterpart_tag" --pattern "$counterpart_name" --dir counterpart
-          mise exec -- node scripts/verify-counterpart-baseline.mjs \
-            --for-component thunderbird-extension \
-            --artifact "counterpart/$counterpart_name"
-          echo "path=$GITHUB_WORKSPACE/counterpart/$counterpart_name" >> "$GITHUB_OUTPUT"
-
       - name: Verify and qualify exact extension bytes
         env:
-          THUNDERCLAW_QUALIFICATION_COMPONENT: thunderbird-extension
-          THUNDERCLAW_OPENCLAW_PLUGIN_TGZ: ${{ steps.counterpart.outputs.path }}
           THUNDERCLAW_E2E_VERSIONS: 153.0.3
           THUNDERCLAW_E2E_XPI: ${{ github.workspace }}/release/thunderclaw-thunderbird-${{ needs.build.outputs.version }}.xpi
         shell: bash
@@ -224,22 +206,12 @@ jobs:
           retention-days: 7
 
   native-qualification:
-    name: Native qualification (${{ matrix.platform }})
+    name: Native Thunderbird qualification (Windows)
     needs: build
-    runs-on: ${{ matrix.runner }}
+    runs-on: windows-2025
     timeout-minutes: 35
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - platform: Windows
-            runner: windows-2025
-            thunderbird: 153.0.3
-            sha512: 1c845ead482fa04ce3fb2f769e569d8e22164f636642fa2c398341a318cc05796752c46c038c10d0f421d9a42c544cc54c6505b918a25ddf585267a2e4571464
-            run_thunderbird_e2e: true
-          - platform: macOS ARM
-            runner: macos-15
-            run_thunderbird_e2e: false
+    env:
+      THUNDERBIRD_VERSION: 153.0.3
 
     steps:
       - name: Check out tagged source
@@ -247,70 +219,52 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Install managed runtimes
-        uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4
-
       - name: Install Python
-        if: matrix.run_thunderbird_e2e
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: "3.12"
           cache: pip
           cache-dependency-path: e2e/thunderbird/requirements.txt
 
-      - name: Install locked dependencies
-        run: mise exec -- npm ci
-
-      - name: Run deterministic tests
-        run: mise exec -- npm test
-
-      - name: Qualify native filesystem security
-        run: mise exec -- npm run qualify:native-filesystem
-
       - name: Download release candidate
-        if: matrix.run_thunderbird_e2e
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: thunderclaw-release-${{ needs.build.outputs.version }}
           path: release
 
       - name: Verify candidate checksums
-        if: matrix.run_thunderbird_e2e
         shell: bash
         run: (cd release && sha256sum --check SHA256SUMS)
 
       - name: Install Marionette dependencies
-        if: matrix.run_thunderbird_e2e
         run: python -m pip install --disable-pip-version-check -r e2e/thunderbird/requirements.txt
 
       - name: Install pinned Thunderbird on Windows
-        if: matrix.run_thunderbird_e2e && runner.os == 'Windows'
         id: thunderbird-windows
         shell: pwsh
-        run: ./scripts/install-native-thunderbird.ps1 -Version '${{ matrix.thunderbird }}' -Sha512 '${{ matrix.sha512 }}'
+        run: ./scripts/install-native-thunderbird.ps1 -Version '${{ env.THUNDERBIRD_VERSION }}' -Sha512 '1c845ead482fa04ce3fb2f769e569d8e22164f636642fa2c398341a318cc05796752c46c038c10d0f421d9a42c544cc54c6505b918a25ddf585267a2e4571464'
 
       - name: Run native Thunderbird qualification with exact XPI
-        if: matrix.run_thunderbird_e2e
         shell: bash
         env:
           THUNDERBIRD_EXECUTABLE: ${{ steps.thunderbird-windows.outputs.thunderbird }}
           THUNDERBIRD_APPLICATION_INI: ${{ steps.thunderbird-windows.outputs.application_ini }}
-          THUNDERBIRD_ARTIFACTS: build/e2e/native/${{ runner.os }}/${{ matrix.thunderbird }}
+          THUNDERBIRD_ARTIFACTS: build/e2e/native/Windows/${{ env.THUNDERBIRD_VERSION }}
         run: |
           python e2e/thunderbird/run_compose.py \
             --xpi "release/thunderclaw-thunderbird-${{ needs.build.outputs.version }}.xpi" \
             --artifacts "$THUNDERBIRD_ARTIFACTS" \
-            --expected-version '${{ matrix.thunderbird }}' \
+            --expected-version '${{ env.THUNDERBIRD_VERSION }}' \
             --thunderbird "$THUNDERBIRD_EXECUTABLE" \
             --application-ini "$THUNDERBIRD_APPLICATION_INI" \
             --user-js e2e/thunderbird/user.js
 
       - name: Upload native qualification evidence
-        if: ${{ matrix.run_thunderbird_e2e && !cancelled() }}
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: thunderclaw-release-native-${{ runner.os }}-${{ needs.build.outputs.version }}
-          path: build/e2e/native/${{ runner.os }}/${{ matrix.thunderbird }}/
+          name: thunderclaw-release-native-Windows-${{ needs.build.outputs.version }}
+          path: build/e2e/native/Windows/${{ env.THUNDERBIRD_VERSION }}/
           if-no-files-found: warn
           retention-days: 14
 
@@ -354,19 +308,6 @@ jobs:
             exit 1
           }
 
-  paired-qualification:
-    name: Qualify exact extension with pinned plugin
-    permissions:
-      actions: read
-      contents: read
-    needs: build
-    uses: ./.github/workflows/qualify-release-pair.yml
-    with:
-      component: thunderbird-extension
-      version: ${{ needs.build.outputs.version }}
-      candidate_artifact: thunderclaw-release-${{ needs.build.outputs.version }}
-    secrets: inherit
-
   release:
     name: Approve and create GitHub release
     needs:
@@ -374,7 +315,6 @@ jobs:
       - thunderbird-qualification
       - native-qualification
       - source-qualification
-      - paired-qualification
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     environment:

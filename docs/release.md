@@ -1,261 +1,99 @@
 # ThunderClaw release policy
 
-## Product changes and internal changes
+ThunderClaw ships a standalone Thunderbird extension. OpenClaw plugin publication,
+ClawHub promotion, upstream discovery, paired release qualification, and automatic
+counterpart closeout are retired. Historical releases, tags, attestations, incident
+records, and local Gateway state remain intact. Legacy plugin source and its local
+validation tools are retained during migration; they are not release dependencies.
 
-Create a component release for shipped runtime fixes, behavior or installed
-metadata changes, or a newly qualified OpenClaw compatibility version. Release
-the plugin and extension independently. GitHub workflow, approval, uploader,
-test-harness, documentation and development-tool repairs do not require a
-component version bump, tag, release or protected full product qualification.
+## Product and internal changes
 
-Ordinary CI classifies changed paths with `scripts/classify-change-scope.mjs`.
-Internal tooling changes run deterministic tests and type checks. Product,
-compatibility, dependency and packaging inputs retain package validation and
-relevant OpenClaw integration; unknown paths conservatively affect both products.
-Documentation-only changes skip these checks. Expensive cross-platform and real
-Thunderbird qualification remains an explicit dispatch for release candidates.
-Path classification identifies required validation, never permission to publish.
+Shipped extension behavior or installed metadata requires an extension version and
+component-scoped changelog entry. Internal workflow, documentation, test-harness,
+and publishing-tool changes do not require a product version bump, tag, or release.
+Validate them with ordinary CI and executable workflow regressions. Never create a
+production version merely to test automation.
 
-Review automation changes through a pull request and passing CI. Validate
-credential or dispatch changes with read-only probes or a sandbox when needed;
-do not manufacture a release as a workflow test. Keep automatic publication
-paused while its repairs or required sandbox validation remain incomplete.
+Ordinary pull-request and main CI runs deterministic tests, type checks, and
+extension packaging when relevant inputs change. Documentation-only changes still
+report the required CI context. Unknown paths conservatively qualify the extension.
+Expensive Linux and Windows Thunderbird qualification is explicitly requested
+through CI's `release_qualification` dispatch input and runs for tagged releases.
+No OpenClaw container, Gateway key, ClawHub scan, plugin archive, or counterpart
+baseline is required by standalone CI or release jobs.
 
-A repaired human-approved publisher may retry an existing release using its
-original archive, digest, source, notes and qualification evidence, as the
-0.1.15 ClawHub retry demonstrated. It must not rebuild or relabel those bytes.
-Automatic candidates still bind the exact reviewed machinery to their active
-reservation and qualification result; changing that machinery requires fresh
-authorization for the candidate, not an unrelated product release.
+## Active workflows
 
+| Workflow | Purpose |
+| --- | --- |
+| `ci.yml` | Ordinary checks and explicit pre-release Thunderbird qualification |
+| `dco.yml` | Contributor sign-offs |
+| `pages.yml` | Product website deployment |
+| `release.yml` | Exact-byte extension qualification and protected GitHub release |
+| `publish-thunderbird-addons.yml` | Protected ATN submission and public verification |
 
-## Independent components
+The required main checks are **Tests, types, and packages** and **Signoffs**.
+The retired **Release automation validation** context is removed from main's
+ruleset when retiring the old automation; workflow regressions run in ordinary CI.
+Changes to external GitHub settings require authorization from the current task.
+Keep main pull-request admission, release approvals, restricted credentials, and
+immutable historical tag protections. The `release` environment admits extension
+tags only. `thunderbird-addons` admits those tags and reviewed `main` dispatches
+for exact-existing-release recovery and metadata verification; its approval
+requirement remains in place.
 
-ThunderClaw has two independently released components:
+## Version and tag authority
 
-| Component | Tag | GitHub assets | Marketplace |
-| --- | --- | --- | --- |
-| OpenClaw plugin | `openclaw-plugin-vX.Y.Z` | plugin TGZ, checksums, provenance | ClawHub |
-| Thunderbird extension | `thunderbird-extension-vX.Y.Z` | XPI, reviewer source ZIP, checksums, provenance | Thunderbird Add-ons (ATN) |
+The extension manifest and workspace package own the version. The root package is
+development orchestration metadata. Release notes come from exactly one nonempty
+matching `Thunderbird extension [X.Y.Z]` section in the root changelog.
 
-Each component owns its manifest version and component-scoped entry in the
-root `CHANGELOG.md`. A release
-changes only that component's version; the two versions need not match. The
-root package is development orchestration metadata and is not a release
-version authority. The historical combined `v0.1.0` and `v0.1.1` releases
-remain immutable.
+Only canonical `thunderbird-extension-vX.Y.Z` tags can enter the publication
+pipeline. The tag must resolve to a reviewed commit contained in main. Plugin tags,
+historical combined tags, branches, and channel mismatches cannot dispatch a new
+publication. Shared historical verification helpers may still recognize earlier
+public formats; that does not authorize republishing them.
 
-Installable artifacts are built once, hashed, qualified as those exact bytes,
-and promoted without rebuilding. Automatic plugin releases retain their
-pre-tag qualified archive, authenticate the merged source tree, and reuse that
-archive at the tag; manual component releases build from the tagged commit. Extension reviewer
-source is generated from an explicit allowlist and must reproduce the candidate
-XPI. It excludes dependencies, generated output, local state, credentials, and
-qualification evidence.
+Once a version has a public artifact, GitHub release, or attestation, its tag,
+source identity and qualified bytes are immutable. A correction to published
+product code requires a new product version. A transport repair does not permit
+rebuilding, relabeling, or replacing an existing qualified release.
 
-## Blocking pre-tag administration gate
+## Build once and qualify exact bytes
 
-Repository code cannot enforce GitHub or marketplace administration. Before
-creating the first independent tag, an administrator must verify all of these
-external controls; missing or ambiguous configuration blocks tagging:
+From the tagged source, the build job runs tests and type checks, builds one XPI,
+and creates one allowlisted reviewer source ZIP. It records SHA-256 checksums,
+artifact sizes, canonical notes, source identity, and provenance, and scans the
+unpacked release contents for secrets. It uploads that immutable candidate once.
 
-- protect `openclaw-plugin-v*` and `thunderbird-extension-v*` tags against
-  unauthorized creation, deletion, and update. Restrict bypass authority to
-  maintainers performing the audited unpublished-tag recovery described below,
-  while preserving immutable historical `v0.1.0` and `v0.1.1` tags;
-- restrict the protected `release`, `release-qualification`, `clawhub`, and
-  `thunderbird-addons` environments to the appropriate component tag patterns,
-  require human approval, and keep write permissions only in promotion jobs;
-- restrict the separate `clawhub-legacy` and `thunderbird-addons-legacy`
-  environments to `main`, require human approval, and use them only for the
-  immutable-ledger legacy audit/retry workflow;
-- configure `release-qualification` with protected `DEEPSEEK_API_KEY` and
-  `OPENCLAW_GATEWAY_TOKEN` secrets; and
-- configure the ClawHub OIDC trusted publisher for
-  `@thunderclaw/openclaw-plugin` with repository `kwatson/thunderclaw`, exact
-  workflow filename `publish-clawhub.yml`, and environment `clawhub-auto`.
-  ClawHub accepts tokenless package publication only from a
-  `workflow_dispatch` identity; the protected tag workflow therefore uses the
-  GitHub App to dispatch that exact publisher at the qualified
-  `openclaw-plugin-v*` tag. Manual retries continue to use the separately
-  scoped token in `clawhub`; and
-- confirm ATN credentials cannot run from plugin tags or untrusted pull
-  requests and remain scoped to `thunderbird-addons`.
+Linux and Windows Thunderbird qualification download and verify those bytes.
+Reviewer-source qualification installs locked dependencies in an isolated extracted
+source directory, rebuilds the extension there, and compares its XPI byte for byte
+with the candidate. Reproduction is a verification step, not replacement of the
+candidate. A rebuilt or guessed candidate cannot substitute for the qualified XPI.
 
-Test the OIDC repository, workflow, and environment binding from the intended
-dispatched workflow before enabling automation. GitHub's protected tag rules
-and the publisher's exact ref checks supply the tag binding that ClawHub's
-trusted-publisher configuration does not model. Do not broaden branch/ref trust
-to unblock publication. Record this settings review in the release issue
-because it is not represented by a repository diff.
+All required jobs must succeed before the protected `release` environment can
+attest and create the GitHub release. Action references and downloaded tools remain
+cryptographically pinned. Promotion downloads the qualified artifacts and verifies
+their checksums; it does not rebuild them. The release requires no backend plugin.
 
-For a human-approved retry of a previously qualified GitHub release, dispatch
-the current reviewed `publish-clawhub.yml` on `main` with the existing release's
-`tag` input and `release_lane=manual`. The main recovery ref must be allowed by
-the manual `clawhub` environment; required reviewer approval remains in place. The archive, canonical
-notes, source identity, and attestation come from the older immutable release.
-The audited transport patch comes from the publisher workflow's own commit, so
-a transport repair can promote those exact bytes without rebuilding or editing
-the release. Automatic publication requires the publisher workflow commit to
-equal the qualified release commit; it cannot use this manual retry exception.
+## ATN submission and completion
 
-## Candidate construction and exact-byte qualification
+The protected `thunderbird-addons` job accepts only the extension's canonical tag.
+It verifies source, checksums, notes, provenance, and attestations from the immutable
+GitHub release before submitting the exact XPI. Credentials never enter untrusted
+pull-request code. There is no scheduled or automatic ClawHub publisher.
 
-From a clean checkout, build only the component being released. Automatic
-plugin qualification builds and retains one archive; the authenticated tag
-workflow downloads and verifies that reserved digest. Manual component tag
-workflows build once. The protected component workflow records SHA-256
-checksums and provenance, uploads the immutable candidate, and makes every
-qualification job download that candidate. Harnesses receive explicit paths through
-`THUNDERCLAW_OPENCLAW_PLUGIN_TGZ` and `THUNDERCLAW_E2E_XPI`; they never pack,
-build, or guess a candidate filename internally.
+ATN's upload API cannot attach reviewer source or private testing notes. A maintainer
+must complete that version's Developer Hub handoff using the matching source ZIP,
+canonical notes, and reviewer testing instructions. Successful signing/upload is
+not completed marketplace publication.
 
-Every component candidate is tested with the last published counterpart:
+After the handoff, run metadata-only verification with both confirmations. Require
+the public version's canonical notes, download the ATN-signed XPI, verify it either
+matches the qualified XPI or adds only allowlisted Mozilla signature metadata, and
+smoke-test that exact public artifact. Retain the API and smoke evidence.
 
-- a plugin candidate is qualified with the extension tag pinned in the
-  `thunderbird-extension` baseline entry;
-- an extension candidate is qualified with the plugin tag pinned in the
-  `openclaw-plugin` baseline entry.
-
-The exact names, sizes, and SHA-256 digests are committed in
-[`counterpart-baselines.json`](../e2e/qualification/counterpart-baselines.json).
-The workflow downloads the named GitHub release asset, runs
-`verify-counterpart-baseline.mjs`, and only then passes its explicit path to the
-harness. A source rebuild, a marketplace-transformed file, or an unpinned
-“latest” download is not a valid counterpart. After either component is
-published and exact publication is verified, update only that component's
-baseline entry for the next release.
-
-Blocking checks include tests and typecheck, artifact inspection and secret
-scanning, hashes/provenance, pinned OpenClaw integration, real Thunderbird
-qualification, native filesystem/security checks, and relevant pairing and
-real-agent trials. Extension releases additionally reproduce the XPI from
-reviewer source. Within a release attempt, failed gates cannot be waived by
-rebuilding or replacing its candidate bytes.
-
-## Tags, changelogs, and legacy dispatch
-
-Prepare a tag only from a reviewed commit contained in `main`. The component
-manifest version must equal the canonical tag version, and the root changelog
-must contain exactly one non-empty matching component-and-version section.
-Release notes come only from that section, using headings such as:
-
-```text
-## OpenClaw plugin [0.1.2] - 2026-08-28
-## Thunderbird extension [0.1.2] - 2026-08-28
-```
-
-This single file is the human-readable history for both components while the
-component label disambiguates versions that happen to match. Tags are annotated
-(or signed when configured) and use exactly `openclaw-plugin-vX.Y.Z` or
-`thunderbird-extension-vX.Y.Z`.
-
-### Unpublished failed-tag recovery
-
-Publication is the immutability boundary. A failed component tag may be deleted
-and recreated at a corrected commit only when an authorized maintainer verifies
-all of the following before deletion:
-
-- the workflow run is complete and retained as the audit record;
-- no GitHub release exists for the tag;
-- no GitHub build-provenance attestation exists for the candidate; and
-- no marketplace version or other public artifact exists for that version.
-
-Record the failed run URL and the absence checks in the replacement commit or
-release issue. The replacement tag must point to a reviewed commit contained in
-`main`, and its workflow builds a new candidate once; artifacts from the failed
-attempt are never promoted. Once a GitHub release, attestation, marketplace
-version, or other public artifact exists, the version and tag are permanently
-immutable and any correction requires a new component version.
-
-The strict dispatcher accepts only those component tags plus historical
-`v0.1.0` and `v0.1.1`. New tags route only their named build, qualification,
-GitHub release, and marketplace channel. Historical tags use the permanently
-frozen v1 combined-release parser behind the immutable baseline-ledger verifier
-in `publish-legacy-release.yml`, with a manually selected
-`openclaw-plugin`, `thunderbird-extension`, or `both` legacy job. Every other
-tag/ref and channel/tag mismatch is rejected. The Thunderbird channel may retry
-the exact historical XPI. Existing ClawHub versions are immutable and cannot
-have a blank historical changelog repaired by republishing the same version,
-so the plugin channel audits public artifact, source, and scan metadata without
-claiming a retry or changelog repair.
-
-## Publication and exact post-publication verification
-
-Use [release operations](release-operations.md) to establish the release stage
-before retrying. A qualified existing GitHub release can use **Complete existing
-OpenClaw plugin publication** on reviewed main with the existing tag and original
-release run ID. It verifies public completion before dispatching any publisher,
-and accepted pending submissions receive read-only verification. An internal
-repair or scan timeout never justifies another product version.
-
-Marketplace jobs download the component GitHub release, verify checksum,
-provenance, component identity, tag, version, and source commit, then submit the
-same bytes. They do not build or pack. A manual retry selects one channel and
-exact release tag; it must not relabel an old artifact with the dispatch commit
-or publish the counterpart.
-
-ClawHub publishes the qualified TGZ through its protected environment. The
-automatic tag path dispatches the exact `publish-clawhub.yml` workflow at the
-qualified tag and requires its tokenless repository, workflow, and
-`clawhub-auto` OIDC claims; it rejects a static `CLAWHUB_TOKEN`. The manual lane
-uses its separately scoped token.
-Wait for definitive catalog visibility, then query the public package
-record/API and verify exact name, version, source tag/commit, scan state, and
-artifact digest against the GitHub release.
-
-ATN's API uploads and validates the exact XPI but cannot attach reviewer source
-or private reviewer notes. After the protected job succeeds, a maintainer must
-open that exact version in ATN Developer Hub, attach the matching reviewer
-source ZIP from the same GitHub release, and enter reviewer testing notes.
-Record this manual handoff; automation must not claim public completion before
-it occurs. Then dispatch `publish-thunderbird-addons.yml` in metadata-only mode,
-confirm both the reviewer source attachment and private reviewer testing notes,
-and require ATN's public version API to match the canonical release notes and
-the downloaded public-XPI digest/size. Verify that the public XPI is either
-byte-identical to the qualified upload or differs only by complete allowlisted
-Mozilla signature metadata, then perform a bounded
-Generate/Preview/Apply/Undo smoke test. Preserve the API and smoke results as
-release evidence.
-
-Publication evidence is synthetic and never exposes credentials, real mail,
-provider keys, endpoint details, or local state. No native helper or operating
-system package belongs to the release graph.
-
-## Compatibility automation
-
-The narrowly scoped OpenClaw compatibility autopilot may prepare, qualify, and
-publish a metadata-only plugin patch release after a 1-hour upstream soak. It
-pins and revalidates the official release's exact npm and provider integrities,
-Linux/AMD64 container digest, tag, and commit. Upstream signature status and CI
-waivers are recorded evidence, not ThunderClaw compatibility gates; every
-ThunderClaw gate remains blocking and cannot be waived.
-
-The automatic lane independently regenerates and verifies the permitted
-field-level change, qualifies the exact source tree with the last published
-extension counterpart, and promotes the retained qualified archive from its authenticated tag.
-Runtime, workflow, release-tooling, test, fixture, contract, or other
-non-generated changes require the existing human-reviewed release lane. The
-one-use `0.1.11` foundation manifest binds the published `0.1.10` anchor to the
-exact `0.1.11` / OpenClaw `2026.9.6` target and can select only the
-human-approved `foundation` lane. It cannot authorize an automatic release and
-becomes unusable after the required counterpart closeout advances the baseline.
-See the
-[`OpenClaw compatibility autopilot`](openclaw-autopilot.md) for its admission,
-state, credential, recovery, and rollout requirements.
-
-For a manual counterpart closeout, first obtain the authoritative artifact
-digest and byte size from the qualified build, then run:
-
-```text
-mise exec -- node scripts/update-counterpart-baseline.mjs \
-  --tag <component-vX.Y.Z> --repository <owner/repository> \
-  --expected-sha256 <64-hex-digest> --expected-size <bytes>
-```
-
-Scheduled Thunderbird surveillance remains advisory and never expands support
-or publishes automatically.
-
-For the concrete OpenClaw compatibility-release sequence, use the
-[`OpenClaw upgrade runbook`](openclaw-upgrade-runbook.md). This policy remains
-authoritative if a runbook instruction and a release invariant ever disagree.
+Use [release operations](release-operations.md) to diagnose failures and recover an
+existing publication. Qualification evidence must use synthetic mail and exclude
+provider keys, endpoint details, populated environment files, and local state.

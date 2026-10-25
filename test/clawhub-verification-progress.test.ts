@@ -4,7 +4,20 @@ import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { ClawHubPendingError, verifyClawHubRelease } from '../scripts/verify-marketplace-notes.mjs';
+import { ClawHubPendingError, parseMarketplaceVerificationArguments, verifyClawHubRelease } from '../scripts/verify-marketplace-notes.mjs';
+
+test('marketplace CLI accepts bounded read-only timeouts and rejects unsafe budgets', () => {
+  const args = ['--package', '@thunderclaw/openclaw-plugin', '--version', '0.1.16',
+    '--notes-file', 'notes.md', '--artifact', 'plugin.tgz', '--repository', 'owner/repo',
+    '--tag', 'openclaw-plugin-v0.1.16', '--commit', 'a'.repeat(40)];
+  assert.equal(parseMarketplaceVerificationArguments(args).timeoutMs, undefined);
+  for (const value of ['0', '300000', '3600000']) {
+    assert.equal(parseMarketplaceVerificationArguments([...args, '--timeout-ms', value]).timeoutMs, Number(value));
+  }
+  for (const value of ['-1', 'NaN', '1.5', '3600001', '999999999999999999999', '01']) {
+    assert.throws(() => parseMarketplaceVerificationArguments([...args, '--timeout-ms', value]), /timeout must be an integer/u);
+  }
+});
 
 test('public verification progresses pending to clean and fails immutable mismatches immediately', async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), 'thunderclaw-public-progress-'));

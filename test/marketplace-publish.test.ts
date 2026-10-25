@@ -86,11 +86,11 @@ test("ATN submission uploads listed exact bytes and waits for validation", async
 
 test("marketplace verification binds exact bytes to release provenance", async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), "thunderclaw-marketplace-test-"));
-  const tag = "openclaw-plugin-v1.2.3";
+  const tag = "thunderbird-extension-v1.2.3";
   const commit = "a".repeat(40);
   const artifacts = [];
   const checksumLines = [];
-  for (const name of expectedArtifactNames("openclaw-plugin", "1.2.3")) {
+  for (const name of expectedArtifactNames("thunderbird-extension", "1.2.3")) {
     const bytes = Buffer.from(`fixture:${name}`);
     const sha256 = createHash("sha256").update(bytes).digest("hex");
     await writeFile(path.join(directory, name), bytes);
@@ -98,21 +98,21 @@ test("marketplace verification binds exact bytes to release provenance", async (
     checksumLines.push(`${sha256}  ${name}`);
   }
   await writeFile(path.join(directory, "SHA256SUMS"), `${checksumLines.join("\n")}\n`);
-  await writeFile(path.join(directory, "release-notes.md"), "Canonical plugin notes.\n");
+  await writeFile(path.join(directory, "release-notes.md"), "Canonical extension notes.\n");
   await writeFile(path.join(directory, "release-provenance.json"), `${JSON.stringify({
     format: "thunderclaw-release-provenance-v2",
-    component: "openclaw-plugin",
+    component: "thunderbird-extension",
     source: { repository: "https://github.com/owner/repo", commit, tag },
-    build: { workflow: "owner/repo/.github/workflows/release-openclaw-plugin.yml@refs/tags/openclaw-plugin-v1.2.3", run: "https://github.com/owner/repo/actions/runs/1", attempt: 1 },
+    build: { workflow: "owner/repo/.github/workflows/release.yml@refs/tags/thunderbird-extension-v1.2.3", run: "https://github.com/owner/repo/actions/runs/1", attempt: 1 },
     artifacts,
   })}\n`);
 
   assert.equal(parseChecksums(`${checksumLines[0]}\n`).size, 1);
-  const result = await verifyMarketplaceRelease({ directory, component: "openclaw-plugin", tag, repository: "owner/repo", commit });
+  const result = await verifyMarketplaceRelease({ directory, component: "thunderbird-extension", tag, repository: "owner/repo", commit });
   assert.equal(result.version, "1.2.3");
   await writeFile(path.join(directory, artifacts[0].name), "tampered");
   await assert.rejects(
-    verifyMarketplaceRelease({ directory, component: "openclaw-plugin", tag, repository: "owner/repo", commit }),
+    verifyMarketplaceRelease({ directory, component: "thunderbird-extension", tag, repository: "owner/repo", commit }),
     /Checksum mismatch/u,
   );
 });

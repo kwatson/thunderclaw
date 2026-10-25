@@ -71,7 +71,8 @@ test("built XPI contains only the runtime allowlist and a classic browser IIFE",
 
   const background = execFileSync("unzip", ["-p", xpi, "background.js"], { encoding: "utf8", maxBuffer: 8 * 1024 * 1024 });
   assert.match(background, /^(?:"use strict";\n)?\(\(\) => \{/u);
-  assert.match(background, /ThunderClawDirectClient/u);
+  assert.match(background, /InferenceClient/u);
+  assert.doesNotMatch(background, /thunderclaw\/pairing\/v1|class BrowserThunderClawDirectClient/u);
   assert.doesNotMatch(background, /^\s*(?:import|export)\s/mu);
   assert.doesNotMatch(background, /\b(?:require|eval)\s*\(/u);
   assert.doesNotMatch(background, /\bnew\s+Function\s*\(/u);

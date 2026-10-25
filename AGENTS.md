@@ -41,22 +41,22 @@ shared conformance fixtures.
 
 ## Product and architecture invariants
 
-- ThunderClaw is a Thunderbird MailExtension that calls a separately installed
-  OpenClaw plugin over fixed HTTP(S) routes. Do not add a native helper,
-  alternate transport, or OpenClaw core patch.
+- ThunderClaw is a standalone Thunderbird MailExtension that calls a user-configured
+  OpenAI-compatible inference endpoint. Do not add a mandatory relay, native helper,
+  agent framework, or OpenClaw core patch. Legacy plugin source remains during migration.
 - Thunderbird owns message and compose DOM mutation. Never insert
   model-produced HTML, let a model send mail, or let it change recipients,
   attachments, or headers.
-- OpenClaw runs use the selected compatible configured agent, isolated
-  in-memory sessions, disabled model-callable tools and trajectory, and strict
-  JSON contracts. The current Thunderbird snapshot is authoritative.
+- Inference uses the explicitly configured endpoint/model, stateless requests,
+  disabled model-callable tools, and strict JSON validation. The current Thunderbird
+  snapshot is authoritative; request/run/hash identities remain locally owned.
 - Preserve separate Generate/Preview, Apply, Undo, and normal Send decisions.
 - Treat email as untrusted input. Preserve request and run identity,
   generation, target/context hashes, output limits, exact segment IDs, and
   stale-result validation on both sides of the boundary.
-- The extension may hold only its narrow paired ThunderClaw credential for the
-  configured origin. Provider, model, agent, and provider-key configuration
-  belongs to OpenClaw.
+- Provider configuration and persistent user-supplied API keys belong to the extension
+  background. Bind keys to the configured endpoint; never synchronize or expose them
+  to email scripts, diagnostics, or public settings. Do not claim local storage is encrypted.
 - Keep the stable extension ID `thunderclaw@addons.thunderbird.net` unless a
   planned migration updates every dependent boundary.
 
@@ -85,13 +85,12 @@ Internal automation, publishing-tool, test-harness, documentation, and skill
 changes do not require a product version bump, tag, or release. Validate them
 with ordinary CI, executable workflow regressions, or a sandbox as appropriate.
 For recovery, establish the publication stage from evidence before choosing an
-action. Preserve qualified bytes and immutable public release identity. A slow
-ClawHub scan or repaired workflow does not justify another product version.
+action. Preserve qualified bytes and immutable public release identity.
 
-The OpenClaw plugin and Thunderbird extension release independently. A plugin
-release produces one npm-style archive; an extension release produces one XPI
-and one allowlisted Mozilla reviewer source archive. Each component owns its
-version, component-scoped entry in the root changelog, tag, and GitHub release.
-Build candidate artifacts once, record their digests, qualify those exact bytes
-with the cryptographically pinned last-published counterpart, and promote them
-without rebuilding.
+Only the standalone Thunderbird extension is published. Its manifest version,
+component-scoped root changelog entry, `thunderbird-extension-vX.Y.Z` tag, and
+GitHub release identify one XPI and one allowlisted Mozilla reviewer source ZIP.
+Build candidates once, record their digests, qualify those exact bytes, and
+promote them without rebuilding. No OpenClaw counterpart or ClawHub gate belongs
+to this release path. Historical plugin releases, local source/validation tools,
+immutable tags, and local Gateway state remain intact during migration.
