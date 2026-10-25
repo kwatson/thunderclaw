@@ -28,7 +28,7 @@ test("Thunderbird extension declares compose and message-view boundaries", async
   const repositoryLock = JSON.parse(await readFile(new URL("../package-lock.json", import.meta.url), "utf8"));
   const pluginPackage = JSON.parse(await readFile(new URL("../packages/openclaw-plugin/package.json", import.meta.url), "utf8"));
   const extensionPackage = JSON.parse(await readFile(new URL("../packages/thunderbird-extension/package.json", import.meta.url), "utf8"));
-  assert.equal(manifest.version, "0.1.2");
+  assert.equal(manifest.version, "0.2.4");
   assert.equal(repositoryPackage.version, undefined);
   assert.equal(pluginPackage.version, repositoryLock.packages["packages/openclaw-plugin"].version);
   assert.match(pluginPackage.version, /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/u);
@@ -43,24 +43,28 @@ test("Thunderbird extension declares compose and message-view boundaries", async
   assert.equal(manifest.compose_scripts, undefined, "Thunderbird 128 requires programmatic compose-script registration");
 });
 
-test("compose and message actions disclose their exact email-content transmission", async () => {
-  const composeMarkup = await readFile(new URL("../packages/thunderbird-extension/src/popup.html", import.meta.url), "utf8");
-  const messageMarkup = await readFile(new URL("../packages/thunderbird-extension/src/message-popup.html", import.meta.url), "utf8");
-  assert.match(composeMarkup,
-    /The selected text, entire visible authored draft body, extracted quoted message history, subject, and recipients are sent through your configured OpenClaw agent\./u);
-  assert.match(messageMarkup,
-    /The entire visible rendered message body, including visible quoted history and signatures, plus its subject and author are sent through your configured OpenClaw agent\./u);
+test("standalone UI discloses its provider and persistent credential boundary", async () => {
+  const read = (name: string) => readFile(new URL(`../packages/thunderbird-extension/src/${name}`, import.meta.url), "utf8");
+  const [compose, message, options, entry] = await Promise.all([read("popup.html"), read("message-popup.html"), read("options.html"), read("background-entry.ts")]);
+  assert.doesNotMatch(compose + message + options, /configured OpenClaw agent|Start pairing|Finish pairing/u);
+  assert.match(compose + message + options, /provider|endpoint/iu);
+  assert.match(options, /API key/iu);
+  assert.match(options, /local|device/iu);
+  assert.match(entry, /installInferenceConnectionController/u);
+  assert.doesNotMatch(entry, /installOptionsConnectionController/u);
 });
 
-test("options discloses email transmission and requires consent before pairing", async () => {
-  const markup = await readFile(new URL("../packages/thunderbird-extension/src/options.html", import.meta.url), "utf8");
-  assert.match(markup, /Compose actions send selected text, the entire visible authored draft body, extracted quoted message history, subject, and recipients\./u);
-  assert.match(markup, /Message actions send the entire visible rendered message body, including visible quoted history and signatures, plus its subject and author\./u);
-  assert.match(markup, /configured OpenClaw agent and its configured model provider/u);
-  assert.match(markup, /Hooks installed in that OpenClaw Gateway can technically access it\./u);
-  assert.match(markup, /id="consent-accepted"[^>]*type="checkbox"[^>]*required/u);
-  assert.match(markup, /id="pair"[^>]*data-action="pair"[^>]*disabled/u);
-  assert.match(markup, /Disconnect or Forget connection to withdraw consent and stop further use\./u);
+test("settings explain response caps and the limits of thinking-level support", async () => {
+  const options = await readFile(new URL("../packages/thunderbird-extension/src/options.html", import.meta.url), "utf8");
+  assert.match(options, /<input id="max-response-tokens" type="number" min="1" max="131072" step="1" value="16384" required aria-describedby="response-token-help">/u);
+  assert.match(options, /Response token limit/u);
+  assert.match(options, /actual usage, not unused tokens/u);
+  assert.match(options, /Reasoning tokens may count/u);
+  assert.match(options, /model may have a lower maximum/u);
+  assert.match(options, /Thinking level<\/label><select id="thinking"/u);
+  assert.match(options, /some models cannot turn thinking off/u);
+  assert.match(options, /does not prove the exact thinking level was respected/u);
+  assert.match(options, /lists IDs, not supported thinking levels/u);
 });
 
 test("message-view translation mutates only captured text nodes and remains reversible", async () => {

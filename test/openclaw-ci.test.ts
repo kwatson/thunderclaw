@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-test("hosted OpenClaw qualification is pinned, secretless, and ephemeral", async () => {
+test("local legacy OpenClaw qualification is pinned, secretless, and ephemeral", async () => {
   const qualification = JSON.parse(
     await readFile(new URL("../openclaw-qualification.json", import.meta.url), "utf8"),
   ) as {
@@ -102,11 +102,7 @@ test("hosted OpenClaw qualification is pinned, secretless, and ephemeral", async
   assert.match(providerStager, /COPYFILE_EXCL/u);
   assert.match(providerStager, /--ignore-scripts/u);
 
-  assert.match(workflow, /openclaw-integration:/u);
-  assert.match(
-    workflow,
-    /if: needs\.checks\.outputs\.qualify_plugin == 'true' && \(github\.event_name != 'workflow_dispatch' \|\| inputs\.release_qualification == true\)/u,
-  );
-  assert.match(workflow, /runs-on: ubuntu-24\.04/u);
-  assert.match(workflow, /npm run test:integration:openclaw/u);
+  assert.doesNotMatch(workflow, /openclaw-integration:|qualify_plugin|legacy_plugin_qualification/u);
+  assert.doesNotMatch(workflow, /pack:plugin|test:integration:openclaw|qualify:native-filesystem|OPENCLAW_AUTOPILOT_ENABLED/u);
+  assert.doesNotMatch(workflow, /DEEPSEEK_API_KEY|OPENCLAW_GATEWAY_TOKEN|environment: release-qualification/u);
 });

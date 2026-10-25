@@ -1,97 +1,19 @@
 <!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>ThunderClaw settings</title>
-  <link rel="stylesheet" href="options.css">
-</head>
-<body>
-  <main>
-    <header class="page-header">
-      <p class="eyebrow">ThunderClaw</p>
-      <h1>Connect to OpenClaw</h1>
-      <p class="intro">Use your OpenClaw agents to help with email in Thunderbird.</p>
-    </header>
-
-    <section id="connection-panel" class="panel" aria-labelledby="connection-heading">
-      <div class="status-header">
-        <div>
-          <h2 id="connection-heading">Connection</h2>
-          <p id="state" class="connection-state" role="status" aria-live="polite" aria-atomic="true" tabindex="-1">Checking connection…</p>
-        </div>
-        <span id="state-indicator" class="state-indicator" aria-hidden="true"></span>
-      </div>
-
-      <div class="endpoint-field">
-        <label for="endpoint">OpenClaw endpoint</label>
-        <input id="endpoint" type="url" inputmode="url" autocomplete="off" spellcheck="false" placeholder="https://openclaw.example/thunderclaw/v1" aria-describedby="endpoint-help">
-        <p id="endpoint-help" class="help">Enter the ThunderClaw endpoint shown by your OpenClaw installation. HTTPS is required except for explicit <code>127.0.0.1</code> or <code>[::1]</code> loopback endpoints.</p>
-        <!-- Retained as a hidden compatibility target; endpoints normalize automatically. -->
-        <button id="normalize" type="button" hidden aria-hidden="true" tabindex="-1">Normalize</button>
-      </div>
-
-      <section id="data-consent" class="data-consent" aria-labelledby="data-consent-heading">
-        <h3 id="data-consent-heading">Email data sent when you use ThunderClaw</h3>
-        <p>Compose actions send selected text, the entire visible authored draft body, extracted quoted message history, subject, and recipients. Message actions send the entire visible rendered message body, including visible quoted history and signatures, plus its subject and author. This data passes through your configured OpenClaw agent and its configured model provider. Hooks installed in that OpenClaw Gateway can technically access it.</p>
-        <label class="consent-control" for="consent-accepted">
-          <input id="consent-accepted" type="checkbox" required aria-describedby="consent-help">
-          <span>I consent to this email data being sent when I use ThunderClaw.</span>
-        </label>
-        <p id="consent-help" class="help">Pairing stays disabled until you consent. Disconnect or Forget connection to withdraw consent and stop further use.</p>
-      </section>
-
-      <div id="pairing" class="pairing-card"></div>
-
-      <div class="primary-actions">
-        <button id="pair" type="button" data-action="pair" disabled>Start pairing</button>
-        <button id="claim" type="button" data-action="claim" disabled>Finish pairing</button>
-        <button id="cancel-pairing" type="button" class="secondary" data-action="cancel-pairing" disabled>Cancel pairing</button>
-        <button id="diagnose" type="button" data-action="diagnose" disabled>Test connection</button>
-      </div>
-
-      <div id="result" class="notice" role="status" aria-live="polite" aria-atomic="true" tabindex="-1"></div>
-    </section>
-
-    <section id="agents-panel" class="panel" aria-labelledby="agents-heading">
-      <div class="section-heading">
-        <div>
-          <h2 id="agents-heading">Your agents</h2>
-          <p class="section-intro">Agents available to ThunderClaw appear after the connection is tested.</p>
-        </div>
-      </div>
-      <div id="agents"><p class="empty-state">Test the connection to load your agents.</p></div>
-      <p class="verification-disclosure">Verifying an agent makes up to two synthetic model calls through its configured provider and may incur provider charges. Verification does not send or use email content.</p>
-    </section>
-
-    <details id="advanced-panel" class="panel advanced-panel">
-      <summary>
-        <span>Advanced settings</span>
-        <span class="summary-help">Permissions, credentials, and recovery</span>
-      </summary>
-      <div class="advanced-content">
-        <section aria-labelledby="permission-heading">
-          <h2 id="permission-heading">Host permission</h2>
-          <p class="disclosure">Pairing asks Thunderbird to grant access only to the configured scheme and hostname. Thunderbird’s grant covers every port and path on that hostname, while ThunderClaw confines its requests to this endpoint and its fixed routes.</p>
-        </section>
-
-        <section aria-labelledby="credential-heading">
-          <h2 id="credential-heading">Connection credential</h2>
-          <p class="help">If you suspect this device’s credential has been exposed, replace it without pairing again.</p>
-          <button id="rotate" type="button" class="secondary" data-action="rotate" disabled>Rotate credential</button>
-        </section>
-
-        <section class="danger-zone" aria-labelledby="disconnect-heading">
-          <h2 id="disconnect-heading">Disconnect or reset</h2>
-          <p class="help"><strong>Disconnect</strong> confirms remote revocation before removing local access. Use <strong>Forget connection</strong> only for recovery when OpenClaw cannot be reached.</p>
-          <div class="actions danger-actions">
-            <button id="disconnect" type="button" class="secondary" data-action="disconnect" disabled>Disconnect</button>
-            <button id="forget" type="button" class="danger" data-action="forget" disabled>Forget connection…</button>
-          </div>
-        </section>
-      </div>
-    </details>
-  </main>
-  <script src="options.js"></script>
-</body>
-</html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ThunderClaw settings</title><link rel="stylesheet" href="options.css"></head>
+<body><main><header class="page-header"><img src="icons/thunderclaw-64.png" alt="" width="48" height="48"><div><p class="eyebrow">ThunderClaw</p><h1>Inference connection</h1><p class="intro">Use your own model to edit and understand email.</p><p id="build-version" class="hint"></p></div></header>
+<section id="connection-panel" class="panel" aria-labelledby="connection-heading"><h2 id="connection-heading">Connection</h2><p id="state" role="status" aria-live="polite">Loading settings…</p><p id="migration" hidden>Legacy OpenClaw pairing data has been removed from this device. This does not revoke a device remotely; revoke old ThunderClaw devices through OpenClaw administration separately. Choose an inference connection below.</p>
+<form id="connection-form"><label for="provider">Provider</label><select id="provider"><option value="openai">OpenAI</option><option value="openrouter">OpenRouter</option><option value="deepseek">DeepSeek</option><option value="ollama">Ollama</option><option value="lmstudio">LM Studio</option><option value="custom">Custom OpenAI-compatible endpoint</option></select>
+<label for="endpoint">API base URL</label><input id="endpoint" type="url" maxlength="2048" autocomplete="off" required placeholder="https://api.openai.com/v1"><p class="hint">Use HTTPS, or HTTP with 127.0.0.1 or [::1]. Include the API base path, such as /v1.</p>
+<label for="api-key">API key</label><input id="api-key" type="password" maxlength="4096" autocomplete="new-password" spellcheck="false" aria-describedby="key-status storage-note"><p id="key-status" class="hint">No key saved.</p><label class="checkbox"><input id="remove-key" type="checkbox">Remove the saved key when saving</label>
+<p id="storage-note" class="hint">Keys are remembered on this device across Thunderbird restarts. Local profile storage is not encrypted. A blank key preserves the saved key only for the same provider and exact API base URL. Keys are never synced.</p>
+<div class="model-discovery"><button id="load-models" type="button" class="secondary" aria-describedby="model-status">Load models</button><p id="model-status" role="status" aria-live="polite"></p><div id="model-choices" hidden><label id="available-models-label" for="available-models">Available models</label><div class="model-picker-popup"><button id="available-models" type="button" class="model-picker" role="combobox" aria-labelledby="available-models-label" aria-haspopup="listbox" aria-controls="model-options" aria-expanded="false">Choose a model…</button><div id="model-options" role="listbox" aria-labelledby="available-models-label" hidden></div></div></div></div>
+<label for="model">Model ID</label><input id="model" type="text" maxlength="256" autocomplete="off" required placeholder="Enter an exact model ID"><p class="hint">Load models to choose from a list, or enter an exact model ID manually. Loading models never chooses one for you.</p>
+<label for="output-mode">Structured output</label><select id="output-mode"><option value="json_schema">JSON Schema</option><option value="json_object">JSON object compatibility</option></select><p class="hint">Use compatibility mode only when the endpoint does not support JSON Schema. Results receive the same local validation in either mode.</p>
+<label for="max-response-tokens">Response token limit</label><input id="max-response-tokens" type="number" min="1" max="131072" step="1" value="16384" required aria-describedby="response-token-help"><p id="response-token-help" class="hint">Caps each response to help bound cost and waiting time. Usage-based providers charge for actual usage, not unused tokens in this limit. Reasoning tokens may count toward the limit. ThunderClaw allows 1–131,072 tokens; your model may have a lower maximum.</p>
+<div id="thinking-setting"><label for="thinking">Thinking level</label><select id="thinking" aria-describedby="thinking-help thinking-provider-help"></select><p id="thinking-provider-help" class="hint"></p><p id="thinking-help" class="hint">Model and server support varies; some models cannot turn thinking off. Test connection checks whether the request is accepted, but does not prove the exact thinking level was respected. Loading models lists IDs, not supported thinking levels.</p></div>
+<label for="writing-style">Writing style (optional)</label><textarea id="writing-style" rows="4" maxlength="4000" placeholder="For example: concise, friendly, British spelling"></textarea>
+<p class="privacy">Generate sends the selected email content and necessary context directly to this endpoint. OpenRouter can route requests to an upstream provider. A local endpoint may itself use hosted models. ThunderClaw never sends email for you.</p>
+<label class="checkbox"><input id="consent-accepted" type="checkbox" required>I understand that Generate sends selected email content and necessary context to my chosen inference endpoint.</label>
+<div class="actions"><button id="save" type="submit">Save connection</button><button id="test" type="button" class="secondary">Test connection</button></div><p class="hint">Testing sends synthetic text, never your email. Hosted providers may charge for the test. Save changes before testing; every change requires a new test.</p>
+</form></section><section class="panel"><h2>Device settings</h2><p>Forget removes the saved connection and key from this device. It does not revoke a provider key.</p><button id="forget" type="button" class="secondary">Forget connection and key</button></section><p id="result" tabindex="-1" role="status" aria-live="polite"></p>
+</main><script src="options.js"></script></body></html>

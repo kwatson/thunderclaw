@@ -107,6 +107,7 @@ function richBlocks(value: unknown): RichBlock[] {
     }
     if ((block.type === "unordered_list" || block.type === "ordered_list")
       && Array.isArray(block.items) && block.items.length >= 1 && block.items.length <= 100) {
+      if (!exactKeys(block, ["type", "items"])) invalid("INVALID_BACKEND_RESPONSE", "rich list fields are invalid");
       const items = block.items.map((candidateItem, itemIndex) => {
         const item = record(candidateItem, "rich list item");
         if (!exactKeys(item, ["spans"])) invalid("INVALID_BACKEND_RESPONSE", "rich list item fields are invalid");
@@ -119,6 +120,18 @@ function richBlocks(value: unknown): RichBlock[] {
     return invalid("INVALID_BACKEND_RESPONSE", "rich block type is invalid");
   });
   if (characters > 12_000) invalid("OUTPUT_TOO_LARGE", "rich block output exceeds the limit");
+  return blocks;
+}
+
+/** Validate and copy the constrained rich input model; no DOM or HTML crosses this boundary. */
+export function validateRichTargetBlocks(value: unknown, text: string): RichBlock[] {
+  let blocks: RichBlock[];
+  try { blocks = richBlocks(value); }
+  catch { return requestFailure("INVALID_REQUEST", "target.blocks are invalid"); }
+  const flattened = blocks.map((block) => block.type === "paragraph"
+    ? block.spans.map((span) => span.text).join("")
+    : block.items.map((item) => item.spans.map((span) => span.text).join("")).join("\n")).join("\n\n");
+  if (flattened !== text) requestFailure("INVALID_REQUEST", "target.blocks do not match target.text");
   return blocks;
 }
 
@@ -239,6 +252,9 @@ export function validateTransformComposeRequest(value: unknown): TransformCompos
     if (targetItems.some((item) => item.trim().length === 0 || LIST_ITEM_UNSAFE_CHARACTERS.test(item))
       || targetItems.join("\n") !== text) requestFailure("INVALID_REQUEST", "flat list items are invalid");
   } else if (target.items !== undefined) requestFailure("INVALID_REQUEST", "text range target must not contain items");
+  const targetBlocks = target.blocks === undefined ? undefined
+    : selectionShape === "rich-blocks" ? validateRichTargetBlocks(target.blocks, text)
+      : requestFailure("INVALID_REQUEST", "only rich targets may contain blocks");
   const start = target.start;
   const end = target.end;
   if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || (start as number) < 0 || (end as number) < (start as number) || (end as number) > text.length) requestFailure("INVALID_REQUEST", "target range is out of bounds");
@@ -264,6 +280,7 @@ export function validateTransformComposeRequest(value: unknown): TransformCompos
       end: end as number,
       ...(selectionShape === undefined ? {} : { selectionShape }),
       ...(targetItems === undefined ? {} : { items: targetItems }),
+      ...(targetBlocks === undefined ? {} : { blocks: targetBlocks }),
     },
     limits: {
       maxOperations: positiveInteger(limits.maxOperations, "limits.maxOperations"),

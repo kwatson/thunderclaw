@@ -30,7 +30,6 @@ jobs:
     timeout-minutes: 20
     outputs:
       run_full: ${{ steps.changes.outputs.run_full }}
-      qualify_plugin: ${{ steps.changes.outputs.qualify_plugin }}
       qualify_extension: ${{ steps.changes.outputs.qualify_extension }}
 
     steps:
@@ -66,17 +65,11 @@ jobs:
 
       - name: Run deterministic tests
         if: steps.changes.outputs.run_full == 'true'
-        env:
-          OPENCLAW_AUTOPILOT_ENABLED: "true"
         run: mise exec -- npm test
 
       - name: Typecheck
         if: steps.changes.outputs.run_full == 'true'
         run: mise exec -- npm run typecheck
-
-      - name: Validate plugin package
-        if: steps.changes.outputs.qualify_plugin == 'true'
-        run: mise exec -- npm run pack:plugin
 
       - name: Validate extension packages
         if: steps.changes.outputs.qualify_extension == 'true'
@@ -96,27 +89,6 @@ jobs:
             build/thunderclaw-extension.xpi.sha256
           if-no-files-found: error
           retention-days: 7
-
-  macos-harness:
-    name: macOS qualification harness regressions
-    needs: checks
-    if: needs.checks.outputs.run_full == 'true'
-    runs-on: macos-15
-    timeout-minutes: 10
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          persist-credentials: false
-
-      - name: Install managed runtimes
-        uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4
-
-      - name: Install dependencies
-        run: mise exec -- npm ci
-
-      - name: Exercise qualification harness with system Bash
-        run: mise exec -- node --import tsx --test test/openclaw-ci-diagnostics.test.ts
 
   thunderbird-e2e:
     name: Thunderbird ${{ matrix.thunderbird }}
@@ -180,10 +152,6 @@ jobs:
             runner: windows-2025
             thunderbird: 153.0.3
             sha512: 1c845ead482fa04ce3fb2f769e569d8e22164f636642fa2c398341a318cc05796752c46c038c10d0f421d9a42c544cc54c6505b918a25ddf585267a2e4571464
-            run_thunderbird_e2e: true
-          - platform: macOS
-            runner: macos-15
-            run_thunderbird_e2e: false
 
     steps:
       - name: Check out repository
@@ -195,7 +163,6 @@ jobs:
         uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4
 
       - name: Install Python
-        if: matrix.run_thunderbird_e2e
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: "3.12"
@@ -206,48 +173,32 @@ jobs:
         run: mise exec -- npm ci
 
       - name: Run native deterministic tests
-        env:
-          OPENCLAW_AUTOPILOT_ENABLED: "true"
         run: mise exec -- npm test
 
-      - name: Qualify native filesystem security
-        run: mise exec -- npm run qualify:native-filesystem
-
       - name: Download candidate XPI
-        if: matrix.run_thunderbird_e2e
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: thunderclaw-ci-candidate
           path: build
 
       - name: Verify candidate XPI digest
-        if: matrix.run_thunderbird_e2e
         shell: bash
         run: |
           node -e 'const fs=require("node:fs"),c=require("node:crypto"); const p="build/thunderclaw-extension.xpi"; const expected=fs.readFileSync(`${p}.sha256`,"utf8").split(/\s/u)[0]; const actual=c.createHash("sha256").update(fs.readFileSync(p)).digest("hex"); if(actual!==expected) process.exit(1)'
 
       - name: Install Marionette dependencies
-        if: matrix.run_thunderbird_e2e
         run: python -m pip install --disable-pip-version-check -r e2e/thunderbird/requirements.txt
 
       - name: Install pinned Thunderbird on Windows
-        if: matrix.run_thunderbird_e2e && runner.os == 'Windows'
         id: thunderbird-windows
         shell: pwsh
         run: ./scripts/install-native-thunderbird.ps1 -Version '${{ matrix.thunderbird }}' -Sha512 '${{ matrix.sha512 }}'
 
-      - name: Install pinned Thunderbird on macOS
-        if: matrix.run_thunderbird_e2e && runner.os == 'macOS'
-        id: thunderbird-macos
-        shell: bash
-        run: ./scripts/install-native-thunderbird.sh '${{ matrix.thunderbird }}' '${{ matrix.sha512 }}'
-
       - name: Run native Thunderbird qualification
-        if: matrix.run_thunderbird_e2e
         shell: bash
         env:
-          THUNDERBIRD_EXECUTABLE: ${{ steps.thunderbird-windows.outputs.thunderbird || steps.thunderbird-macos.outputs.thunderbird }}
-          THUNDERBIRD_APPLICATION_INI: ${{ steps.thunderbird-windows.outputs.application_ini || steps.thunderbird-macos.outputs.application_ini }}
+          THUNDERBIRD_EXECUTABLE: ${{ steps.thunderbird-windows.outputs.thunderbird }}
+          THUNDERBIRD_APPLICATION_INI: ${{ steps.thunderbird-windows.outputs.application_ini }}
           THUNDERBIRD_ARTIFACTS: build/e2e/native/${{ runner.os }}/${{ matrix.thunderbird }}
         run: |
           python e2e/thunderbird/run_compose.py \
@@ -259,47 +210,10 @@ jobs:
             --user-js e2e/thunderbird/user.js
 
       - name: Upload native qualification evidence
-        if: ${{ matrix.run_thunderbird_e2e && !cancelled() && (failure() || github.event_name != 'pull_request') }}
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: thunderbird-${{ matrix.thunderbird }}-${{ runner.os }}
           path: build/e2e/native/${{ runner.os }}/${{ matrix.thunderbird }}/
           if-no-files-found: warn
-          retention-days: 14
-
-  openclaw-integration:
-    name: Pinned qualified OpenClaw integration
-    needs: checks
-    if: needs.checks.outputs.qualify_plugin == 'true' && (github.event_name != 'workflow_dispatch' || inputs.release_qualification == true)
-    runs-on: ubuntu-24.04
-    timeout-minutes: 25
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          persist-credentials: false
-
-      - name: Install managed runtimes
-        uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4
-
-      - name: Install dependencies
-        run: mise exec -- npm ci
-
-      - name: Build explicit OpenClaw plugin candidate
-        shell: bash
-        run: |
-          mise exec -- npm run pack:plugin
-          version=$(mise exec -- node -p 'require("./packages/openclaw-plugin/package.json").version')
-          echo "THUNDERCLAW_OPENCLAW_PLUGIN_TGZ=$GITHUB_WORKSPACE/build/thunderclaw-openclaw-plugin-${version}.tgz" >> "$GITHUB_ENV"
-
-      - name: Qualify against pinned OpenClaw
-        run: mise exec -- npm run test:integration:openclaw
-
-      - name: Retain sanitized OpenClaw startup diagnostics
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: openclaw-ci-diagnostics-${{ github.run_attempt }}
-          path: build/qualification-diagnostics/**/diagnostics.jsonl
-          if-no-files-found: ignore
           retention-days: 14

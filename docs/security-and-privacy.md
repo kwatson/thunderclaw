@@ -1,5 +1,7 @@
 # ThunderClaw security and privacy
 
+> **Migration status:** The development extension now targets direct OpenAI-compatible inference. The OpenClaw-specific sections below describe the retained legacy integration. The [standalone migration](standalone-migration.md), [architecture](architecture.md), and [privacy policy](privacy-policy.md) govern the new extension; real-provider and Thunderbird release qualification remain required.
+
 ## Trust boundaries
 
 ThunderClaw treats email, quoted history, signatures, model output, backend

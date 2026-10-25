@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { ConnectionBinding, ThunderClawDirectClient } from "../packages/thunderbird-extension/src/direct-client-contract.js";
+import { DirectClientError, type ConnectionBinding, type ThunderClawDirectClient } from "../packages/thunderbird-extension/src/direct-client-contract.js";
 import { installFeatureBackground } from "../packages/thunderbird-extension/src/background-coordinator.js";
 import type { BackgroundFeatureLease, ConnectionController, FeatureRetirementHandler } from "../packages/thunderbird-extension/src/connection-controller.js";
 
@@ -35,7 +35,8 @@ async function eventually<T>(read: () => Promise<T>, accept: (value: T) => boole
 }
 
 function harness() {
-  const runtimeListeners: Array<(message: any) => unknown> = [];
+  const runtimeListeners: Array<(message: any, sender: any) => unknown> = [];
+  let tabType: string | undefined;
   const removedListeners: Array<(tabId: number) => unknown> = [];
   const displayedListeners: Array<(tab: { id: number }) => unknown> = [];
   const calls: any[] = [];
@@ -83,9 +84,11 @@ function harness() {
     addFeatureRetirementHandler(handler: FeatureRetirementHandler) { retirement = handler; return () => undefined; },
   } as unknown as ConnectionController;
 
+  let currentMessageType = "";
   const browser = {
-    runtime: { onMessage: { addListener(listener: any) { runtimeListeners.push(listener); } } },
+    runtime: { id: "thunderclaw@addons.thunderbird.net", getURL(path: string) { return `moz-extension://thunderclaw-test/${path}`; }, onMessage: { addListener(listener: any) { runtimeListeners.push(listener); } } },
     tabs: {
+      async get(tabId: number) { calls.push(["tab-get", tabId]); return { id: tabId, type: tabType || (currentMessageType.startsWith("messagePopup.") ? "mail" : "messageCompose") }; },
       async sendMessage(_tabId: number, message: any) {
         calls.push(["tab-message", structuredClone(message)]);
         if (message.type === "thunderclaw.inspect" && composeInspectError) return { ok: false, error: composeInspectError };
@@ -145,9 +148,11 @@ function harness() {
     setComposeInspectError(value: string | undefined) { composeInspectError = value; },
     setTransformMessage(value: typeof transformMessageImpl) { transformMessageImpl = value; },
     setTransformCompose(value: typeof transformComposeImpl) { transformComposeImpl = value; },
-    async send(message: any): Promise<any> {
+    setTabType(value: string | undefined) { tabType = value; },
+    async send(message: any, sender: any = { id: browser.runtime.id, url: browser.runtime.getURL(message.type?.startsWith("messagePopup.") ? "message-popup.html" : "popup.html") }): Promise<any> {
+      currentMessageType = message.type || "";
       for (const listener of runtimeListeners) {
-        const result = listener(message);
+        const result = listener(message, sender);
         if (result !== undefined) return await result;
       }
       return undefined;
@@ -159,7 +164,7 @@ function harness() {
   };
 }
 
-test("feature selectors expose only verified agents and explicitly label partial verification", async () => {
+test("feature selectors expose available configured choices without backend verification labels", async () => {
   const h = harness();
   try {
     (h.client as any).listAgents = async (requestId: string) => ({ binding, value: {
@@ -171,11 +176,11 @@ test("feature selectors expose only verified agents and explicitly label partial
     } });
     const compose = await h.send({ type: "popup.initialize", tabId: 1 });
     assert.deepEqual(compose.agents.map((agent: any) => agent.agentId), ["agent-0", "agent-1"]);
-    assert.equal(compose.agents[1].displayName, "Agent 1 (partially verified)");
+    assert.equal(compose.agents[1].displayName, "Agent 1");
     assert.equal(compose.selectedAgentId, "agent-0", "an unavailable default cannot be selected");
     const message = await h.send({ type: "messagePopup.initialize", tabId: 2 });
     assert.deepEqual(message.agents.map((agent: any) => agent.agentId), ["agent-0", "agent-1"]);
-    assert.equal(message.agents[1].displayName, "Agent 1 (partially verified)");
+    assert.equal(message.agents[1].displayName, "Agent 1");
   } finally { h.restore(); }
 });
 
@@ -194,7 +199,7 @@ test("compose rechecks authoritative eligibility and rejects stale or forged age
     await settle();
     stale.resolve({ binding, value: { protocolVersion: 1, requestId: "fresh-list", agents: [record("agent-a", "unverified")] } });
     const failed = await eventually(() => h.send({ type: "popup.job", tabId: 20 }), (job) => job?.state === "error");
-    assert.match(failed.error, /not verified for the current configuration/u);
+    assert.match(failed.error, /configured model is no longer available/u);
     assert.equal(h.calls.some(([kind]) => kind === "open" || kind === "compose-transform"), false);
 
     await h.send({ type: "popup.initialize", tabId: 21 });
@@ -204,7 +209,7 @@ test("compose rechecks authoritative eligibility and rejects stale or forged age
     const forged = await h.send({ type: "popup.transform", tabId: 21, agentId: "forged-agent", action: "improve", instruction: "" });
     const forgedFailure = await eventually(() => h.send({ type: "popup.job", tabId: 21 }), (job) => job?.state === "error");
     assert.equal(forgedFailure.jobId, forged.jobId);
-    assert.match(forgedFailure.error, /not verified for the current configuration/u);
+    assert.match(forgedFailure.error, /configured model is no longer available/u);
     assert.equal(h.calls.some(([kind, request]) => kind === "open" && request.agentId === "forged-agent"), false);
   } finally { h.restore(); }
 });
@@ -268,7 +273,8 @@ test("rich-block preview preserves only the independently validated typed docume
   const h = harness();
   try {
     h.setComposeText("Original paragraphs");
-    h.setComposeSelection({ selectionShape: "rich-blocks" });
+    const originalBlocks = [{ type: "paragraph", spans: [{ text: "Original ", marks: ["bold", "italic"] }, { text: "paragraphs" }] }];
+    h.setComposeSelection({ selectionShape: "rich-blocks", blocks: originalBlocks });
     h.setRichBlockCapability(true);
     const blocks = [{ type: "unordered_list", items: [
       { spans: [{ text: "First" }] }, { spans: [{ text: "Second", marks: ["bold"] }] },
@@ -283,6 +289,9 @@ test("rich-block preview preserves only the independently validated typed docume
     await h.send({ type: "popup.transform", tabId: 222, agentId: "agent-a", action: "improve", instruction: "three bullets" });
     const ready = await eventually(() => h.send({ type: "popup.job", tabId: 222 }), (job) => job?.state === "ready");
     assert.equal(ready.result.selectionShape, "rich-blocks");
+    const sent = h.calls.find(([kind]) => kind === "compose-transform")?.[1];
+    assert.deepEqual(sent.target.blocks, originalBlocks);
+    assert.notEqual(sent.target.blocks, originalBlocks);
     assert.deepEqual(ready.result.replacementBlocks, blocks);
     await h.send({ type: "popup.apply", tabId: 222, suggestionId: ready.result.suggestionId, jobId: ready.jobId });
     const apply = h.calls.findLast(([kind, message]) => kind === "tab-message" && message.type === "thunderclaw.apply")?.[1];
@@ -399,7 +408,7 @@ test("message runs recheck authoritative eligibility and reject stale or forged 
     const starting = h.send({ type: "messagePopup.transform", tabId: 22, agentId: "agent-a", action: "translate", sourceLanguage: null, targetLanguage: "English" });
     await settle();
     stale.resolve({ binding, value: { protocolVersion: 1, requestId: "fresh-list", agents: [record("agent-a", "unverified")] } });
-    await assert.rejects(starting, /not verified for the current configuration/u);
+    await assert.rejects(starting, /configured model is no longer available/u);
     assert.equal(h.calls.some(([kind]) => kind === "message-transform"), false);
 
     (h.client as any).listAgents = async (requestId: string) => ({ binding, value: {
@@ -407,7 +416,7 @@ test("message runs recheck authoritative eligibility and reject stale or forged 
     } });
     await assert.rejects(
       h.send({ type: "messagePopup.transform", tabId: 22, agentId: "forged-agent", action: "translate", sourceLanguage: null, targetLanguage: "English" }),
-      /not verified for the current configuration/u,
+      /configured model is no longer available/u,
     );
     assert.equal(h.calls.some(([kind]) => kind === "message-transform"), false);
   } finally { h.restore(); }
@@ -556,4 +565,187 @@ test("message capture rejects metadata-to-DOM-to-metadata races and display inst
     assert.match(failed.error, /displayed message changed/u);
     assert.equal(h.calls.some(([kind, message]) => kind === "tab-message" && message.type === "thunderclaw.message.summary"), false);
   } finally { h.restore(); }
+});
+
+
+test("feature IPC accepts only its exact extension popup and rejects content script and foreign senders", async () => {
+  const h = harness();
+  try {
+    const extensionId = "thunderclaw@addons.thunderbird.net";
+    const popup = "moz-extension://thunderclaw-test/popup.html";
+    const readingPopup = "moz-extension://thunderclaw-test/message-popup.html";
+    for (const [type, sender] of [
+      ["popup.initialize", undefined],
+      ["popup.initialize", {}],
+      ["popup.initialize", { id: "another-extension", url: popup }],
+      ["popup.initialize", { id: extensionId, url: "https://mail.example.test/popup.html" }],
+      ["popup.initialize", { id: extensionId, url: `${popup}?extra=1` }],
+      ["popup.initialize", { id: extensionId, url: readingPopup }],
+      ["popup.initialize", { id: extensionId, url: "imap://mail.example.test/INBOX", tab: { id: 1 } }],
+      ["messagePopup.initialize", { id: extensionId, url: popup }],
+      ["messagePopup.initialize", { id: extensionId, url: "https://mail.example.test/", tab: { id: 1 } }],
+    ] as const) {
+      await assert.rejects(h.send({ type, tabId: 1 }, sender ?? null), /only available from its popup/u);
+      assert.deepEqual(h.calls, [], "untrusted senders must not read tabs, draft or message data, or a provider lease");
+    }
+    await h.send({ type: "popup.initialize", tabId: 1 }, { id: extensionId, url: popup, tab: { id: 1 } });
+    assert.ok(h.calls.some(([kind]) => kind === "tab-message"));
+    h.calls.splice(0);
+    await h.send({ type: "messagePopup.initialize", tabId: 1 }, { id: extensionId, url: readingPopup, tab: { id: 1 } });
+    assert.ok(h.calls.some(([kind]) => kind === "tab-message"));
+  } finally { h.restore(); }
+});
+
+test("feature IPC validates complete allowed keys, positive finite tab IDs, enums and field types before any work", async () => {
+  const h = harness();
+  try {
+    const valid = { type: "popup.transform", tabId: 1, agentId: "agent-a", action: "improve", instruction: "" };
+    const message = { type: "messagePopup.transform", tabId: 1, agentId: "agent-a", action: "translate", sourceLanguage: null, targetLanguage: "English" };
+    const malformed = [
+      ...[0, -1, 1.5, Infinity, NaN, "1", Number.MAX_SAFE_INTEGER + 1].map((tabId) => ({ type: "popup.initialize", tabId })),
+      { type: "popup.initialize", tabId: 1, extra: true },
+      { type: "popup.unknown", tabId: 1 },
+      { ...valid, action: "send" }, { ...valid, agentId: null }, { ...valid, instruction: 1 },
+      { ...valid, instruction: "x".repeat(4001) }, { ...valid, extra: "ignored?" },
+      { type: "popup.transform", tabId: 1, agentId: "agent-a", action: "improve" },
+      { type: "popup.apply", tabId: 1, suggestionId: false, jobId: "job" },
+      { type: "popup.cancel", tabId: 1, jobId: null },
+      { ...message, sourceLanguage: false }, { ...message, targetLanguage: undefined },
+      { ...message, action: "send" }, { ...message, targetLanguage: "" },
+      { ...message, targetLanguage: "x".repeat(101) },
+    ];
+    for (const request of malformed) {
+      await assert.rejects(h.send(request), /popup request is invalid/u);
+      assert.deepEqual(h.calls, [], "invalid requests must not touch tabs, email data or the provider");
+    }
+  } finally { h.restore(); }
+});
+
+test("feature IPC requires the correct Thunderbird target tab type", async () => {
+  const h = harness();
+  try {
+    for (const type of ["content", "mail", "messageDisplay", "addressBook"]) {
+      h.setTabType(type);
+      await assert.rejects(h.send({ type: "popup.initialize", tabId: 1 }), /message compose window/u);
+    }
+    for (const type of ["content", "messageCompose", "addressBook"]) {
+      h.setTabType(type);
+      await assert.rejects(h.send({ type: "messagePopup.initialize", tabId: 1 }), /while viewing a message/u);
+    }
+    assert.equal(h.calls.some(([kind]) => kind !== "tab-get"), false);
+  } finally { h.restore(); }
+});
+
+test("provider and Thunderbird exceptions never expose private error text through feature jobs or IPC", async () => {
+  const h = harness();
+  const privateError = "private API credential=synthetic-test-key mail=synthetic-private-body";
+  try {
+    h.setComposeInspectError(privateError);
+    await assert.rejects(h.send({ type: "popup.transform", tabId: 1, agentId: "agent-a", action: "improve", instruction: "" }), (error: unknown) => {
+      assert.ok(error instanceof Error);
+      assert.doesNotMatch(error.message, /synthetic/u);
+      assert.match(error.message, /Check settings/u);
+      return true;
+    });
+    h.setComposeInspectError(undefined);
+    h.setTransformCompose(async () => { throw new Error(privateError); });
+    await h.send({ type: "popup.transform", tabId: 1, agentId: "agent-a", action: "improve", instruction: "" });
+    const compose = await eventually(() => h.send({ type: "popup.job", tabId: 1 }), (job) => job?.state === "error");
+    assert.doesNotMatch(compose.error, /synthetic/u);
+    assert.match(compose.error, /Check settings/u);
+
+    await h.send({ type: "messagePopup.initialize", tabId: 2 });
+    h.setTransformMessage(async () => { throw new Error(privateError); });
+    await h.send({ type: "messagePopup.transform", tabId: 2, agentId: "agent-a", action: "summarize", sourceLanguage: null, targetLanguage: "English" });
+    const reading = await eventually(() => h.send({ type: "messagePopup.job", tabId: 2 }), (job) => job?.state === "error");
+    assert.doesNotMatch(reading.error, /synthetic/u);
+    assert.match(reading.error, /Check settings/u);
+
+    h.setTransformCompose(async () => { throw new DirectClientError("authentication", "PRIVATE_TEST_CODE", privateError); });
+    await h.send({ type: "popup.transform", tabId: 3, agentId: "agent-a", action: "improve", instruction: "" });
+    const typed = await eventually(() => h.send({ type: "popup.job", tabId: 3 }), (job) => job?.state === "error");
+    assert.match(typed.error, /server rejected the API key/u);
+    assert.doesNotMatch(typed.error, /synthetic/u);
+  } finally { h.restore(); }
+});
+
+
+test("compose and received-message jobs explain response limits without exposing provider details or applying edits", async () => {
+  const h = harness();
+  const fail = async () => { throw new DirectClientError("contract", "INFERENCE_OUTPUT_LIMIT", "synthetic-private-provider-output"); };
+  try {
+    h.setTransformCompose(fail);
+    await h.send({ type: "popup.transform", tabId: 1, agentId: "agent-a", action: "improve", instruction: "" });
+    const compose = await eventually(() => h.send({ type: "popup.job", tabId: 1 }), (job) => job?.state === "error");
+    assert.equal(compose.error, "The model reached its response-token limit before finishing. Increase Response token limit or reduce the thinking level in settings, then try again. No changes were applied.");
+    await h.send({ type: "messagePopup.initialize", tabId: 2 });
+    h.setTransformMessage(fail);
+    await h.send({ type: "messagePopup.transform", tabId: 2, agentId: "agent-a", action: "translate", sourceLanguage: null, targetLanguage: "English" });
+    const reading = await eventually(() => h.send({ type: "messagePopup.job", tabId: 2 }), (job) => job?.state === "error");
+    assert.equal(reading.error, compose.error);
+    assert.equal(h.calls.filter(([kind]) => kind === "compose-transform").length, 1);
+    assert.equal(h.calls.filter(([kind]) => kind === "message-transform").length, 1);
+    assert.equal(h.calls.some(([kind, message]) => kind === "tab-message" && message.type === "thunderclaw.apply"), false);
+  } finally { h.restore(); }
+});
+
+test("missing compose action instructions fail before acquiring a provider connection", async () => {
+  const h = harness();
+  try {
+    for (const [action, message] of [
+      ["tone", "Describe the tone you want before generating a preview."],
+      ["translate", "Enter a target language before generating a preview."],
+      ["ask", "Enter an instruction before generating a preview."],
+    ]) {
+      await assert.rejects(h.send({ type: "popup.transform", tabId: 701, agentId: "agent-a", action, instruction: " \n " }),
+        (error: unknown) => error instanceof Error && error.message === message);
+    }
+    assert.equal(h.calls.some(([kind]) => ["acquire", "open", "compose-transform"].includes(kind)), false);
+  } finally { h.restore(); }
+});
+
+test("invalid rich input fails before acquiring a provider connection", async () => {
+  const h = harness();
+  try {
+    for (const blocks of [undefined, [], [{ type: "paragraph", spans: [{ text: "different" }] }]]) {
+      h.setComposeSelection({ selectionShape: "rich-blocks", blocks });
+      await assert.rejects(h.send({ type: "popup.transform", tabId: 702, agentId: "agent-a", action: "improve", instruction: "" }),
+        /invalid rich-block snapshot/u);
+    }
+    assert.equal(h.calls.some(([kind]) => ["acquire", "open", "compose-transform"].includes(kind)), false);
+  } finally { h.restore(); }
+});
+
+test("same-text rich formatting changes invalidate generation and Apply", async () => {
+  for (const changeDuringGeneration of [true, false]) {
+    const h = harness();
+    try {
+      const original = [{ type: "paragraph", spans: [{ text: "Draft", marks: ["bold"] }] }];
+      const changed = [{ type: "paragraph", spans: [{ text: "Draft", marks: ["italic"] }] }];
+      h.setComposeSelection({ selectionShape: "rich-blocks", blocks: original });
+      h.setRichBlockCapability(true);
+      h.setTransformCompose(async (request: any) => {
+        if (changeDuringGeneration) h.setComposeSelection({ selectionShape: "rich-blocks", blocks: changed });
+        return { binding, value: {
+          protocolVersion: 1, runId: request.runId,
+          result: { version: 1, requestId: request.requestId, composeGeneration: request.composeGeneration,
+            contextHash: request.contextHash, targetHash: request.targetHash,
+            operations: [{ type: "replace_rich_blocks", targetId: request.target.targetId,
+              blocks: [{ type: "paragraph", spans: [{ text: "Revised" }] }] }], summary: "Revised" },
+          evidence: { runtimeSessionMarker: null, repairAttempted: false },
+        } } as any;
+      });
+      await h.send({ type: "popup.transform", tabId: 703, agentId: "agent-a", action: "improve", instruction: "" });
+      const job = await eventually(() => h.send({ type: "popup.job", tabId: 703 }), (job) => job?.state !== "running");
+      if (changeDuringGeneration) {
+        assert.equal(job.state, "error");
+        assert.match(job.error, /draft changed while/u);
+      } else {
+        assert.equal(job.state, "ready");
+        h.setComposeSelection({ selectionShape: "rich-blocks", blocks: changed });
+        await assert.rejects(h.send({ type: "popup.apply", tabId: 703, suggestionId: job.result.suggestionId, jobId: job.jobId }), /draft changed after/u);
+      }
+      assert.equal(h.calls.some(([kind, message]) => kind === "tab-message" && message.type === "thunderclaw.apply"), false);
+    } finally { h.restore(); }
+  }
 });

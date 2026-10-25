@@ -1,5 +1,7 @@
 # OpenClaw upgrade runbook
 
+> **Retired automation — historical reference only:** OpenClaw plugin publishing and its dedicated workflows/scripts have been removed. Commands below describe the earlier architecture and may no longer exist. Use the [standalone release policy](release.md) and [release operations](release-operations.md) for current work. Published versions and incident records remain immutable.
+
 This is the manual and exception sequence for qualifying and publishing a
 ThunderClaw OpenClaw compatibility release. Routine metadata-only releases use
 the [`OpenClaw compatibility autopilot`](openclaw-autopilot.md). For a stalled

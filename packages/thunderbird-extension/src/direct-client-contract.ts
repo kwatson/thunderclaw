@@ -70,7 +70,7 @@ export type TransformComposeRequest = ComposeIdentity & {
   targetHash: string;
   document: { subject: string; recipients: string[]; authoredText: string; quotedText?: string };
   target: { targetId: string; text: string; start: number; end: number;
-    selectionShape?: "text-range" | "flat-list-items" | "rich-blocks"; items?: string[] };
+    selectionShape?: "text-range" | "flat-list-items" | "rich-blocks"; items?: string[]; blocks?: RichBlock[] };
   limits: { maxOperations: number; maxOutputCharacters: number };
 };
 

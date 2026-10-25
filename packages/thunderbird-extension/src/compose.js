@@ -237,7 +237,7 @@ function completeRichBlockSelection(range) {
     blocks = [bodyTextBlock];
   }
   const characters = blocks.reduce((sum, block) => sum + block.spans.reduce((subtotal, span) => subtotal + span.text.length, 0), 0);
-  return characters <= 12_000 ? { roots, blocks } : undefined;
+  return characters <= 12_000 && validRichBlocks(blocks) ? { roots, blocks } : undefined;
 }
 
 function trustedListCapability(value) {
@@ -555,7 +555,7 @@ function capture(runtimeCapabilityValue) {
     ? { targetId, text: completeList.items.join("\n"), items: completeList.items,
         selectionShape: "flat-list-items", listKind: completeList.list.localName, ...editorSnapshot() }
     : richTarget
-      ? { targetId, text: targets.get(targetId).text, selectionShape: "rich-blocks", ...editorSnapshot() }
+      ? { targetId, text: targets.get(targetId).text, blocks: structuredClone(targets.get(targetId).blocks), selectionShape: "rich-blocks", ...editorSnapshot() }
     : { targetId, text, selectionShape: "text-range", ...editorSnapshot() };
 }
 
@@ -569,7 +569,7 @@ function inspect(targetId) {
   }
   if (target.kind === "rich-blocks") {
     if (!exactRichPreState(target)) throw new Error("The original rich-block selection changed. Run ThunderClaw again.");
-    return { targetId, text: target.text, selectionShape: "rich-blocks", ...editorSnapshot() };
+    return { targetId, text: target.text, blocks: structuredClone(target.blocks), selectionShape: "rich-blocks", ...editorSnapshot() };
   }
   return { targetId, text: target.range.toString(), selectionShape: "text-range", ...editorSnapshot() };
 }

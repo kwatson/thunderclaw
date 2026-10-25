@@ -1,5 +1,7 @@
 # ThunderClaw product contract
 
+> **Migration status:** The development extension now targets direct OpenAI-compatible inference. The OpenClaw-specific sections below describe the retained legacy integration. The [standalone migration](standalone-migration.md), [architecture](architecture.md), and [privacy policy](privacy-policy.md) govern the new extension; real-provider and Thunderbird release qualification remain required.
+
 This document describes current behavior. It is a product contract, not a
 record of how the behavior was developed.
 

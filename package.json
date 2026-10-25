@@ -8,22 +8,17 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "npm run build:plugin && npm run build:extension",
+    "build": "npm run build:extension",
     "build:plugin": "npm run build --workspace @thunderclaw/openclaw-plugin",
     "build:extension": "node scripts/build-extension.mjs",
     "build:site": "node scripts/build-pages.mjs",
     "pack:plugin": "node scripts/package-openclaw-plugin.mjs",
     "pack:source": "node scripts/package-extension-source.mjs",
-    "pack:release": "npm run pack:plugin && npm run build:extension && npm run pack:source",
+    "pack:release": "npm run build:extension && npm run pack:source",
     "test:e2e:thunderbird": "sh scripts/run-thunderbird-e2e.sh",
     "test:e2e:thunderbird:upgrade": "sh scripts/run-thunderbird-upgrade-e2e.sh",
     "test:e2e:thunderbird:rich-compose": "sh scripts/run-thunderbird-rich-compose-e2e.sh",
     "test:integration:openclaw": "bash scripts/run-openclaw-ci.sh",
-    "preflight:openclaw-upgrade": "node scripts/preflight-openclaw-upgrade.mjs",
-    "prepare:openclaw-upgrade": "node scripts/prepare-openclaw-upgrade.mjs",
-    "classify:openclaw-upgrade": "node scripts/classify-openclaw-upgrade.mjs",
-    "rehearse:openclaw-autopilot": "node scripts/rehearse-openclaw-autopilot.mjs",
-    "state:openclaw-upgrade": "node scripts/openclaw-release-state.mjs",
     "verify:openclaw-qualification": "node scripts/verify-openclaw-qualification.mjs",
     "update:counterpart": "node scripts/update-counterpart-baseline.mjs",
     "qualify:real-agent": "node e2e/qualification/real-agent/run.mjs",
@@ -33,7 +28,8 @@
     "spike:client": "tsx scripts/spike-client.ts",
     "spike:cancel": "tsx scripts/cancel-spike.ts",
     "qualify:pairing": "tsx scripts/qualify-pairing.ts",
-    "qualify:pairing:recovery": "tsx scripts/qualify-pairing-recovery.ts"
+    "qualify:pairing:recovery": "tsx scripts/qualify-pairing-recovery.ts",
+    "build:legacy": "npm run build:plugin && npm run build:extension"
   },
   "devDependencies": {
     "@types/node": "24.10.1",

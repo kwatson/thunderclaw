@@ -14,6 +14,29 @@ CAPABILITIES = [
     "credential:rotate", "credential:revoke",
 ]
 LEGACY_TOKEN = "thunderclaw-e2e-upgrade-token"
+INFERENCE_KEY = "thunderclaw-synthetic-e2e-key"
+RICH_FORMATTING_INSTRUCTION = "preserve the original emphasis and change draft to final"
+RICH_SOURCE_TEXT = "This draft keeps important and timely details."
+RICH_SOURCE_BLOCKS = [{"type": "paragraph", "spans": [
+    {"text": "This "}, {"text": "draft", "marks": ["bold"]},
+    {"text": " keeps "}, {"text": "important", "marks": ["italic"]},
+    {"text": " and "}, {"text": "timely", "marks": ["underline"]}, {"text": " details."},
+]}]
+
+
+def rich_formatting_output(prompt: dict[str, Any]) -> dict[str, Any]:
+    # Gate this response on the actual original source. A fixed formatted response
+    # alone would pass even if capture silently flattened the selection.
+    if (prompt.get("instruction") != RICH_FORMATTING_INSTRUCTION
+            or prompt.get("selectionShape") != "rich-blocks"
+            or prompt.get("text") != RICH_SOURCE_TEXT
+            or prompt.get("blocks") != RICH_SOURCE_BLOCKS):
+        raise ValueError("Original rich source blocks and marks were not forwarded")
+    blocks = json.loads(json.dumps(RICH_SOURCE_BLOCKS))
+    blocks[0]["spans"][1]["text"] = "final"
+    for span in blocks[0]["spans"]:
+        span.setdefault("marks", [])
+    return {"blocks": blocks, "summary": "Original source formatting verified; changed draft to final."}
 
 
 def verifier(domain: str, credential: str) -> str:
@@ -167,6 +190,13 @@ class Handler(BaseHTTPRequestHandler):
         return value
 
     def do_GET(self) -> None:
+        if urlsplit(self.path).path == "/v1/models":
+            if self._bearer() != INFERENCE_KEY:
+                self._json(401, {"error": {"message": "Synthetic inference key required"}})
+                return
+            self.server.state.record("GET", "/v1/models", None)
+            self._json(200, {"object": "list", "data": [{"id": "fixture-model", "object": "model"}]})
+            return
         if not self._authorized():
             return
         path = urlsplit(self.path).path
@@ -196,6 +226,48 @@ class Handler(BaseHTTPRequestHandler):
             body = self._body() if int(self.headers.get("Content-Length", "0")) else {}
         except (ValueError, json.JSONDecodeError):
             self._json(400, {"error": {"code": "INVALID_REQUEST", "message": "Invalid request"}})
+            return
+        if path == "/v1/chat/completions":
+            if self._bearer() != INFERENCE_KEY:
+                self._json(401, {"error": {"message": "Synthetic inference key required"}})
+                return
+            # This native setup selects the DeepSeek preset with its default settings.
+            if body.get("thinking") != {"type": "disabled"}:
+                self._json(400, {"error": {"message": "DeepSeek thinking must default off"}})
+                return
+            if body.get("max_tokens") != 16384:
+                self._json(400, {"error": {"message": "Response tokens must use the saved default"}})
+                return
+            self.server.state.record("POST", path, None)
+            try:
+                prompt = json.loads(body["messages"][-1]["content"])
+                if "segments" in prompt:
+                    if prompt["action"] == "translate":
+                        output = {"detectedLanguage": "en", "translations": ["Bonjour." for _ in prompt["segments"]]}
+                    else:
+                        output = {"detectedLanguage": "en", "summary": {"title": "Summary", "bullets": ["A synthetic message summary."]}}
+                elif prompt.get("instruction") == RICH_FORMATTING_INSTRUCTION or prompt.get("text") == RICH_SOURCE_TEXT:
+                    output = rich_formatting_output(prompt)
+                    with self.server.state.lock:
+                        self.server.state.requests.append({
+                            "method": "ASSERT", "path": path, "richSourceBlocksVerified": True,
+                        })
+                elif prompt.get("selectionShape") == "rich-blocks":
+                    blocks = [{"type": "unordered_list", "items": [
+                        {"spans": [{"text": text, "marks": []}]} for text in ["Automated testing", "Water level monitoring", "Wireless reporting"]
+                    ]}]
+                    if prompt.get("instruction") == "split this into two paragraphs":
+                        blocks = [{"type": "paragraph", "spans": [{"text": text, "marks": []}]} for text in ["Quick update: the cPanel API is finished.", "I'll update our API documentation later this week."]]
+                    output = {"blocks": blocks, "summary": "Deterministic compose replacement."}
+                elif prompt.get("selectionShape") == "flat-list-items":
+                    output = {"items": prompt.get("items", []), "summary": "Deterministic list replacement."}
+                elif prompt.get("text") == "Hello.":
+                    output = {"text": "Hello.", "summary": "No correction needed."}
+                else:
+                    output = {"text": "Polished opening that should wrap naturally\nwithout a forced line break.\n\nA separate paragraph should also wrap\nnaturally in Thunderbird.", "summary": "Deterministic compose replacement."}
+                self._json(200, {"id": "synthetic-completion", "object": "chat.completion", "choices": [{"index": 0, "message": {"role": "assistant", "content": json.dumps(output)}, "finish_reason": "stop"}]})
+            except (KeyError, ValueError, TypeError):
+                self._json(400, {"error": {"message": "Invalid synthetic request"}})
             return
         if path == "/thunderclaw/pairing/v1/requests":
             self.server.state.issue(body)

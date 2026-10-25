@@ -1,6 +1,7 @@
 const elements = {
   status: document.querySelector("#status"),
   agent: document.querySelector("#agent"),
+  connection: document.querySelector("#connection"),
   action: document.querySelector("#action"),
   sourceLabel: document.querySelector("#source-label"),
   sourceLanguage: document.querySelector("#source-language"),
@@ -24,7 +25,7 @@ let pollTimer;
 function setBusy(busy, label) {
   elements.run.disabled = busy || !elements.agent.value;
   elements.action.disabled = busy;
-  elements.agent.disabled = busy;
+  elements.agent.disabled = true;
   if (label) elements.status.textContent = label;
 }
 
@@ -80,15 +81,17 @@ async function initialize() {
   for (const agent of state.agents) {
     const option = document.createElement("option");
     option.value = agent.agentId;
-    option.textContent = agent.model ? `${agent.displayName} — ${agent.model}` : agent.displayName;
+    option.textContent = agent.model || agent.displayName;
     option.selected = agent.agentId === state.selectedAgentId;
     elements.agent.append(option);
   }
-  if (!state.agents.length) throw new Error("No compatible OpenClaw agents are available.");
+  if (!state.agents.length) throw new Error("Choose a model in ThunderClaw connection settings.");
   elements.targetLanguage.value = state.preferredLanguage;
   const detected = state.detected?.languages?.[0];
   elements.sourceLanguage.placeholder = detected ? `Auto-detect (${detected.language})` : "Auto-detect";
-  elements.agent.disabled = false;
+  elements.agent.disabled = true;
+  const selected = state.agents.find((agent) => agent.agentId === state.selectedAgentId);
+  elements.connection.textContent = selected?.provider ? `Connected to ${selected.provider}` : "Configured model";
   elements.run.disabled = false;
   elements.status.textContent = `${state.capture.characters} message characters`;
   if (state.job) {

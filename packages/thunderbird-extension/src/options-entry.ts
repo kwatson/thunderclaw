@@ -1,610 +1,342 @@
-import { DirectClientError } from "./direct-client-contract.js";
-import { canonicalizeApiBase } from "./endpoint-policy.js";
+import { canonicalizeInferenceBase, DEFAULT_MAX_RESPONSE_TOKENS, MAX_RESPONSE_TOKENS, PROVIDER_PRESETS, reasoningEffortsForProvider, validateInferenceConfiguration, type InferenceConfiguration, type ProviderId, type ReasoningEffort } from "./inference-provider.js";
+import { inferenceFailureMessage } from "./inference-client.js";
 import { randomId } from "./random-id.js";
 
 declare const browser: any;
-
-const OPTIONS_PORT_NAME = "thunderclaw-options-v1";
-const endpointInput = requiredElement<HTMLInputElement>("endpoint");
-const consentAccepted = requiredElement<HTMLInputElement>("consent-accepted");
-const dataConsent = requiredElement<HTMLElement>("data-consent");
-const normalizeButton = requiredElement<HTMLButtonElement>("normalize");
-const pairButton = requiredElement<HTMLButtonElement>("pair");
-const claimButton = requiredElement<HTMLButtonElement>("claim");
-const cancelPairingButton = requiredElement<HTMLButtonElement>("cancel-pairing");
-const diagnoseButton = requiredElement<HTMLButtonElement>("diagnose");
-const rotateButton = requiredElement<HTMLButtonElement>("rotate");
-const disconnectButton = requiredElement<HTMLButtonElement>("disconnect");
-const forgetButton = requiredElement<HTMLButtonElement>("forget");
-const stateOutput = requiredElement<HTMLElement>("state");
-const resultOutput = requiredElement<HTMLElement>("result");
-const agentsOutput = requiredElement<HTMLElement>("agents");
-const pairingOutput = requiredElement<HTMLElement>("pairing");
-const stateIndicator = document.getElementById("state-indicator");
-const connectionPanel = document.getElementById("connection-panel");
-const agentsPanel = document.getElementById("agents-panel");
-const port = browser.runtime.connect({ name: OPTIONS_PORT_NAME });
-const pending = new Map<string, { resolve(value: unknown): void; reject(error: Error): void }>();
+const PORT_NAME = "thunderclaw-inference-options-v1";
+function element<T extends HTMLElement>(id: string): T {
+  const item = document.getElementById(id);
+  if (!item) throw new Error(`Missing options element: ${id}`);
+  return item as T;
+}
+element("build-version").textContent = `Version ${browser.runtime.getManifest().version}`;
+const form = element<HTMLFormElement>("connection-form");
+const consent = element<HTMLInputElement>("consent-accepted");
+const provider = element<HTMLSelectElement>("provider");
+const endpoint = element<HTMLInputElement>("endpoint");
+const key = element<HTMLInputElement>("api-key");
+const removeKey = element<HTMLInputElement>("remove-key");
+const model = element<HTMLInputElement>("model");
+const mode = element<HTMLSelectElement>("output-mode");
+const maxResponseTokens = element<HTMLInputElement>("max-response-tokens");
+const thinking = element<HTMLSelectElement>("thinking");
+const thinkingProviderHelp = element<HTMLElement>("thinking-provider-help");
+const style = element<HTMLTextAreaElement>("writing-style");
+const state = element<HTMLElement>("state");
+const result = element<HTMLElement>("result");
+const models = element<HTMLButtonElement>("available-models");
+const modelList = element<HTMLElement>("model-options");
+const modelChoices = element<HTMLElement>("model-choices");
+const modelStatus = element<HTMLElement>("model-status");
+const save = element<HTMLButtonElement>("save");
+const load = element<HTMLButtonElement>("load-models");
+const test = element<HTMLButtonElement>("test");
+const forget = element<HTMLButtonElement>("forget");
+const port = browser.runtime.connect({ name: PORT_NAME });
+const pending = new Map<string, { resolve(value: unknown): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout> }>();
 let busy = false;
-let lastState: Record<string, unknown> = {};
-type VerificationOutcome = { kind: "success"; response: unknown } | { kind: "error"; error: unknown };
-type VerificationSettlement = {
-  agentId: string;
-  probeRunId: string;
-  generation: number;
-  phase: "running" | "cancelling" | "cancel_failed";
-  verifyOutcome: VerificationOutcome | null;
-};
-let verification: VerificationSettlement | null = null;
-let agentRenderGeneration = 0;
-let lastAgents: unknown[] = [];
-
-function requiredElement<T extends HTMLElement>(id: string): T {
-  const element = document.getElementById(id);
-  if (!element) throw new Error(`Missing options element: ${id}`);
-  return element as T;
+let configured = false;
+let closed = false;
+let dirty = false;
+let discoveryGeneration = 0;
+let discovering = false;
+let modelOptions: HTMLElement[] = [];
+let activeModel = -1;
+let modelSearch = "";
+let modelSearchTime = 0;
+let savedKeyScope: { provider: string; apiBase: string } | undefined;
+class SettingsActionError extends Error {
+  constructor(readonly kind: string, readonly code?: string) { super("Settings action failed"); }
 }
-
-function focusElement(element: HTMLElement): void {
-  if (typeof element.focus === "function") element.focus();
-}
-
-function scheduleFocus(element: HTMLElement): void {
-  globalThis.setTimeout(() => focusElement(element), 0);
-}
-
-function setAttribute(element: HTMLElement | null, name: string, value: string): void {
-  if (element && typeof element.setAttribute === "function") element.setAttribute(name, value);
-}
-
-function setResult(message: string, kind: "info" | "success" | "error" = "info"): void {
-  setAttribute(resultOutput, "role", kind === "error" ? "alert" : "status");
-  setAttribute(resultOutput, "aria-live", kind === "error" ? "assertive" : "polite");
-  resultOutput.dataset.state = kind;
-  resultOutput.dataset.kind = kind;
-  resultOutput.textContent = message;
-  if (kind === "error") scheduleFocus(resultOutput);
-}
-
-function formatExpiry(value: unknown): string {
-  if (typeof value !== "string") return "This code expires soon.";
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return "This code expires soon.";
-  return `Expires ${new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(parsed)}.`;
-}
-
-function renderPairing(state: Record<string, unknown>): void {
-  if (typeof state.approvalCode === "string") {
-    const heading = document.createElement("h3");
-    heading.tabIndex = -1;
-    heading.textContent = "Approve this pairing code in OpenClaw";
-    const instructions = document.createElement("ol");
-    instructions.className = "pairing-instructions";
-    const openManager = document.createElement("li");
-    openManager.textContent = "Ask the OpenClaw host operator to open the ThunderClaw manager using the installation's OpenClaw CLI.";
-    const approveCode = document.createElement("li");
-    approveCode.textContent = "Select this Thunderbird and approve this exact code:";
-    instructions.append(openManager, approveCode);
-    const codeRow = document.createElement("div");
-    codeRow.className = "pairing-code-row";
-    const code = document.createElement("p");
-    code.className = "pairing-code";
-    code.textContent = state.approvalCode;
-    const copy = document.createElement("button");
-    copy.type = "button";
-    copy.className = "secondary copy-code";
-    copy.dataset.action = "copy-pairing-code";
-    copy.textContent = "Copy code";
-    copy.addEventListener("click", () => {
-      let write: Promise<void> | undefined;
-      try {
-        write = navigator.clipboard?.writeText(String(state.approvalCode));
-      } catch {
-        setResult("The pairing code could not be copied automatically. Select and copy the code instead.", "error");
-        return;
-      }
-      if (!write) {
-        setResult("The pairing code could not be copied automatically. Select and copy the code instead.", "error");
-        return;
-      }
-      void write.then(() => {
-        copy.textContent = "Copied";
-        setResult("Pairing code copied.", "success");
-      }).catch(() => {
-        setResult("The pairing code could not be copied automatically. Select and copy the code instead.", "error");
-      });
-    });
-    const expiry = document.createElement("p");
-    expiry.className = "pairing-expiry";
-    expiry.textContent = `${formatExpiry(state.pairingExpiresAt)} After approval, return here and select Finish pairing.`;
-    codeRow.append(code, copy);
-    pairingOutput.replaceChildren(heading, instructions, codeRow, expiry);
-    return;
+function actionError(error: unknown, discovery = false): string {
+  if (error instanceof SettingsActionError && error.code) {
+    if (error.code === "INVALID_RESPONSE_TOKEN_LIMIT") return `Enter a whole-number response token limit from 1 to ${MAX_RESPONSE_TOKENS.toLocaleString("en-US")}.`;
+    const message = inferenceFailureMessage(error.code);
+    if (message) return message;
   }
-  if (state.remoteCredentialPossiblyActive === true) {
-    const recovery = document.createElement("p");
-    recovery.className = "pairing-recovery";
-    recovery.textContent = "A device credential may still be active remotely. Retry the recovery action or use Forget connection, then verify revocation in OpenClaw administration.";
-    pairingOutput.replaceChildren(recovery);
-    return;
-  }
-  pairingOutput.replaceChildren();
+  const messages: Record<string, string> = {
+    configuration: "Check the API base URL, API key, and structured output mode.",
+    permission: "Endpoint access was not granted. Try again and allow access to your chosen endpoint.",
+    authentication: "The endpoint did not accept the API key. Check or replace the key and try again.",
+    network: "Could not reach the endpoint. Check the API base URL and your connection, then try again.",
+    timeout: "The request timed out. Check your connection and try again.",
+    contract: discovery ? "The endpoint returned an unsupported model list. Enter an exact model ID manually, or check the API base URL." : "The model returned an unsupported result. Check its structured output support.",
+    storage: "ThunderClaw could not save or load local settings. Reopen settings and try again.",
+    backend: "The endpoint could not complete the request. Try again later.",
+    rate_limit: "The endpoint is limiting requests. Wait a moment and try again.",
+    cancellation: "The connection changed. Try again with the current settings.",
+    closed: "The settings connection closed. Reopen settings.",
+  };
+  return error instanceof SettingsActionError && Object.hasOwn(messages, error.kind) ? messages[error.kind] : "The connection action failed. Check the endpoint settings and try again.";
 }
-
-function localMessage(error: unknown): string {
-  if (error instanceof DirectClientError) return error.message;
-  return error instanceof Error && error.message ? error.message : "ThunderClaw could not complete this settings action.";
+function showModels(message: string, error = false): void {
+  modelStatus.textContent = message;
+  modelStatus.dataset.kind = error ? "error" : "success";
+  modelStatus.setAttribute("role", error ? "alert" : "status");
 }
-
-class OptionsRequestError extends Error {
-  constructor(
-    message: string,
-    readonly permissionCleanup: "complete" | "background_pending" | null = null,
-    readonly kind: string | null = null,
-  ) {
-    super(message);
-    this.name = "OptionsRequestError";
-  }
+function show(message: string, error = false): void {
+  result.textContent = message;
+  result.dataset.kind = error ? "error" : "success";
+  result.setAttribute("role", error ? "alert" : "status");
 }
-
-function request(method: string, fields: Record<string, unknown> = {}): Promise<unknown> {
+function request(method: string, extra: Record<string, unknown> = {}): Promise<any> {
+  if (closed) return Promise.reject(new SettingsActionError("closed"));
   const requestId = randomId();
   return new Promise((resolve, reject) => {
-    pending.set(requestId, { resolve, reject });
-    port.postMessage({ requestId, method, ...fields });
+    // Model discovery and the synthetic test may use the client's 180-second network budget.
+    const timer = setTimeout(() => { pending.delete(requestId); reject(new SettingsActionError("timeout")); }, ["listModels", "test"].includes(method) ? 195_000 : 15_000);
+    pending.set(requestId, { resolve, reject, timer });
+    try { port.postMessage({ requestId, method, ...extra }); }
+    catch { clearTimeout(timer); pending.delete(requestId); reject(new SettingsActionError("closed")); }
   });
 }
-
-port.onMessage.addListener((message: unknown) => {
-  if (typeof message !== "object" || message === null || Array.isArray(message)) return;
-  const response = message as Record<string, unknown>;
-  if (typeof response.requestId !== "string") return;
-  const waiting = pending.get(response.requestId);
-  if (!waiting) return;
-  pending.delete(response.requestId);
-  if (response.ok === true) waiting.resolve(response.value);
-  else {
-    const error = typeof response.error === "object" && response.error !== null ? response.error as Record<string, unknown> : {};
-    const cleanup = error.permissionCleanup === "complete" || error.permissionCleanup === "background_pending" ? error.permissionCleanup : null;
-    const kind = typeof error.kind === "string" && [
-      "configuration", "permission", "authentication", "capability", "network", "timeout",
-      "cancellation", "rate_limit", "contract", "backend",
-    ].includes(error.kind) ? error.kind : null;
-    waiting.reject(new OptionsRequestError(
-      typeof error.message === "string" ? error.message : "ThunderClaw rejected the settings action.",
-      cleanup,
-      kind,
-    ));
-  }
+port.onMessage.addListener((message: any) => {
+  if (!message || typeof message.requestId !== "string") return;
+  const item = pending.get(message.requestId);
+  if (!item) return;
+  pending.delete(message.requestId);
+  clearTimeout(item.timer);
+  if (message.ok === true) item.resolve(message.value);
+  else item.reject(new SettingsActionError(typeof message.error?.kind === "string" ? message.error.kind : "unknown", typeof message.error?.code === "string" && inferenceFailureMessage(message.error.code) ? message.error.code : undefined));
 });
-
 port.onDisconnect.addListener(() => {
-  for (const waiting of pending.values()) waiting.reject(new Error("The ThunderClaw settings connection closed."));
+  closed = true;
+  for (const item of pending.values()) { clearTimeout(item.timer); item.reject(new SettingsActionError("closed")); }
   pending.clear();
+  key.value = "";
+  show("The settings connection closed. Reopen settings.", true);
+  if (discovering) showModels("The settings connection closed. Reopen settings.", true);
+  controls();
 });
-
-function renderState(value: unknown): void {
-  const state = typeof value === "object" && value !== null ? value as Record<string, unknown> : {};
-  lastState = state;
-  const configured = state.configured === true;
-  const granted = state.permissionGranted === true;
-  const cleanupRequired = state.cleanupRequired === true;
-  const phase = state.phase;
-  stateOutput.textContent = cleanupRequired
-    ? "Permission cleanup needed — try disconnecting again or remove ThunderClaw access in Add-ons Manager"
-    : phase === "ready"
-    ? "Connected — ThunderClaw can reach OpenClaw"
-    : phase === "awaiting_approval" ? "Approval needed — approve the code in OpenClaw"
-      : phase === "pairing_expired" ? "Pairing request expired"
-      : phase === "rotation_ambiguous" ? "Connection paused — credential replacement could not be confirmed"
-      : phase === "disconnect_ambiguous" ? "Connection paused — remote disconnection could not be confirmed"
-      : phase === "credential_expired" ? "Connection expired — disconnect, then pair again"
-      : phase === "credential_revoked" ? "Connection revoked — disconnect, then pair again"
-    : phase === "authorized_untested"
-      ? "Almost done — test the connection to load your agents"
-      : "Not connected";
-  const visualState = phase === "ready" ? "connected"
-    : cleanupRequired || ["awaiting_approval", "pairing_expired", "rotation_ambiguous", "disconnect_ambiguous", "credential_expired", "credential_revoked"].includes(String(phase))
-      ? "attention" : "disconnected";
-  stateOutput.dataset.state = visualState;
-  if (stateIndicator) stateIndicator.dataset.state = visualState;
-  if (connectionPanel) connectionPanel.dataset.phase = String(phase ?? "unknown");
-  if (agentsPanel) agentsPanel.hidden = !["authorized_untested", "ready"].includes(String(phase));
-  if (document.documentElement) document.documentElement.dataset.phase = String(phase ?? "unknown");
-  if (typeof state.apiBase === "string") endpointInput.value = state.apiBase;
-  renderPairing(state);
-  updateControls();
+function controls(): void {
+  save.disabled = busy || closed;
+  load.disabled = busy || closed;
+  test.disabled = busy || closed || !configured || dirty;
+  forget.disabled = busy || closed || !configured;
+  load.textContent = discovering ? "Loading models…" : "Load models";
+  load.setAttribute("aria-busy", String(discovering));
+  models.disabled = busy || closed;
+  if (models.disabled) closeModelList();
 }
-
-function updateControls(): void {
-  const configured = lastState.configured === true;
-  const granted = lastState.permissionGranted === true;
-  const cleanupRequired = lastState.cleanupRequired === true;
-  const phase = lastState.phase;
-  const unavailable = busy || verification !== null;
-  setAttribute(connectionPanel, "aria-busy", String(busy));
-  setAttribute(agentsOutput, "aria-busy", String(unavailable));
-  const pairingActive = phase === "awaiting_approval" || phase === "pairing_expired";
-  const canStartPairing = ["not_configured", "disconnected"].includes(String(phase));
-  endpointInput.disabled = busy;
-  endpointInput.readOnly = configured || granted || pairingActive;
-  normalizeButton.disabled = unavailable;
-  consentAccepted.disabled = unavailable || cleanupRequired || !canStartPairing;
-  dataConsent.hidden = !canStartPairing;
-  pairButton.disabled = unavailable || cleanupRequired || !canStartPairing || !consentAccepted.checked;
-  claimButton.disabled = unavailable || phase !== "awaiting_approval";
-  cancelPairingButton.disabled = unavailable || (phase !== "awaiting_approval" && phase !== "pairing_expired");
-  diagnoseButton.disabled = unavailable || (phase !== "authorized_untested" && phase !== "ready");
-  rotateButton.disabled = unavailable || !["authorized_untested", "ready", "rotation_ambiguous"].includes(String(phase));
-  disconnectButton.disabled = unavailable || (!configured && !granted && !cleanupRequired);
-  forgetButton.disabled = unavailable || !configured;
-  pairButton.hidden = !["not_configured", "disconnected"].includes(String(phase));
-  claimButton.hidden = phase !== "awaiting_approval";
-  cancelPairingButton.hidden = phase !== "awaiting_approval" && phase !== "pairing_expired";
-  diagnoseButton.hidden = phase !== "authorized_untested" && phase !== "ready";
-  diagnoseButton.textContent = phase === "ready" ? "Test again" : "Test connection";
-  diagnoseButton.className = phase === "ready" ? "secondary" : "";
-}
-
-function setBusy(value: boolean): void {
-  busy = value;
-  setAttribute(connectionPanel, "aria-busy", String(value));
-  setAttribute(agentsOutput, "aria-busy", String(value || verification !== null));
-  updateControls();
-}
-
-const CHECK_LABELS: Record<string, string> = {
-  configuration: "Configuration",
-  credentials: "Credentials",
-  structuredOutput: "Structured output",
-  toolIsolation: "Tool isolation",
-  cancellation: "Cancellation",
-  fallbacks: "Configured fallbacks",
-};
-
-const CHECK_RESULT_COPY: Record<string, string> = {
-  passed: "Passed",
-  failed: "Failed",
-  not_run: "Not run",
-  not_applicable: "Not applicable",
-};
-
-const STATE_COPY: Record<string, string> = {
-  unverified: "Unverified",
-  partially_verified: "Partially verified",
-  verified: "Verified",
-  incompatible: "Incompatible",
-  unsupported: "Unsupported",
-};
-
-function renderAgents(values: unknown[]): void {
-  lastAgents = values;
-  agentRenderGeneration += 1;
-  const generation = agentRenderGeneration;
-  const cards: HTMLElement[] = [];
-  for (const value of values) {
-    const agent = typeof value === "object" && value !== null ? value as Record<string, unknown> : {};
-    const compatibility = typeof agent.compatibility === "object" && agent.compatibility !== null
-      ? agent.compatibility as Record<string, unknown> : {};
-    const checks = typeof compatibility.checks === "object" && compatibility.checks !== null
-      ? compatibility.checks as Record<string, unknown> : {};
-    const lastProbe = typeof compatibility.lastProbe === "object" && compatibility.lastProbe !== null
-      ? compatibility.lastProbe as Record<string, unknown> : null;
-    const card = document.createElement("article");
-    card.className = "agent-card";
-    const heading = document.createElement("h3");
-    heading.textContent = `${String(agent.displayName ?? agent.agentId ?? "Unknown agent")}${agent.isDefault === true ? " (default)" : ""}`;
-    const model = document.createElement("p");
-    model.className = "agent-model";
-    model.textContent = `Primary model: ${typeof agent.provider === "string" && typeof agent.model === "string" ? `${agent.provider}/${agent.model}` : typeof agent.model === "string" ? agent.model : "Not configured"}`;
-    const state = document.createElement("p");
-    state.className = "compatibility-state";
-    state.textContent = `Compatibility: ${STATE_COPY[String(compatibility.state)] ?? "Unknown"}`;
-    const list = document.createElement("dl");
-    list.className = "compatibility-checks";
-    for (const [key, label] of Object.entries(CHECK_LABELS)) {
-      const term = document.createElement("dt");
-      term.textContent = label;
-      const result = document.createElement("dd");
-      result.textContent = CHECK_RESULT_COPY[String(checks[key])] ?? "Unknown";
-      list.append(term, result);
-    }
-    const tested = document.createElement("p");
-    tested.className = "agent-tested";
-    tested.textContent = lastProbe && typeof lastProbe.testedAt === "string"
-      ? `Last tested: ${new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(lastProbe.testedAt))}`
-      : "Last tested: Never";
-    const reason = document.createElement("p");
-    reason.className = "agent-reason";
-    reason.textContent = typeof compatibility.reason === "string" ? compatibility.reason : "Compatibility evidence is unavailable.";
-    const actions = document.createElement("div");
-    actions.className = "actions";
-    const verify = document.createElement("button");
-    verify.type = "button";
-    verify.textContent = compatibility.state === "unverified" ? "Verify agent" : "Retry verification";
-    const agentId = typeof agent.agentId === "string" ? agent.agentId : "";
-    card.dataset.agentId = agentId;
-    verify.dataset.action = "verify-agent";
-    verify.disabled = verification !== null || agentId.length === 0;
-    verify.addEventListener("click", () => {
-      if (verification !== null || generation !== agentRenderGeneration) return;
-      const probeRunId = randomId();
-      const settlement: VerificationSettlement = { agentId, probeRunId, generation, phase: "running", verifyOutcome: null };
-      verification = settlement;
-      updateControls();
-      verify.disabled = true;
-      const progress = document.createElement("p");
-      progress.className = "verification-progress";
-      progress.textContent = "Verification in progress… This may make up to two synthetic model calls.";
-      const cancel = document.createElement("button");
-      cancel.type = "button";
-      cancel.className = "secondary";
-      cancel.dataset.action = "cancel-agent-verification";
-      cancel.textContent = "Cancel verification";
-      actions.replaceChildren(cancel);
-      card.append(progress);
-      cancel.addEventListener("click", () => {
-        if (verification !== settlement || settlement.phase === "cancelling") return;
-        settlement.phase = "cancelling";
-        cancel.disabled = true;
-        progress.textContent = "Cancelling verification…";
-        void request("cancelAgentVerification", { agentId, probeRunId }).then((response) => {
-          if (verification !== settlement) return;
-          const record = typeof response === "object" && response !== null ? response as Record<string, unknown> : {};
-          verification = null;
-          renderAgents(Array.isArray(record.agents) ? record.agents : lastAgents);
-          setResult("Agent verification was cancelled.");
-        }).catch((error) => {
-          if (verification !== settlement) return;
-          settlement.phase = "cancel_failed";
-          cancel.disabled = false;
-          progress.textContent = "Verification is still in progress. Retry cancellation if needed.";
-          showError(error);
-          if (settlement.verifyOutcome !== null) terminalizeAfterCancelFailure(settlement, settlement.verifyOutcome);
-          updateControls();
-        });
-      });
-      void request("verifyAgent", { agentId, probeRunId }).then((response) => {
-        if (verification !== settlement) return;
-        if (settlement.phase === "cancelling") {
-          settlement.verifyOutcome = { kind: "success", response };
-          return;
-        }
-        if (settlement.phase === "cancel_failed") {
-          terminalizeAfterCancelFailure(settlement, { kind: "success", response });
-          updateControls();
-          return;
-        }
-        const record = typeof response === "object" && response !== null ? response as Record<string, unknown> : {};
-        verification = null;
-        renderAgents(Array.isArray(record.agents) ? record.agents : lastAgents);
-        setResult("Agent verification finished. Compatibility evidence was refreshed.", "success");
-      }).catch((error) => {
-        if (verification !== settlement) return;
-        if (settlement.phase === "cancelling") {
-          settlement.verifyOutcome = { kind: "error", error };
-          return;
-        }
-        if (settlement.phase === "cancel_failed") {
-          terminalizeAfterCancelFailure(settlement, { kind: "error", error });
-          updateControls();
-          return;
-        }
-        verification = null;
-        renderAgents(lastAgents);
-        showError(error);
-      }).finally(() => {
-        updateControls();
-      });
-    });
-    const details = document.createElement("details");
-    details.className = "verification-details";
-    const detailsSummary = document.createElement("summary");
-    detailsSummary.textContent = "Verification details";
-    details.append(detailsSummary, list, tested, reason);
-    actions.append(verify);
-    card.append(heading, model, state, details, actions);
-    cards.push(card);
+function render(value: any, populate = false): void {
+  configured = value.configured === true;
+  savedKeyScope = value.hasKey === true && value.configuration ? { provider: value.configuration.provider, apiBase: value.configuration.apiBase } : undefined;
+  const messages: Record<string, string> = { not_configured: "Set up your inference connection.", permission_required: "Endpoint access is required. Save or test to grant access.", key_required: "This provider needs an API key.", untested: "Connection saved. Test it before generating.", ready: "Connection tested and ready." };
+  state.textContent = messages[value.phase] ?? "Check your connection settings.";
+  state.dataset.phase = String(value.phase);
+  element("connection-panel").dataset.phase = String(value.phase);
+  if (populate && value.configured) consent.checked = true;
+  element("migration").hidden = value.legacyMigration !== true;
+  element("key-status").textContent = value.hasKey ? "A key is saved. Enter a new key to replace it." : "No key saved.";
+  if (populate && value.configuration) {
+    const config = validateInferenceConfiguration(value.configuration);
+    provider.value = config.provider; endpoint.value = config.apiBase; model.value = config.model; mode.value = config.outputMode; style.value = config.writingStyle;
+    maxResponseTokens.value = String(config.maxResponseTokens ?? DEFAULT_MAX_RESPONSE_TOKENS);
+    renderThinking(config.reasoningEffort);
   }
-  if (cards.length === 0) {
-    const empty = document.createElement("p");
-    empty.textContent = "No configured agents were reported.";
-    agentsOutput.replaceChildren(empty);
-  } else agentsOutput.replaceChildren(...cards);
+  if (value.permissionCleanupPending) show("Connection updated. Old host access could not be removed; review ThunderClaw permissions in Add-ons Manager.", true);
+  controls();
 }
-
-function renderDiagnostics(value: unknown): void {
-  const diagnostics = typeof value === "object" && value !== null ? value as Record<string, unknown> : {};
-  const status = typeof diagnostics.status === "object" && diagnostics.status !== null ? diagnostics.status as Record<string, unknown> : {};
-  const agents = Array.isArray(diagnostics.agents) ? diagnostics.agents : [];
-  const heading = document.createElement("p");
-  heading.textContent = `ThunderClaw protocol ${String(status.protocolVersion ?? "?")} · Gateway ${String(status.gatewayVersion ?? "unknown")}`;
-  resultOutput.replaceChildren(heading);
-  resultOutput.dataset.state = "success";
-  resultOutput.dataset.kind = "success";
-  renderAgents(agents);
+function renderThinking(effort: ReasoningEffort = provider.value === "deepseek" ? "none" : "default"): void {
+  const labels: Record<ReasoningEffort, string> = { default: "Model default", none: "Off", minimal: "Minimal", low: "Low", medium: "Medium", high: "High", xhigh: "Very high", max: "Maximum" };
+  thinking.replaceChildren(...reasoningEffortsForProvider(provider.value as ProviderId).map((value) => {
+    const option = document.createElement("option"); option.value = value; option.textContent = labels[value]; return option;
+  }));
+  thinking.value = effort;
+  thinkingProviderHelp.textContent = provider.value === "ollama" || provider.value === "lmstudio"
+    ? "Some local models use their own thinking levels; use Model default if unsure."
+    : provider.value === "custom"
+      ? "Choosing a level other than Model default requires your compatible server to support OpenAI reasoning_effort."
+      : provider.value === "deepseek" ? "Off is the default for DeepSeek email editing and translation." : "Model default leaves the thinking level to your model and server.";
 }
-
-function showError(error: unknown): void {
-  setResult(localMessage(error), "error");
+function responseConfiguration(): Pick<InferenceConfiguration, "maxResponseTokens" | "reasoningEffort"> {
+  const limit = Number(maxResponseTokens.value);
+  if (!maxResponseTokens.value.trim() || !Number.isInteger(limit) || limit < 1 || limit > MAX_RESPONSE_TOKENS) throw new SettingsActionError("configuration", "INVALID_RESPONSE_TOKEN_LIMIT");
+  return { maxResponseTokens: limit, reasoningEffort: thinking.value as ReasoningEffort };
 }
-
-function indeterminateVerificationError(error: unknown): boolean {
-  return error instanceof OptionsRequestError && (error.kind === "network" || error.kind === "timeout");
+function configuration(): InferenceConfiguration { return validateInferenceConfiguration({ provider: provider.value, apiBase: endpoint.value, model: model.value, outputMode: mode.value, writingStyle: style.value, ...responseConfiguration() }); }
+async function run(operation: () => Promise<void>, reportError: (error: unknown) => void = (error) => show(actionError(error), true)): Promise<void> {
+  if (busy || closed) return;
+  busy = true; controls();
+  try { await operation(); } catch (error) { reportError(error); }
+  finally { busy = false; controls(); }
 }
-
-function terminalizeAfterCancelFailure(settlement: VerificationSettlement, outcome: VerificationOutcome): boolean {
-  settlement.verifyOutcome = outcome;
-  if (outcome.kind === "error" && indeterminateVerificationError(outcome.error)) return false;
-  if (verification !== settlement) return false;
-  verification = null;
-  const record = outcome.kind === "success" && typeof outcome.response === "object" && outcome.response !== null
-    ? outcome.response as Record<string, unknown> : {};
-  renderAgents(Array.isArray(record.agents) ? record.agents : lastAgents);
-  return true;
+function closeModelList(): void {
+  modelList.hidden = true;
+  models.setAttribute("aria-expanded", "false");
+  models.removeAttribute("aria-activedescendant");
+  modelSearch = "";
 }
-
-function normalizeEndpoint(announce: boolean): boolean {
-  if (busy) return false;
-  try {
-    const endpoint = canonicalizeApiBase(endpointInput.value);
-    endpointInput.value = endpoint.apiBase;
-    if (announce) setResult(`Thunderbird will be asked to grant ${endpoint.permissionPattern}. The grant covers every port and path on that hostname.`);
-    return true;
-  } catch (error) {
-    if (announce) showError(error);
-    else setResult(localMessage(error), "error");
-    return false;
+function syncModelChoice(): void {
+  const selected = modelOptions.find((option) => option.dataset.value === model.value);
+  models.textContent = selected?.textContent ?? "Choose a model…";
+  for (const option of modelOptions) option.setAttribute("aria-selected", String(option === selected));
+}
+function activateModel(index: number): void {
+  activeModel = index;
+  for (const [i, option] of modelOptions.entries()) option.dataset.active = String(i === index);
+  const option = modelOptions[index];
+  if (option) {
+    models.setAttribute("aria-activedescendant", option.id);
+    option.scrollIntoView({ block: "nearest" });
   }
 }
-
-normalizeButton.addEventListener("click", () => {
-  normalizeEndpoint(true);
+function openModelList(last = false): void {
+  if (models.disabled || !modelOptions.length) return;
+  modelList.hidden = false;
+  models.setAttribute("aria-expanded", "true");
+  const selected = modelOptions.findIndex((option) => option.dataset.value === model.value);
+  activateModel(selected >= 0 ? selected : last ? modelOptions.length - 1 : 0);
+}
+function chooseModel(index: number): void {
+  const option = modelOptions[index];
+  if (!option || models.disabled) return;
+  model.value = option.dataset.value!;
+  syncModelChoice();
+  closeModelList();
+  markDirty();
+  models.focus();
+}
+function resetModelChoices(): void {
+  closeModelList();
+  modelOptions = [];
+  modelList.replaceChildren();
+  models.textContent = "Choose a model…";
+  modelChoices.hidden = true;
+}
+function clearModels(): void { discoveryGeneration += 1; resetModelChoices(); showModels(discovering ? "Settings changed. Waiting for the previous model request to finish." : ""); }
+function markDirty(invalidateModels = false): void { dirty = true; if (invalidateModels) clearModels(); controls(); }
+provider.addEventListener("change", () => {
+  const preset = PROVIDER_PRESETS.find((item) => item.id === provider.value);
+  if (preset) { endpoint.value = preset.apiBase; mode.value = preset.outputMode; model.value = ""; key.value = ""; }
+  renderThinking();
+  markDirty(true);
 });
-
-endpointInput.addEventListener("blur", () => {
-  if (endpointInput.value.trim().length > 0 && !endpointInput.readOnly) normalizeEndpoint(false);
-});
-
-consentAccepted.addEventListener("change", updateControls);
-
-pairButton.addEventListener("click", () => {
-  if (busy) return;
-  if (!consentAccepted.checked) {
-    setResult("Consent is required before pairing can begin.", "error");
-    focusElement(consentAccepted);
+for (const input of [endpoint, key, removeKey]) input.addEventListener("input", () => markDirty(true));
+for (const input of [model, mode, style, thinking, maxResponseTokens]) input.addEventListener("input", () => { if (input === model) syncModelChoice(); markDirty(); });
+thinking.addEventListener("change", () => markDirty());
+models.addEventListener("click", () => { if (modelList.hidden) openModelList(); else closeModelList(); });
+models.addEventListener("keydown", (event) => {
+  if (models.disabled || !modelOptions.length) return;
+  const open = !modelList.hidden;
+  if (event.key === "Tab") { closeModelList(); return; }
+  if (event.key === "Escape") { if (open) event.preventDefault(); closeModelList(); return; }
+  if (event.key === "Enter" || event.key === " ") {
+    event.preventDefault();
+    if (open) chooseModel(activeModel); else openModelList();
     return;
   }
-  let endpoint;
-  try {
-    endpoint = canonicalizeApiBase(endpointInput.value);
-    endpointInput.value = endpoint.apiBase;
-  } catch (error) {
-    showError(error);
+  if (["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
+    event.preventDefault();
+    if (!open) openModelList(event.key === "ArrowUp");
+    else if (event.key === "ArrowDown") activateModel(Math.min(activeModel + 1, modelOptions.length - 1));
+    else if (event.key === "ArrowUp") activateModel(Math.max(activeModel - 1, 0));
+    if (event.key === "Home") activateModel(0);
+    if (event.key === "End") activateModel(modelOptions.length - 1);
     return;
   }
-  // This permission call is deliberately made synchronously from the click
-  // handler. No background message or network request precedes the grant.
-  setBusy(true);
-  let grant: Promise<boolean>;
-  try {
-    grant = browser.permissions.request({ origins: [endpoint.permissionPattern] });
-  } catch (error) {
-    setBusy(false);
-    showError(error);
-    return;
+  if (event.key.length === 1 && !event.ctrlKey && !event.altKey && !event.metaKey) {
+    event.preventDefault();
+    if (!open) openModelList();
+    const now = Date.now();
+    modelSearch = now - modelSearchTime > 700 ? event.key : modelSearch + event.key;
+    modelSearchTime = now;
+    const search = modelSearch.toLocaleLowerCase();
+    const repeated = [...search].every((character) => character === search[0]);
+    for (let offset = 1; offset <= modelOptions.length; offset += 1) {
+      const index = (activeModel + offset) % modelOptions.length;
+      if (modelOptions[index].textContent?.toLocaleLowerCase().startsWith(repeated ? search[0] : search)) { activateModel(index); break; }
+    }
   }
-  void grant.then(async (granted: boolean) => {
-    if (!granted) throw new Error("Thunderbird did not grant access to the configured OpenClaw host.");
-    let value: unknown;
-    try {
-      value = await request("beginPair", { apiBase: endpoint.apiBase, consentAccepted: true });
-    } catch (error) {
-      if (!(error instanceof OptionsRequestError) || error.permissionCleanup !== "complete") {
-        throw new Error(`${localMessage(error)} Background permission cleanup is pending; if it remains, revoke ThunderClaw host access in Add-ons Manager.`);
-      }
-      throw error;
+});
+document.addEventListener("pointerdown", (event) => { if (!modelChoices.contains(event.target as Node)) closeModelList(); });
+modelChoices.addEventListener("focusout", (event) => { if (!modelChoices.contains(event.relatedTarget as Node | null)) closeModelList(); });
+form.addEventListener("submit", (event) => {
+  event.preventDefault();
+  if (busy || closed) return;
+  let config: InferenceConfiguration;
+  let permission: Promise<boolean>;
+  try {
+    if (!consent.checked) { show("Confirm that selected email content may be sent to your chosen endpoint.", true); return; }
+    config = configuration();
+    // Thunderbird requires the permission request to start in this user gesture.
+    permission = browser.permissions.request({ origins: [canonicalizeInferenceBase(config.apiBase).permissionPattern] });
+  } catch (error) { show(error instanceof SettingsActionError ? actionError(error) : "Enter a valid API base URL, model ID, and output mode.", true); return; }
+  const apiKey = key.value;
+  const keyAction = removeKey.checked ? "remove" : apiKey ? "replace" : "preserve";
+  key.value = "";
+  show("Saving connection…");
+  void run(async () => {
+    if (!await permission) { show("Endpoint access was not granted.", true); return; }
+    const value = await request("save", { configuration: config, keyAction, consentAccepted: true, ...(keyAction === "replace" ? { apiKey } : {}) });
+    dirty = false; removeKey.checked = false; render(value, true); show("Connection saved. Test it before generating.");
+  });
+});
+load.addEventListener("click", () => {
+  if (busy || closed) return;
+  let permission: Promise<boolean>;
+  let draft: Record<string, unknown>;
+  const apiKey = removeKey.checked ? "" : key.value || undefined;
+  try {
+    const apiBase = canonicalizeInferenceBase(endpoint.value);
+    draft = { provider: provider.value, apiBase: apiBase.apiBase, model: model.value, outputMode: mode.value, writingStyle: style.value, ...responseConfiguration() };
+    validateInferenceConfiguration({ ...draft, model: "thunderclaw-model-discovery" });
+    const requiresKey = PROVIDER_PRESETS.find((item) => item.id === provider.value)?.requiresKey;
+    const hasSavedKey = savedKeyScope?.provider === provider.value && savedKeyScope.apiBase === apiBase.apiBase;
+    if (requiresKey && !apiKey && (removeKey.checked || !hasSavedKey)) { showModels("Enter an API key for this provider, then click Load models. You can choose a model before saving.", true); return; }
+    if (apiKey && (apiKey.length > 4096 || /[\s\u0000-\u001F\u007F]/u.test(apiKey))) { showModels("Enter an API key without spaces or line breaks, then try again.", true); return; }
+    permission = browser.permissions.request({ origins: [apiBase.permissionPattern] });
+  } catch (error) { showModels(error instanceof SettingsActionError ? actionError(error) : "Enter a valid API base URL and structured output mode, then try again.", true); return; }
+  const generation = discoveryGeneration;
+  discovering = true;
+  resetModelChoices();
+  showModels("Loading models from your chosen endpoint…");
+  void run(async () => {
+    if (!await permission) throw new SettingsActionError("permission");
+    if (generation !== discoveryGeneration) return;
+    const ids = await request("listModels", { configuration: draft, ...(apiKey !== undefined ? { apiKey } : {}) });
+    if (generation !== discoveryGeneration) return;
+    if (!Array.isArray(ids) || ids.some((id) => typeof id !== "string" || !id.trim() || id !== id.trim() || id.length > 256 || /[\u0000-\u001F\u007F]/u.test(id))) throw new SettingsActionError("contract");
+    if (ids.length === 0) { showModels("The endpoint returned no models. Enter an exact model ID manually, or check which models your provider makes available."); return; }
+    for (const [index, id] of ids.entries()) {
+      const option = document.createElement("div");
+      option.id = `model-option-${generation}-${index}`;
+      option.setAttribute("role", "option");
+      option.dataset.value = id;
+      option.textContent = id;
+      // Keep focus on the combobox until click commits the choice.
+      option.addEventListener("pointerdown", (event) => event.preventDefault());
+      option.addEventListener("mousedown", (event) => event.preventDefault());
+      option.addEventListener("click", () => chooseModel(index));
+      modelOptions.push(option);
+      modelList.append(option);
     }
-    renderState(value);
-    setResult("Pairing request created. Approve the displayed code in OpenClaw, then finish pairing here.", "success");
-    const firstPairingElement = pairingOutput.children[0];
-    if (firstPairingElement) scheduleFocus(firstPairingElement as HTMLElement);
-  }).catch(async (error) => {
-    showError(error);
-    try { renderState(await request("state")); } catch { /* Preserve the claim error. */ }
-  }).finally(() => setBusy(false));
+    syncModelChoice();
+    modelChoices.hidden = false;
+    showModels(`${ids.length} ${ids.length === 1 ? "model" : "models"} loaded. Choose a model below, or enter an exact model ID. Then save and test.`);
+  }, (error) => { if (generation === discoveryGeneration) showModels(actionError(error, true), true); }).finally(() => {
+    discovering = false;
+    if (!closed && generation !== discoveryGeneration) showModels("Settings changed. Load models again for this connection.");
+    controls();
+  });
 });
-
-claimButton.addEventListener("click", () => {
-  if (busy) return;
-  setBusy(true);
-  setResult("Finishing pairing…");
-  void request("claimPairing").then((value) => {
-    renderState(value);
-    setResult("Pairing complete. Test the connection to load your available agents.", "success");
-    scheduleFocus(stateOutput);
-  }).catch(async (error) => {
-    showError(error);
-    try { renderState(await request("state")); } catch { /* Preserve the claim error. */ }
-  }).finally(() => setBusy(false));
+test.addEventListener("click", () => {
+  if (busy || closed || dirty) return;
+  let permission: Promise<boolean>;
+  try { permission = browser.permissions.request({ origins: [canonicalizeInferenceBase(endpoint.value).permissionPattern] }); }
+  catch { show("Enter a valid API base URL.", true); return; }
+  show("Testing the saved connection with synthetic text…");
+  void run(async () => {
+    if (!await permission) { show("Endpoint access was not granted.", true); return; }
+    render(await request("test")); show("The selected model passed the synthetic connection test.");
+  });
 });
-
-cancelPairingButton.addEventListener("click", () => {
-  if (busy) return;
-  setBusy(true);
-  setResult("Cancelling pairing…");
-  void request("cancelPairing").then((value) => {
-    renderState(value);
-    setResult("The pending pairing request was cancelled locally.");
-    scheduleFocus(endpointInput);
-  }).catch(showError).finally(() => setBusy(false));
-});
-
-rotateButton.addEventListener("click", () => {
-  if (busy) return;
-  setBusy(true);
-  setResult("Replacing the connection credential…");
-  void request("rotateCredential").then((value) => {
-    renderState(value);
-    setResult("Credential rotated. The previous credential is no longer retained.", "success");
-  }).catch(async (error) => {
-    showError(error);
-    try { renderState(await request("state")); } catch { /* Preserve the rotation error. */ }
-  }).finally(() => setBusy(false));
-});
-
-diagnoseButton.addEventListener("click", () => {
-  if (busy) return;
-  setBusy(true);
-  setResult("Testing the configured connection…");
-  void request("diagnose").then(async (value) => {
-    renderDiagnostics(value);
-    renderState(await request("state"));
-  }).catch(async (error) => {
-    // Preserve the authoritative sanitized diagnostic error while refreshing
-    // permission/credential state that the failed preflight may have changed.
-    showError(error);
-    try {
-      renderState(await request("state"));
-    } catch {
-      // A closed options port must not replace the original diagnostic error.
-    }
-  }).finally(() => setBusy(false));
-});
-
-disconnectButton.addEventListener("click", () => {
-  if (busy) return;
-  setBusy(true);
-  setResult("Disconnecting this Thunderbird from OpenClaw…");
-  void request("disconnect").then((value) => {
-    consentAccepted.checked = false;
-    renderState(value);
-    setResult("Disconnected. OpenClaw confirmed revocation before Thunderbird removed its local credential and host permission.", "success");
-    scheduleFocus(endpointInput);
-  }).catch(async (error) => {
-    showError(error);
-    try { renderState(await request("state")); } catch { /* Preserve the disconnect error. */ }
-  }).finally(() => setBusy(false));
-});
-
-forgetButton.addEventListener("click", () => {
-  if (busy) return;
-  const confirmed = globalThis.confirm("Forget this connection on Thunderbird?\n\nUse this only if OpenClaw cannot be reached. Remote access may remain active and may need to be revoked in OpenClaw administration.");
-  if (!confirmed) return;
-  setBusy(true);
-  setResult("Removing the local connection…");
-  void request("forget").then((value) => {
-    consentAccepted.checked = false;
-    endpointInput.value = "";
-    renderState(value);
-    const state = typeof value === "object" && value !== null ? value as Record<string, unknown> : {};
-    setResult(state.forgetRemoteRevocation === "confirmed"
-      ? "Connection settings, device credential, and hostname permission were forgotten after confirmed remote revocation."
-      : "Local connection settings and device credential were forgotten, but remote revocation could not be confirmed. Revoke this device in OpenClaw administration.",
-      state.forgetRemoteRevocation === "confirmed" ? "success" : "error");
-    if (state.forgetRemoteRevocation === "confirmed") scheduleFocus(endpointInput);
-  }).catch(showError).finally(() => setBusy(false));
-});
-
-updateControls();
-void request("state").then(renderState).catch(showError);
+forget.addEventListener("click", () => { if (busy || closed) return; show("Removing the saved connection and key…"); void run(async () => {
+  render(await request("forget")); key.value = ""; model.value = ""; style.value = ""; maxResponseTokens.value = String(DEFAULT_MAX_RESPONSE_TOKENS); renderThinking(); removeKey.checked = false; dirty = false;
+  clearModels();
+  show("Connection and key removed from this device. Revoke the key with your provider separately if needed.");
+}); });
+endpoint.value = PROVIDER_PRESETS[0].apiBase;
+maxResponseTokens.value = String(DEFAULT_MAX_RESPONSE_TOKENS);
+renderThinking();
+void run(async () => { render(await request("state"), true); });
