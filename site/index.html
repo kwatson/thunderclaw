@@ -6,19 +6,19 @@
     <meta name="theme-color" content="#fffbeb">
     <meta name="application-name" content="ThunderClaw">
     <meta name="apple-mobile-web-app-title" content="ThunderClaw">
-    <meta name="description" content="OpenClaw-powered writing and reading assistance for Thunderbird. Your inbox, your decisions, your control.">
+    <meta name="description" content="AI writing, rewriting, summarization, and translation directly in Thunderbird, using your chosen provider or local model.">
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://thunderclaw.net/">
     <meta property="og:site_name" content="ThunderClaw">
     <meta property="og:title" content="ThunderClaw — A helpful claw for your inbox">
-    <meta property="og:description" content="OpenClaw-powered writing and reading assistance for Thunderbird. Your inbox, your decisions, your control.">
+    <meta property="og:description" content="AI writing, rewriting, summarization, and translation directly in Thunderbird, using your chosen provider or local model.">
     <meta property="og:image" content="https://thunderclaw.net/og.png">
     <meta property="og:image:width" content="1729">
     <meta property="og:image:height" content="910">
     <meta property="og:image:alt" content="ThunderClaw — A helpful claw for your inbox">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="ThunderClaw — A helpful claw for your inbox">
-    <meta name="twitter:description" content="OpenClaw-powered writing and reading assistance for Thunderbird. Your inbox, your decisions, your control.">
+    <meta name="twitter:description" content="AI writing, rewriting, summarization, and translation directly in Thunderbird, using your chosen provider or local model.">
     <meta name="twitter:image" content="https://thunderclaw.net/og.png">
     <meta name="twitter:image:alt" content="ThunderClaw — A helpful claw for your inbox">
     <title>ThunderClaw — A helpful claw for your inbox</title>
@@ -37,7 +37,7 @@
           <img src="./assets/thunderclaw-128.png" width="42" height="42" alt="">
           <span>ThunderClaw</span>
         </a>
-        <a class="github-link" href="https://github.com/kwatson/thunderclaw">
+        <a class="github-link" href="https://github.com/kwatson/thunderclaw" aria-label="View ThunderClaw on GitHub">
           <span>View on GitHub</span>
           <span aria-hidden="true">↗</span>
         </a>
@@ -45,14 +45,14 @@
 
       <main class="hero">
         <div class="hero-copy">
-          <p class="eyebrow"><span aria-hidden="true"></span> Open source · Available now</p>
+          <p class="eyebrow"><span aria-hidden="true"></span> Open source · Your choice of model</p>
           <h1>A helpful claw<br>for your inbox.</h1>
-          <p class="lede">OpenClaw-powered writing and reading assistance for Thunderbird. Generate thoughtful suggestions, review every change, and keep the final say.</p>
+          <p class="lede">Write, rewrite, summarize, and translate in Thunderbird with your chosen AI provider or local model. Review every suggestion and keep the final say.</p>
           <div class="hero-actions">
             <a class="primary-action" href="#install">
-              Install ThunderClaw <span aria-hidden="true">↓</span>
+              Set up ThunderClaw <span aria-hidden="true">↓</span>
             </a>
-            <a class="secondary-action" href="https://addons.thunderbird.net/en-US/thunderbird/addon/thunderclaw/">View Thunderbird add-on <span aria-hidden="true">↗</span></a>
+            <a class="secondary-action" href="#in-action">See what it can do <span aria-hidden="true">↓</span></a>
           </div>
           <ol class="flow" aria-label="ThunderClaw editing flow">
             <li>Generate</li>
@@ -68,104 +68,170 @@
         </div>
       </main>
 
+      <section class="providers" aria-labelledby="providers-title">
+        <div class="providers-copy">
+          <p class="section-kicker">Bring your own model</p>
+          <h2 id="providers-title">Your provider.<br>Your preferences.</h2>
+          <p>Connect directly to a hosted provider or a compatible server on your computer. Choose your model in the extension and make ThunderClaw your own.</p>
+        </div>
+        <div class="provider-options">
+          <ul class="provider-list" aria-label="Provider presets">
+            <li>OpenAI</li>
+            <li>OpenRouter</li>
+            <li>DeepSeek</li>
+            <li>Ollama</li>
+            <li>LM Studio</li>
+            <li>Custom endpoint</li>
+          </ul>
+          <p>OpenAI-compatible connections. Model support for structured output and thinking controls varies. <a href="https://github.com/kwatson/thunderclaw/blob/main/docs/compatibility.md">Check compatibility <span aria-hidden="true">↗</span></a></p>
+        </div>
+      </section>
+
+      <section class="showcase" id="in-action" aria-labelledby="showcase-title">
+        <div class="showcase-heading">
+          <p class="section-kicker">A little help, right where you write</p>
+          <h2 id="showcase-title">Find the words.<br>Keep your voice.</h2>
+          <p>Polish a draft, find the point of a long message, or read across languages. Choose an action when you need it.</p>
+        </div>
+
+        <article class="writing-example" aria-labelledby="writing-title">
+          <div class="example-intro">
+            <span class="example-label">Illustrative example · Improve</span>
+            <h3 id="writing-title">A clearer draft.<br>The same intention.</h3>
+            <p>Improve, proofread, shorten, adjust tone, translate, summarize, or give a custom writing instruction. Preview the result before applying it to your selection.</p>
+          </div>
+          <div class="edit-example">
+            <div class="example-source">
+              <span class="example-label">Your selection</span>
+              <p>could you send the updated schedule by friday? we need it before we can confirm the booking.</p>
+            </div>
+            <div class="example-result">
+              <span class="example-label">Suggested edit</span>
+              <p>Could you send the updated schedule by Friday? We need it before we can confirm the booking.</p>
+            </div>
+            <p class="example-caption">You review. You apply. You can undo.</p>
+          </div>
+        </article>
+
+        <div class="reading-grid">
+          <article class="reading-example" aria-labelledby="summary-title">
+            <span class="example-label">Illustrative example · Summarize</span>
+            <h3 id="summary-title">The details that matter.</h3>
+            <p>A separate summary card helps you get your bearings while keeping the original message in view.</p>
+            <div class="message-example">
+              <span class="example-label">Garden workday</span>
+              <ul>
+                <li>Meet Saturday at 9 AM by the greenhouse.</li>
+                <li>Bring gloves and a water bottle.</li>
+                <li>If it rains, projects move indoors.</li>
+              </ul>
+            </div>
+          </article>
+          <article class="reading-example" aria-labelledby="translation-title">
+            <span class="example-label">Illustrative example · Translate</span>
+            <h3 id="translation-title">Read across languages.</h3>
+            <p>Choose a target language and let Auto-detect handle the source. Translate visible text in place, then restore the original when you want.</p>
+            <div class="message-example">
+              <span class="example-label">English → French</span>
+              <p>The meeting starts at ten.</p>
+              <p lang="fr" class="translated-example">La réunion commence à dix heures.</p>
+            </div>
+          </article>
+        </div>
+      </section>
+
       <section class="install" id="install" aria-labelledby="install-title">
         <div class="install-heading">
           <div>
-            <p class="section-kicker">Install ThunderClaw</p>
-            <h2 id="install-title">From OpenClaw to your inbox<br>in four clear steps.</h2>
+            <p class="section-kicker">Set up ThunderClaw</p>
+            <h2 id="install-title">One extension.<br>A connection you choose.</h2>
           </div>
-          <p>ThunderClaw has two matching parts: a plugin for your OpenClaw Gateway and a signed extension for Thunderbird. Install both, then pair them once.</p>
+          <p>Configure your provider and model directly in Thunderbird. Your connection and API key stay saved on this device across restarts.</p>
         </div>
 
+        <p class="build-note">The standalone edition is currently a development build. Follow the <a href="https://github.com/kwatson/thunderclaw/blob/main/docs/installation.md">installation guide</a> for the current version.</p>
         <ol class="install-steps">
           <li>
             <span class="step-number" aria-hidden="true">01</span>
             <div class="step-copy">
-              <h3>Get OpenClaw ready</h3>
-              <p>Use a supported OpenClaw version from 2026.7.2-beta.7 through the 2026.10.7 release line with a configured agent, then confirm that its Gateway is running. Your existing <code>main</code> agent is supported; a dedicated ThunderClaw agent is optional for separate mail personality, workspace, memory, or model configuration.</p>
-              <pre><code>openclaw gateway status</code></pre>
-              <a class="text-link" href="https://docs.openclaw.ai/install">OpenClaw installation guide <span aria-hidden="true">↗</span></a>
+              <h3>Add the extension</h3>
+              <p>Use Thunderbird 128 or newer. Install the XPI through <strong>Add-ons and Themes → Install Add-on From File</strong>, then open ThunderClaw settings.</p>
+              <a class="text-link setup-link" href="https://github.com/kwatson/thunderclaw/blob/main/docs/installation.md">Installation guide <span aria-hidden="true">↗</span></a>
             </div>
           </li>
           <li>
             <span class="step-number" aria-hidden="true">02</span>
             <div class="step-copy">
-              <h3>Install the OpenClaw plugin</h3>
-              <p>Install the published package from ClawHub and explicitly accept its declared OpenClaw capabilities, then enable it and restart the Gateway. Device pairing still requires its own later approval.</p>
-              <pre><code>openclaw plugins install \
-  --accept-capabilities \
-  clawhub:@thunderclaw/openclaw-plugin
-openclaw plugins enable thunderclaw
-openclaw gateway restart</code></pre>
-              <a class="text-link" href="https://clawhub.ai/thunderclaw/plugins/openclaw-plugin">View ThunderClaw on ClawHub <span aria-hidden="true">↗</span></a>
+              <h3>Choose your connection</h3>
+              <p>Select a provider preset or enter a compatible API base. For Ollama or LM Studio, start your local server and load a suitable model.</p>
             </div>
           </li>
           <li>
             <span class="step-number" aria-hidden="true">03</span>
             <div class="step-copy">
-              <h3>Add ThunderClaw to Thunderbird</h3>
-              <p>Open the official listing in Thunderbird 128 or newer, choose <strong>Add to Thunderbird</strong>, and approve the requested permissions.</p>
-              <a class="step-action" href="https://addons.thunderbird.net/en-US/thunderbird/addon/thunderclaw/">Get the Thunderbird extension <span aria-hidden="true">↗</span></a>
+              <h3>Pick a model and save</h3>
+              <p>Enter an API key if required. Click <strong>Load models</strong> and choose one, or enter its exact ID. Save the connection and approve host access when Thunderbird asks.</p>
             </div>
           </li>
           <li>
             <span class="step-number" aria-hidden="true">04</span>
             <div class="step-copy">
-              <h3>Connect and pair</h3>
-              <p>Open ThunderClaw’s settings in Thunderbird, enter the endpoint shown by your OpenClaw installation, and choose <strong>Pair this Thunderbird</strong>. Then run the guided approval command:</p>
-              <pre><code>openclaw thunderclaw</code></pre>
-              <p>Match the approval code, approve the request, then return to Thunderbird to <strong>Claim approved pairing</strong> and test the connection.</p>
-              <a class="text-link pairing-link" href="https://github.com/kwatson/thunderclaw/blob/main/docs/installation.md">Detailed connection and troubleshooting guide <span aria-hidden="true">↗</span></a>
+              <h3>Test, then try it</h3>
+              <p>Click <strong>Test connection</strong> to check your model with synthetic text. Then select text in a draft, generate a preview, and decide whether to apply it.</p>
             </div>
           </li>
         </ol>
-
-        <p class="install-note"><strong>Connecting to another machine?</strong> Use an HTTPS endpoint. Plain HTTP is accepted only for explicit <code>127.0.0.1</code> or <code>[::1]</code> loopback addresses.</p>
+        <p class="install-note">Use HTTPS for remote servers. Local HTTP supports explicit <code>127.0.0.1</code> or <code>[::1]</code> addresses.</p>
       </section>
 
-      <section class="showcase" id="in-action" aria-labelledby="showcase-title">
-        <div class="showcase-heading">
-          <p class="section-kicker">ThunderClaw in action</p>
-          <h2 id="showcase-title">Helpful when you ask.<br>Out of the way when you don’t.</h2>
-          <p>Draft with a deliberate preview step, or bring a long message into focus. Every result stays visible, reversible, and yours to accept.</p>
+      <section class="control" aria-labelledby="control-title">
+        <div class="control-heading">
+          <p class="section-kicker">Your inbox, your decisions</p>
+          <h2 id="control-title">Help with the words.<br>You handle the sending.</h2>
         </div>
+        <div class="control-grid">
+          <article>
+            <h3>Review every edit</h3>
+            <p>Generate, Preview, Apply, and Undo are separate choices. Thunderbird handles sending. Models have no authority to change recipients, attachments, or headers.</p>
+          </article>
+          <article>
+            <h3>Keep supported formatting</h3>
+            <p>Eligible selections on qualified Thunderbird 153+ versions support paragraphs, flat lists, bold, italic, and underline. Received translations keep the message’s existing structure.</p>
+          </article>
+          <article>
+            <h3>Know where your text goes</h3>
+            <p>Actions send selected content and necessary context directly to your chosen endpoint. Provider privacy policies apply. Local servers and routing services can use upstream cloud models.</p>
+          </article>
+        </div>
+        <a class="text-link" href="https://github.com/kwatson/thunderclaw/blob/main/docs/privacy-policy.md">Read the privacy policy <span aria-hidden="true">↗</span></a>
+      </section>
 
-        <figure class="feature-shot feature-shot-wide">
-          <div class="shot-frame shot-frame-dark">
-            <img src="./assets/screenshots/compose-preview.png" width="1485" height="1059" loading="lazy" alt="ThunderClaw showing an improved email in a preview beside a Thunderbird compose window">
-          </div>
-          <figcaption>
-            <span>Write with confidence</span>
-            Generate a suggestion, inspect it beside your draft, then decide whether to apply it.
-          </figcaption>
-        </figure>
-
-        <div class="reading-grid">
-          <figure class="feature-shot">
-            <div class="shot-frame">
-              <img src="./assets/screenshots/message-summary.png" width="1118" height="1407" loading="lazy" alt="ThunderClaw displaying a summary above the original Thunderbird message">
-            </div>
-            <figcaption>
-              <span>Find the signal</span>
-              Put a plain-text summary above the original message without changing it.
-            </figcaption>
-          </figure>
-
-          <figure class="feature-shot">
-            <div class="shot-frame">
-              <img src="./assets/screenshots/message-translation.png" width="1136" height="1384" loading="lazy" alt="ThunderClaw displaying a French translation with a control to restore the original message">
-            </div>
-            <figcaption>
-              <span>Read across languages</span>
-              Translate visible message text and return to the original with one click.
-            </figcaption>
-          </figure>
+      <section class="questions" aria-labelledby="questions-title">
+        <p class="section-kicker">A few useful details</p>
+        <h2 id="questions-title">Before you get started.</h2>
+        <div class="question-list">
+          <details>
+            <summary>Will I have to enter my API key every day?</summary>
+            <p>Your key is saved in your local Thunderbird profile and survives restarts. It is never synchronized. Local profile storage is not an encrypted vault, so protect your device and backups. Remove the saved key in settings; revoke it with your provider if needed.</p>
+          </details>
+          <details>
+            <summary>Can I use a model running on my computer?</summary>
+            <p>Yes. Ollama and LM Studio have presets, and you can configure another OpenAI-compatible server. The model must support the selected structured output. Check your server’s model settings if you need inference to stay on your computer.</p>
+          </details>
+          <details>
+            <summary>Can I control response length and thinking?</summary>
+            <p>Yes. The response-token limit defaults to 16,384 and helps bound generation cost and waiting time. Thinking defaults to Off for DeepSeek and Model default for other presets. Available controls depend on the provider and model. Save and retest after changing them.</p>
+          </details>
+          <details>
+            <summary>What does ThunderClaw cost?</summary>
+            <p>ThunderClaw is open source under the Apache 2.0 license. You supply the model connection. Hosted providers may charge for generation, including connection tests; a model running on your computer uses your own hardware.</p>
+          </details>
         </div>
       </section>
 
       <footer>
         <p>Your inbox, your decisions, your control.</p>
-        <p>Apache-2.0 licensed · <a href="https://github.com/kwatson/thunderclaw">Source on GitHub</a></p>
+        <p><a href="https://github.com/kwatson/thunderclaw/blob/main/docs/installation.md">Setup guide</a> · <a href="https://github.com/kwatson/thunderclaw/blob/main/docs/privacy-policy.md">Privacy</a> · <a href="https://github.com/kwatson/thunderclaw">Source on GitHub</a></p>
       </footer>
     </div>
   </body>

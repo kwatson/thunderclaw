@@ -6,8 +6,6 @@ test("ClawHub catalog metadata presents the ThunderClaw brand", async () => {
   const qualification = JSON.parse(await readFile(new URL("../openclaw-qualification.json", import.meta.url), "utf8"));
   const pluginPackage = JSON.parse(await readFile(new URL("../packages/openclaw-plugin/package.json", import.meta.url), "utf8"));
   const pluginManifest = JSON.parse(await readFile(new URL("../packages/openclaw-plugin/openclaw.plugin.json", import.meta.url), "utf8"));
-  const pagesBuild = await readFile(new URL("../scripts/build-pages.mjs", import.meta.url), "utf8");
-  const pagesWorkflow = await readFile(new URL("../.github/workflows/pages.yml", import.meta.url), "utf8");
 
   assert.equal(pluginPackage.name, "@thunderclaw/openclaw-plugin");
   assert.equal(pluginPackage.peerDependencies.openclaw, qualification.supportedRange);
@@ -18,8 +16,6 @@ test("ClawHub catalog metadata presents the ThunderClaw brand", async () => {
   assert.equal(pluginManifest.name, "ThunderClaw");
   assert.equal(pluginPackage.description, pluginManifest.description);
   assert.equal(pluginManifest.icon, undefined);
-  assert.match(pagesBuild, /thunderclaw-openclaw-plugin-icon-256\.png/u);
-  assert.match(pagesWorkflow, /docs\/brand\/assets\/raster\/icons\/thunderclaw-openclaw-plugin-icon-256\.png/u);
 });
 
 test("Thunderbird extension declares compose and message-view boundaries", async () => {

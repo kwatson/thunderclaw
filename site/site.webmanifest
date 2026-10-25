@@ -1,7 +1,7 @@
 {
   "name": "ThunderClaw",
   "short_name": "ThunderClaw",
-  "description": "OpenClaw-powered writing and reading assistance for Thunderbird.",
+  "description": "AI writing and reading assistance for Thunderbird, using your chosen provider or local model.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

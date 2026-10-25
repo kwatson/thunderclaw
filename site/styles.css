@@ -112,6 +112,7 @@ a {
 .hero-copy {
   position: relative;
   z-index: 2;
+  min-width: 0;
 }
 
 .eyebrow {
@@ -243,6 +244,7 @@ h1 {
   position: relative;
   place-items: center;
   align-self: stretch;
+  min-width: 0;
   min-height: 34rem;
 }
 
@@ -358,23 +360,7 @@ h1 {
   margin-top: 0.9rem;
 }
 
-.step-copy pre {
-  max-width: 100%;
-  margin: 1rem 0;
-  padding: 0.9rem 1rem;
-  overflow: hidden;
-  border: 1px solid rgb(24 49 83 / 12%);
-  border-radius: 0.65rem;
-  background: var(--navy);
-  color: var(--cream);
-  font-size: clamp(0.72rem, 1.4vw, 0.82rem);
-  line-height: 1.5;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-
-.step-copy code,
-.install-note code {
+code {
   font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
 }
 
@@ -398,7 +384,7 @@ h1 {
   text-decoration: none;
 }
 
-.pairing-link {
+.setup-link {
   margin-top: 1rem;
 }
 
@@ -472,49 +458,235 @@ h1 {
   text-wrap: pretty;
 }
 
-.feature-shot {
-  min-width: 0;
-  margin: 0;
-}
-
-.shot-frame {
-  overflow: hidden;
-  border: 1px solid rgb(255 251 235 / 20%);
-  border-radius: clamp(0.8rem, 1.6vw, 1.3rem);
-  background: #f4f5f7;
-  box-shadow: 0 1.5rem 4rem rgb(5 15 28 / 28%);
-}
-
-.shot-frame-dark {
-  background: #202126;
-}
-
-.shot-frame img {
-  display: block;
-  width: 100%;
-  height: auto;
-}
-
-.feature-shot figcaption {
-  margin-top: 1.25rem;
-  color: #b7cad8;
-  font-size: 0.9rem;
-  line-height: 1.55;
-}
-
-.feature-shot figcaption span {
-  display: block;
-  margin-bottom: 0.25rem;
-  color: var(--cream);
-  font-size: 1rem;
-  font-weight: 850;
-}
-
 .reading-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: clamp(1.5rem, 4vw, 4rem);
   margin-top: clamp(3.5rem, 7vw, 6.5rem);
+}
+
+.providers,
+.control,
+.questions {
+  padding: clamp(4.5rem, 8vw, 8rem) clamp(1.4rem, 5vw, 5rem);
+  border-top: 1px solid var(--line);
+}
+
+.providers {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: center;
+  gap: clamp(2rem, 6vw, 6rem);
+}
+
+.providers .section-kicker,
+.control .section-kicker,
+.questions .section-kicker {
+  color: #087f73;
+}
+
+.providers h2,
+.control h2,
+.questions h2 {
+  margin: 0;
+  font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  font-size: clamp(2.8rem, 4.5vw, 4.8rem);
+  letter-spacing: -0.055em;
+  line-height: 1.04;
+  text-wrap: balance;
+}
+
+.providers-copy > p:last-child,
+.provider-options > p,
+.control-grid p {
+  margin: 1.25rem 0 0;
+  color: var(--navy-soft);
+  font-size: 0.95rem;
+  line-height: 1.7;
+}
+
+.provider-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.provider-list li {
+  display: grid;
+  place-items: center;
+  min-height: 4rem;
+  padding: 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 0.8rem;
+  background: rgb(255 255 255 / 40%);
+  font-size: 1rem;
+  font-weight: 800;
+  text-align: center;
+}
+
+.provider-options > p {
+  font-size: 0.82rem;
+}
+
+.provider-options a {
+  text-underline-offset: 0.2em;
+}
+
+.writing-example {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  align-items: center;
+  gap: clamp(2rem, 6vw, 5rem);
+  padding: clamp(1.5rem, 4vw, 3rem);
+  border: 1px solid rgb(255 251 235 / 20%);
+  border-radius: 1.3rem;
+  background: rgb(255 251 235 / 4%);
+}
+
+.example-label {
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  line-height: 1.5;
+  text-transform: uppercase;
+}
+
+.example-intro > .example-label,
+.reading-example > .example-label {
+  color: #64d9cb;
+}
+
+.example-intro h3,
+.reading-example h3 {
+  margin: 1rem 0;
+  font-size: clamp(1.5rem, 2.5vw, 2.25rem);
+  letter-spacing: -0.035em;
+  line-height: 1.15;
+  text-wrap: balance;
+}
+
+.example-intro p,
+.reading-example > p {
+  margin: 0;
+  color: #c4d3df;
+  font-size: 0.95rem;
+  line-height: 1.7;
+}
+
+.example-source,
+.example-result,
+.message-example {
+  padding: clamp(1.2rem, 3vw, 2rem);
+  border-radius: 0.8rem;
+  background: var(--cream);
+  color: var(--navy);
+}
+
+.example-source {
+  border: 1px solid rgb(255 251 235 / 20%);
+  background: transparent;
+  color: #c4d3df;
+}
+
+.example-result {
+  margin-top: 0.8rem;
+  border-left: 4px solid var(--teal);
+}
+
+.example-source p,
+.example-result p,
+.message-example p {
+  margin: 0.8rem 0 0;
+  font-size: 1.05rem;
+  line-height: 1.65;
+}
+
+.example-caption {
+  margin: 1rem 0 0;
+  color: #c4d3df;
+  font-size: 0.8rem;
+  text-align: center;
+}
+
+.message-example {
+  margin-top: 1.5rem;
+}
+
+.message-example ul {
+  margin: 0.8rem 0 0;
+  padding-left: 1.2rem;
+  line-height: 1.8;
+}
+
+.translated-example {
+  padding-top: 0.8rem;
+  border-top: 1px solid var(--line);
+  color: #087f73;
+  font-weight: 650;
+}
+
+.build-note {
+  margin: 0 0 1.5rem;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--line);
+  border-radius: 0.8rem;
+  color: var(--navy-soft);
+  font-size: 0.9rem;
+  line-height: 1.65;
+}
+
+.build-note a {
+  text-underline-offset: 0.2em;
+}
+
+.control {
+  background: var(--cream-deep);
+}
+
+.control-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 2rem;
+  margin: 3rem 0 2rem;
+}
+
+.control-grid h3 {
+  margin: 0;
+  font-size: 1.15rem;
+  letter-spacing: -0.025em;
+}
+
+.control-grid p {
+  margin-top: 0.7rem;
+}
+
+.question-list {
+  margin-top: 2.5rem;
+  border-top: 1px solid var(--line);
+}
+
+.question-list details {
+  padding: 1.4rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.question-list summary {
+  cursor: pointer;
+  font-size: 1.05rem;
+  font-weight: 750;
+  line-height: 1.5;
+}
+
+.question-list p {
+  max-width: 54rem;
+  margin: 1rem 0 0;
+  color: var(--navy-soft);
+  font-size: 0.95rem;
+  line-height: 1.75;
 }
 
 footer {
@@ -544,7 +716,7 @@ footer a {
 
 @media (max-width: 900px) {
   .hero {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     padding-top: 3rem;
   }
 
@@ -565,7 +737,13 @@ footer a {
     width: min(83vw, 39rem);
   }
 
-  .showcase-heading {
+  .showcase-heading,
+  .providers,
+  .writing-example {
+    grid-template-columns: 1fr;
+  }
+
+  .control-grid {
     grid-template-columns: 1fr;
   }
 
