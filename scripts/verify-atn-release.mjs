@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { verifyMarketplaceNotes } from "./verify-marketplace-notes.mjs";
+import { normalizeMarketplaceNotes, verifyMarketplaceNotes } from "./verify-marketplace-notes.mjs";
 
 function english(value) {
   if (typeof value === "string") return value;
@@ -10,14 +10,22 @@ function english(value) {
 }
 
 export async function verifyAtnRelease({ version, notesFile, xpi, downloadOutput, apiBase = "https://addons.thunderbird.net/api/v4", fetchImpl = fetch }) {
-  const response = await fetchImpl(`${apiBase.replace(/\/$/u, "")}/addons/addon/thunderclaw%40addons.thunderbird.net/versions/`, {
-    headers: { accept: "application/json" },
+  const canonicalNotes = await readFile(notesFile, "utf8");
+  verifyMarketplaceNotes(canonicalNotes, canonicalNotes, "canonical source");
+  const response = await fetchImpl(`${apiBase.replace(/\/$/u, "")}/addons/addon/thunderclaw%40addons.thunderbird.net/versions/?fresh=${Date.now()}`, {
+    headers: { accept: "application/json", "cache-control": "no-cache" },
+    cache: "no-store",
+    signal: AbortSignal.timeout(30_000),
   });
   if (!response.ok) throw new Error(`ATN public API returned HTTP ${response.status}`);
   const payload = await response.json();
   const record = payload?.results?.find((candidate) => candidate?.version === version);
   if (!record) throw new Error(`ATN public API did not return Thunderbird extension ${version}`);
-  verifyMarketplaceNotes(await readFile(notesFile, "utf8"), english(record.release_notes), "ATN");
+  const publicNotes = english(record.release_notes);
+  let releaseNotesStatus = "missing";
+  if (typeof publicNotes === "string" && publicNotes.trim()) {
+    releaseNotesStatus = normalizeMarketplaceNotes(publicNotes) === normalizeMarketplaceNotes(canonicalNotes) ? "verified" : "mismatch";
+  }
   const qualifiedBytes = await readFile(xpi);
   const qualifiedSha256 = createHash("sha256").update(qualifiedBytes).digest("hex");
   const file = record.files?.find((candidate) => candidate?.status === "public");
@@ -28,7 +36,7 @@ export async function verifyAtnRelease({ version, notesFile, xpi, downloadOutput
   if (downloadUrl.protocol !== "https:" || downloadUrl.hostname !== "addons.thunderbird.net") {
     throw new Error("ATN returned an untrusted public XPI URL");
   }
-  const download = await fetchImpl(downloadUrl, { headers: { accept: "application/x-xpinstall" } });
+  const download = await fetchImpl(downloadUrl, { headers: { accept: "application/x-xpinstall" }, signal: AbortSignal.timeout(30_000) });
   if (!download.ok) throw new Error(`ATN public XPI download returned HTTP ${download.status}`);
   const downloaded = Buffer.from(await download.arrayBuffer());
   const signedSha256 = createHash("sha256").update(downloaded).digest("hex");
@@ -38,13 +46,14 @@ export async function verifyAtnRelease({ version, notesFile, xpi, downloadOutput
   if (downloadOutput) await writeFile(downloadOutput, downloaded, { flag: "wx" });
   return {
     version,
-    releaseNotesVerified: true,
+    releaseNotesVerified: releaseNotesStatus === "verified",
+    releaseNotesStatus,
     signedXpiVerified: true,
     qualifiedXpiSha256: qualifiedSha256,
     signedXpiSha256: signedSha256,
     signedXpiSize: downloaded.byteLength,
-    reviewerSourceVerification: "manual",
-    reviewerTestingNotesVerification: "manual",
+    reviewerSourceVerification: "unknown",
+    reviewerTestingNotesVerification: "unknown",
   };
 }
 

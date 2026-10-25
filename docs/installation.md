@@ -6,17 +6,17 @@ There is no companion service to install.
 
 ## Install the extension
 
-The standalone version in this checkout is a development candidate. A release
-listed on a marketplace may still be an older version; check its version and
-release notes before installing.
+Install [ThunderClaw from Thunderbird Add-ons](https://addons.thunderbird.net/en-US/thunderbird/addon/thunderclaw/)
+in Thunderbird 128 or newer, then open the extension's settings. Thunderbird
+handles normal add-on updates.
 
-To build this checkout, follow [development](development.md). In Thunderbird,
-open **Add-ons and Themes**, use the gear menu's **Install Add-on From File**,
-and select `build/thunderclaw-extension.xpi`. Installing a newer XPI with the
-same extension ID updates the existing installation; uninstalling first is
-unnecessary and may discard settings. Check the version in ThunderClaw settings
-after installation. Release qualification uses the exact release XPI instead
-of a local rebuild.
+For a local development build or an exact GitHub release XPI, open **Add-ons and
+Themes**, use the gear menu's **Install Add-on From File**, and select that XPI.
+Building a checkout is covered in [development](development.md). Installing a
+newer XPI with the same extension ID updates the existing installation;
+uninstalling first is unnecessary and may discard settings. Check the version
+in ThunderClaw settings after installation. Release qualification uses the exact
+release XPI rather than a local rebuild.
 
 ## Set up a connection
 

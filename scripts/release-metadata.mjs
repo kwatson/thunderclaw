@@ -1,13 +1,11 @@
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { validateReleaseBaselines } from "./validate-release-baselines.mjs";
 
-export const releaseComponents = ["openclaw-plugin", "thunderbird-extension"];
-const releaseTagPattern = /^(openclaw-plugin|thunderbird-extension)-v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/u;
+export const releaseComponents = ["thunderbird-extension"];
+const releaseTagPattern = /^(thunderbird-extension)-v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/u;
 const versionPattern = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/u;
 const componentLabels = {
-  "openclaw-plugin": "OpenClaw plugin",
   "thunderbird-extension": "Thunderbird extension",
 };
 const sectionPattern = /^## (OpenClaw plugin|Thunderbird extension) \[((?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*))\](?: - (\d{4}-\d{2}-\d{2}))?$/u;
@@ -16,7 +14,7 @@ export function parseReleaseTag(tag) {
   const match = typeof tag === "string" ? releaseTagPattern.exec(tag) : null;
   if (!match) {
     throw new Error(
-      `Release tag must have canonical form openclaw-plugin-vX.Y.Z or thunderbird-extension-vX.Y.Z: ${String(tag)}`,
+      `Release tag must have canonical form thunderbird-extension-vX.Y.Z: ${String(tag)}`,
     );
   }
   return { component: match[1], version: `${match[2]}.${match[3]}.${match[4]}`, tag };
@@ -62,6 +60,7 @@ export function extractChangelogSection(changelog, component, version) {
     }
   }
   const notes = lines.slice(start, end).join("\n").trim();
+  if (notes.includes("<!-- release:prepare draft")) throw new Error("Release notes are still a release:prepare draft");
   if (!notes) throw new Error(`Changelog release section ${componentLabel} ${version} is empty`);
   return `${notes}\n`;
 }
@@ -91,10 +90,6 @@ export async function prepareRelease({ root, tag, notesOutput }) {
 
   const lockfile = await readJson(root, "package-lock.json");
   const rootPackage = await readJson(root, "package.json");
-  const baselines = validateReleaseBaselines(await readJson(root, "release-baselines.json"));
-  if (baselines.releases?.some((release) => release?.component === component && release?.version === version)) {
-    throw new Error(`Release ${component} ${version} is reserved by the immutable legacy baseline ledger`);
-  }
   if (rootPackage.version !== undefined || lockfile.version !== undefined || lockfile.packages?.[""]?.version !== undefined) {
     throw new Error("The private workspace root must not declare a shared release version");
   }
@@ -121,15 +116,15 @@ function parseArguments(argumentsList) {
   for (let index = 0; index < argumentsList.length; index += 2) {
     const option = argumentsList[index];
     const value = argumentsList[index + 1];
-    if (!["--tag", "--notes-output"].includes(option) || value === undefined || values.has(option)) {
+    if (!["--tag", "--notes-output", "--root"].includes(option) || value === undefined || values.has(option)) {
       throw new Error("Usage: release-metadata.mjs --tag <component-vX.Y.Z> --notes-output <path>/release-notes.md");
     }
     values.set(option, value);
   }
-  if (values.size !== 2) {
+  if (!values.has("--tag") || !values.has("--notes-output")) {
     throw new Error("Usage: release-metadata.mjs --tag <component-vX.Y.Z> --notes-output <path>/release-notes.md");
   }
-  return { tag: values.get("--tag"), notesOutput: values.get("--notes-output") };
+  return { tag: values.get("--tag"), notesOutput: values.get("--notes-output"), ...(values.has("--root") ? { root: path.resolve(values.get("--root")) } : {}) };
 }
 
 const invokedPath = process.argv[1] ? pathToFileURL(path.resolve(process.argv[1])).href : "";

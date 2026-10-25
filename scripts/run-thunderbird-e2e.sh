@@ -31,7 +31,13 @@ if [ "${THUNDERCLAW_E2E_XPI+x}" != x ] || [ -z "${THUNDERCLAW_E2E_XPI}" ]; then
   exit 2
 fi
 candidate_xpi=${THUNDERCLAW_E2E_XPI}
-mise exec -- node scripts/validate-candidate-artifact.mjs xpi "${candidate_xpi}"
+# Recovery verifies an immutable old release using reviewed current automation.
+# The publisher passes the version established by tag/provenance verification.
+set --
+if [ "${THUNDERCLAW_E2E_EXPECTED_VERSION+x}" = x ]; then
+  set -- --expected-version "${THUNDERCLAW_E2E_EXPECTED_VERSION}"
+fi
+mise exec -- node scripts/validate-candidate-artifact.mjs xpi "${candidate_xpi}" "$@"
 mkdir -p "${artifact_root}"
 # Remove only the known files/directories published by the pre-matrix runner.
 # Version directories below are cleaned independently immediately before copy.
@@ -44,7 +50,7 @@ done
 cp "${candidate_xpi}" "${staging_root}/thunderclaw-extension.xpi"
 chmod 0755 "${staging_root}"
 chmod 0644 "${staging_root}/thunderclaw-extension.xpi"
-mise exec -- node scripts/validate-candidate-artifact.mjs xpi "${staging_root}/thunderclaw-extension.xpi"
+mise exec -- node scripts/validate-candidate-artifact.mjs xpi "${staging_root}/thunderclaw-extension.xpi" "$@"
 cmp -s "${candidate_xpi}" "${staging_root}/thunderclaw-extension.xpi" || {
   echo "Staged XPI bytes differ from the validated candidate" >&2
   exit 1

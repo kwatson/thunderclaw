@@ -1,7 +1,6 @@
 # Environment files and local secrets
 .env
 .env.*
-!.env.example
 
 # Required repository configuration (overrides common global ignore rules)
 !.mise.toml
@@ -22,7 +21,7 @@ venv/
 __pycache__/
 *.py[cod]
 
-# Local OpenClaw test environment
+# Private local state retained after backend retirement
 .spike/
 
 # Editor and OS metadata
@@ -34,3 +33,6 @@ __pycache__/
 *~
 .DS_Store
 Thumbs.db
+
+# Recovery backups from interrupted local release preparation
+.thunderclaw-release-prepare-*/

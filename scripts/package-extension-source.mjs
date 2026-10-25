@@ -21,7 +21,6 @@ const sourceEntries = [
   "SOURCE_REVIEW.md",
   "package-lock.json",
   "package.json",
-  "packages/openclaw-plugin/package.json",
   "packages/thunderbird-extension/package.json",
   "packages/thunderbird-extension/src",
   "packages/thunderbird-extension/tsconfig.json",

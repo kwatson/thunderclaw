@@ -9,10 +9,8 @@ import test from "node:test";
 import { createAtnJwt, submitToThunderbirdAddons, versionEndpoint } from "../scripts/submit-thunderbird-addon.mjs";
 import { verifyAtnRelease } from "../scripts/verify-atn-release.mjs";
 import { verifyAtnXpiPayload } from "../scripts/verify-atn-xpi-payload.mjs";
-import { CLAWHUB_PUBLICATION_TIMEOUT_MS, normalizeMarketplaceNotes, verifyClawHubReleaseNotes, verifyMarketplaceNotes } from "../scripts/verify-marketplace-notes.mjs";
+import { normalizeMarketplaceNotes, verifyMarketplaceNotes } from "../scripts/verify-marketplace-notes.mjs";
 import { expectedArtifactNames, parseChecksums, verifyMarketplaceRelease } from "../scripts/verify-marketplace-release.mjs";
-import { expectedArtifactNamesV1, verifyMarketplaceReleaseV1 } from "../scripts/verify-marketplace-release-v1.mjs";
-import { verifyLegacyMarketplaceRelease } from "../scripts/verify-legacy-marketplace-release.mjs";
 
 async function createZipFixture(root: string, name: string, entries: Record<string, string>) {
   const staging = path.join(root, `${name}-files`);
@@ -80,7 +78,9 @@ test("ATN submission uploads listed exact bytes and waits for validation", async
     timeoutMs: 1_000,
   });
   assert.equal(result.valid, true);
-  assert.equal(result.manualHandoffRequired, true);
+  assert.equal(result.publicationStatus, "awaiting-public-verification");
+  assert.equal(result.reviewerActions, "inspect-platform-requirements");
+  assert.equal("manualHandoffRequired" in result, false);
   assert.equal(polls, 1);
 });
 
@@ -117,74 +117,13 @@ test("marketplace verification binds exact bytes to release provenance", async (
   );
 });
 
-test("frozen v1 verifier remains limited to the two legacy shared tags", async () => {
-  const directory = await mkdtemp(path.join(os.tmpdir(), "thunderclaw-marketplace-v1-test-"));
-  const tag = "v0.1.1";
-  const commit = "a".repeat(40);
-  const artifacts = [];
-  const checksumLines = [];
-  for (const name of expectedArtifactNamesV1("0.1.1")) {
-    const bytes = Buffer.from(`legacy:${name}`);
-    const sha256 = createHash("sha256").update(bytes).digest("hex");
-    await writeFile(path.join(directory, name), bytes);
-    artifacts.push({ name, sha256, size: bytes.length });
-    checksumLines.push(`${sha256}  ${name}`);
-  }
-  await writeFile(path.join(directory, "SHA256SUMS"), `${checksumLines.join("\n")}\n`);
-  await writeFile(path.join(directory, "release-provenance.json"), `${JSON.stringify({
-    format: "thunderclaw-release-provenance-v1",
-    source: { repository: "https://github.com/owner/repo", commit, tag },
-    artifacts,
-  })}\n`);
-  assert.equal((await verifyMarketplaceReleaseV1({ directory, tag, repository: "owner/repo", commit })).version, "0.1.1");
-  await assert.rejects(
-    verifyLegacyMarketplaceRelease({ directory, tag, repository: "owner/repo", commit }),
-    /immutable ledger/u,
-  );
-  await assert.rejects(
-    verifyMarketplaceReleaseV1({ directory, tag: "v0.1.2" as "v0.1.1", repository: "owner/repo", commit }),
-    /v0\.1\.0 or v0\.1\.1/u,
-  );
-});
-
 test("marketplace notes compare exactly after transport normalization", async () => {
-  assert.ok(CLAWHUB_PUBLICATION_TIMEOUT_MS >= 60 * 60_000, "allow ClawHub scans that take more than 30 minutes");
   assert.equal(normalizeMarketplaceNotes("Cafe\u0301\r\n\r\n"), "Café");
   assert.equal(verifyMarketplaceNotes("One\nTwo\n", "One\r\nTwo", "fixture"), "One\nTwo");
   assert.throws(() => verifyMarketplaceNotes("One two", "One  two", "fixture"), /exactly match/u);
   assert.throws(() => verifyMarketplaceNotes("One", "One ", "fixture"), /exactly match/u);
 
-  const directory = await mkdtemp(path.join(os.tmpdir(), "thunderclaw-notes-test-"));
-  const notesFile = path.join(directory, "notes.md");
-  const pluginArchive = path.join(directory, "plugin.tgz");
-  await writeFile(notesFile, "Canonical plugin notes.\n");
-  await writeFile(pluginArchive, "qualified-plugin");
-  const calls: string[] = [];
-  const result = await verifyClawHubReleaseNotes({
-    packageName: "@thunderclaw/openclaw-plugin",
-    version: "1.2.3",
-    notesFile,
-    artifact: pluginArchive,
-    repository: "owner/repo",
-    tag: "openclaw-plugin-v1.2.3",
-    commit: "a".repeat(40),
-    pollIntervalMs: 0,
-    timeoutMs: 0,
-    apiBase: "https://registry.example",
-    fetchImpl: async (url) => {
-      calls.push(String(url));
-      if (String(url).endsWith("/artifact/download")) return new Response(await readFile(pluginArchive), { status: 200 });
-      const artifact = await readFile(path.join(directory, "plugin.tgz"));
-      return new Response(JSON.stringify({
-        package: { name: "@thunderclaw/openclaw-plugin" },
-        version: { version: "1.2.3", changelog: "Canonical plugin notes.", artifact: {
-          sha256: createHash("sha256").update(artifact).digest("hex"), size: artifact.byteLength,
-        }, verification: { sourceRepo: "owner/repo", sourceTag: "openclaw-plugin-v1.2.3", sourceCommit: "a".repeat(40), scanStatus: "clean" } },
-      }), { status: 200 });
-    },
-  });
-  assert.equal(result.changelogVerified, true);
-  assert.equal(calls[0], "https://registry.example/api/v1/packages/%40thunderclaw%2Fopenclaw-plugin/versions/1.2.3");
+
 });
 
 test("ATN public verification binds canonical notes and downloads API-advertised signed XPI bytes", async () => {
@@ -210,37 +149,14 @@ test("ATN public verification binds canonical notes and downloads API-advertised
   assert.deepEqual(result, {
     version: "1.2.3",
     releaseNotesVerified: true,
+    releaseNotesStatus: "verified",
     signedXpiVerified: true,
     qualifiedXpiSha256: createHash("sha256").update(qualifiedBytes).digest("hex"),
     signedXpiSha256: createHash("sha256").update(signedBytes).digest("hex"),
     signedXpiSize: signedBytes.byteLength,
-    reviewerSourceVerification: "manual",
-    reviewerTestingNotesVerification: "manual",
+    reviewerSourceVerification: "unknown",
+    reviewerTestingNotesVerification: "unknown",
   });
-});
-
-test("ClawHub verification accepts the exact full tag ref but rejects branch refs and other tags", async () => {
-  const directory = await mkdtemp(path.join(os.tmpdir(), "thunderclaw-source-ref-"));
-  const artifact = path.join(directory, "plugin.tgz");
-  const notesFile = path.join(directory, "notes.md");
-  const bytes = Buffer.from("synthetic qualified plugin");
-  await writeFile(artifact, bytes); await writeFile(notesFile, "Synthetic release.\n");
-  try {
-    for (const sourceTag of ["refs/tags/openclaw-plugin-v1.2.3", "refs/heads/openclaw-plugin-v1.2.3", "refs/tags/openclaw-plugin-v1.2.4"]) {
-      const verification = verifyClawHubReleaseNotes({ packageName: "@thunderclaw/openclaw-plugin", version: "1.2.3",
-        notesFile, artifact, repository: "owner/repo", tag: "openclaw-plugin-v1.2.3", commit: "a".repeat(40),
-        timeoutMs: 0, pollIntervalMs: 0, fetchImpl: async (url) => String(url).endsWith("/artifact/download")
-          ? new Response(bytes)
-          : new Response(JSON.stringify({ package: { name: "@thunderclaw/openclaw-plugin" }, version: {
-            version: "1.2.3", changelog: "Synthetic release.",
-            artifact: { sha256: createHash("sha256").update(bytes).digest("hex"), size: bytes.length },
-            verification: { sourceRepo: "owner/repo", sourceTag, sourceCommit: "a".repeat(40), scanStatus: "clean" },
-          } })),
-      });
-      if (sourceTag === "refs/tags/openclaw-plugin-v1.2.3") assert.equal((await verification).sourceVerified, true);
-      else await assert.rejects(verification, /public source or scan state/u);
-    }
-  } finally { await rm(directory, { recursive: true, force: true }); }
 });
 
 test("ATN public XPI payload accepts identical bytes or complete signature metadata only", async () => {
@@ -270,4 +186,44 @@ test("ATN public XPI payload accepts identical bytes or complete signature metad
     verifyAtnXpiPayload({ qualifiedXpi: qualified, publicXpi: incomplete }),
     /incomplete Mozilla signature metadata group/u,
   );
+});
+
+test("ATN automatic activation is reported without inventing reviewer requirements", async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "thunderclaw-atn-auto-"));
+  try {
+    const xpi = path.join(directory, "extension.xpi"); await writeFile(xpi, "fixture");
+    const options = { xpi, version: "1.2.3", issuer: "synthetic", secret: "synthetic", timeoutMs: 0 };
+    const result = await submitToThunderbirdAddons({ ...options, fetchImpl: async () => Response.json({ processed: true, valid: true, reviewed: true, active: true }) });
+    assert.equal(result.publicationStatus, "reported-active");
+    assert.equal(result.reviewerActions, "inspect-platform-requirements");
+    assert.equal("manualHandoffRequired" in result, false);
+    await assert.rejects(submitToThunderbirdAddons({ ...options, fetchImpl: async () => Response.json({ processed: true, valid: false }) }), /ATN rejected/u);
+    await assert.rejects(submitToThunderbirdAddons({ ...options, fetchImpl: async () => Response.json({ detail: "synthetic rejection" }, { status: 422 }) }), /submission failed/u);
+    await assert.rejects(submitToThunderbirdAddons({ ...options, fetchImpl: async () => Response.json({ processed: false }) }), /Timed out/u);
+  } finally { await rm(directory, { recursive: true, force: true }); }
+});
+
+test("ATN checks public bytes even when notes are absent or different and bypasses stale API caches", async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "thunderclaw-atn-notes-"));
+  try {
+    const notesFile = path.join(directory, "notes.md"); const xpi = path.join(directory, "qualified.xpi");
+    const bytes = Buffer.from("qualified-public-fixture");
+    await writeFile(notesFile, "Canonical notes.\n"); await writeFile(xpi, bytes);
+    for (const [notes, expected] of [[undefined, "missing"], ["Different notes.", "mismatch"]] as const) {
+      const calls: string[] = [];
+      const fetchImpl: typeof fetch = async (url, options) => {
+        calls.push(String(url));
+        if (String(url).includes("/downloads/file/")) return new Response(bytes);
+        assert.equal(options?.cache, "no-store");
+        assert.match(String(url), /\/versions\/\?fresh=\d+$/u);
+        return Response.json({ results: [{ version: "1.2.3", release_notes: notes, files: [{ status: "public", hash: `sha256:${createHash("sha256").update(bytes).digest("hex")}`, size: bytes.length, url: "https://addons.thunderbird.net/thunderbird/downloads/file/1/fixture.xpi" }] }] });
+      };
+      const result = await verifyAtnRelease({ version: "1.2.3", notesFile, xpi, fetchImpl });
+      assert.equal(result.releaseNotesStatus, expected);
+      assert.equal(result.releaseNotesVerified, false); assert.equal(result.signedXpiVerified, true);
+      assert.equal(result.qualifiedXpiSha256, result.signedXpiSha256);
+      assert.equal(calls.length, 2, "one metadata request and one artifact download, without polling");
+    }
+    await assert.rejects(verifyAtnRelease({ version: "1.2.3", notesFile, xpi, fetchImpl: async () => Response.json({ results: [{ version: "1.2.3", files: [] }] }) }), /public XPI metadata is invalid/u);
+  } finally { await rm(directory, { recursive: true, force: true }); }
 });

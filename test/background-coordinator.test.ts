@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { DirectClientError, type ConnectionBinding, type ThunderClawDirectClient } from "../packages/thunderbird-extension/src/direct-client-contract.js";
 import { installFeatureBackground } from "../packages/thunderbird-extension/src/background-coordinator.js";
-import type { BackgroundFeatureLease, ConnectionController, FeatureRetirementHandler } from "../packages/thunderbird-extension/src/connection-controller.js";
+import type { BackgroundFeatureLease, InferenceConnectionController, FeatureRetirementHandler } from "../packages/thunderbird-extension/src/inference-connection-controller.js";
 
 const binding: ConnectionBinding = {
   apiBase: "https://gateway.example/thunderclaw/v1",
@@ -82,7 +82,7 @@ function harness() {
     async acquireFeatureLease() { calls.push(["acquire"]); return lease; },
     isFeatureBindingCurrent(candidate: ConnectionBinding) { return current && candidate.epoch === binding.epoch; },
     addFeatureRetirementHandler(handler: FeatureRetirementHandler) { retirement = handler; return () => undefined; },
-  } as unknown as ConnectionController;
+  } as unknown as InferenceConnectionController;
 
   let currentMessageType = "";
   const browser = {

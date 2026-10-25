@@ -2,32 +2,14 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-test("ClawHub catalog metadata presents the ThunderClaw brand", async () => {
-  const qualification = JSON.parse(await readFile(new URL("../openclaw-qualification.json", import.meta.url), "utf8"));
-  const pluginPackage = JSON.parse(await readFile(new URL("../packages/openclaw-plugin/package.json", import.meta.url), "utf8"));
-  const pluginManifest = JSON.parse(await readFile(new URL("../packages/openclaw-plugin/openclaw.plugin.json", import.meta.url), "utf8"));
-
-  assert.equal(pluginPackage.name, "@thunderclaw/openclaw-plugin");
-  assert.equal(pluginPackage.peerDependencies.openclaw, qualification.supportedRange);
-  assert.equal(pluginPackage.openclaw.compat.pluginApi, qualification.supportedRange);
-  assert.equal(pluginPackage.openclaw.compat.minGatewayVersion, qualification.apiFloor);
-  assert.equal(pluginPackage.openclaw.build.openclawVersion, qualification.apiFloor);
-  assert.equal(pluginPackage.openclaw.build.pluginSdkVersion, qualification.apiFloor);
-  assert.equal(pluginManifest.name, "ThunderClaw");
-  assert.equal(pluginPackage.description, pluginManifest.description);
-  assert.equal(pluginManifest.icon, undefined);
-});
-
 test("Thunderbird extension declares compose and message-view boundaries", async () => {
   const manifest = JSON.parse(await readFile(new URL("../packages/thunderbird-extension/src/manifest.json", import.meta.url), "utf8"));
   const repositoryPackage = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
   const repositoryLock = JSON.parse(await readFile(new URL("../package-lock.json", import.meta.url), "utf8"));
-  const pluginPackage = JSON.parse(await readFile(new URL("../packages/openclaw-plugin/package.json", import.meta.url), "utf8"));
   const extensionPackage = JSON.parse(await readFile(new URL("../packages/thunderbird-extension/package.json", import.meta.url), "utf8"));
-  assert.equal(manifest.version, "0.2.4");
+  assert.match(manifest.version, /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/u);
   assert.equal(repositoryPackage.version, undefined);
-  assert.equal(pluginPackage.version, repositoryLock.packages["packages/openclaw-plugin"].version);
-  assert.match(pluginPackage.version, /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/u);
+  assert.equal(extensionPackage.version, repositoryLock.packages["packages/thunderbird-extension"].version);
   assert.equal(extensionPackage.version, manifest.version);
   assert.equal(manifest.browser_specific_settings.gecko.id, "thunderclaw@addons.thunderbird.net");
   assert.deepEqual(manifest.permissions.sort(), ["compose", "messagesRead", "scripting", "sensitiveDataUpload", "storage"]);

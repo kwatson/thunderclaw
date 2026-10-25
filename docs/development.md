@@ -11,13 +11,13 @@ Use the managed runtime in non-interactive shells:
 ```text
 mise install
 mise exec -- npm ci
-mise exec -- npm test
-mise exec -- npm run typecheck
-mise exec -- npm run build:extension
+mise exec -- npm run check
 ```
 
-The build uses esbuild and the system `zip` tool. It writes
-`build/thunderclaw-extension.xpi` and a versioned XPI. The stable extension ID is
+The default check runs tests, typecheck, extension build, reviewer-source packaging,
+and site build sequentially. Run `mise exec -- npm run check -- --help` for narrower scopes.
+The extension build uses esbuild and the system `zip` tool. It writes
+`build/thunderclaw-extension.xpi`. The stable extension ID is
 `thunderclaw@addons.thunderbird.net`. Do not change it without a planned migration.
 Build output is ignored and can contain sensitive test evidence; handle it with
 care. Avoid building into the default output directory concurrently with tests.
@@ -61,8 +61,7 @@ connection path. Capture and editor code remain responsible for local state and
 safe mutations. Some internal lifecycle types retain older terminology; they do
 not imply network sessions or a separately installed backend.
 
-Retained legacy source, dependencies, and local harnesses are not part of the
-standalone runtime or release gates. Do not use them as current setup guidance.
+Retired backend source and tooling are available in Git history.
 Do not delete or overwrite populated ignored state such as `.spike/`, local
 environment files, or qualification evidence while making ordinary changes.
 

@@ -10,7 +10,7 @@ export interface ReleaseMetadata {
   manifests: ReleaseManifests;
 }
 
-export type ReleaseComponent = "openclaw-plugin" | "thunderbird-extension";
+export type ReleaseComponent = "thunderbird-extension";
 export const releaseComponents: ReleaseComponent[];
 export function parseReleaseTag(tag: unknown): {
   component: ReleaseComponent;

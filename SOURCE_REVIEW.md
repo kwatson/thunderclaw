@@ -59,7 +59,5 @@ The extension source is under `packages/thunderbird-extension/src/`; the build
 entry point is `scripts/build-extension.mjs`. The root `package.json`, workspace
 package metadata, `.mise.toml`, and lockfile define the complete build toolchain.
 
-Retained legacy source and workspace metadata remain as inactive
-migration/development inputs; esbuild includes only the standalone inference entry graph
-in the standalone XPI. The root lockfile retains legacy test dependencies; those
-are build/development dependencies and are not bundled as inference runtimes.
+The source archive and lockfile contain only the standalone extension workspace
+and its build and test dependencies. No backend runtime is installed or bundled.

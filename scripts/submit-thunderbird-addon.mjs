@@ -35,13 +35,13 @@ async function responseJson(response) {
   }
 }
 
-export async function submitToThunderbirdAddons({ xpi, version, issuer, secret, apiBase = defaultApiBase, pollIntervalMs = 10_000, timeoutMs = 15 * 60_000 }) {
+export async function submitToThunderbirdAddons({ xpi, version, issuer, secret, apiBase = defaultApiBase, pollIntervalMs = 10_000, timeoutMs = 15 * 60_000, fetchImpl = fetch }) {
   const endpoint = versionEndpoint(apiBase, version);
   const authorization = () => `JWT ${createAtnJwt({ issuer, secret })}`;
   const form = new FormData();
   form.append("upload", new Blob([await readFile(xpi)]), path.basename(xpi));
   form.append("channel", "listed");
-  const uploadResponse = await fetch(endpoint, {
+  const uploadResponse = await fetchImpl(endpoint, {
     method: "PUT",
     headers: { authorization: authorization() },
     body: form,
@@ -60,7 +60,7 @@ export async function submitToThunderbirdAddons({ xpi, version, issuer, secret, 
   while (!status.processed) {
     if (Date.now() >= deadline) throw new Error("Timed out waiting for ATN validation");
     await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
-    const pollResponse = await fetch(statusUrl, { headers: { authorization: authorization() } });
+    const pollResponse = await fetchImpl(statusUrl, { headers: { authorization: authorization() } });
     status = await responseJson(pollResponse);
     if (!pollResponse.ok) throw new Error(`ATN validation polling failed with HTTP ${pollResponse.status}`);
   }
@@ -73,7 +73,8 @@ export async function submitToThunderbirdAddons({ xpi, version, issuer, secret, 
     valid: Boolean(status.valid),
     reviewed: Boolean(status.reviewed),
     active: Boolean(status.active),
-    manualHandoffRequired: true,
+    publicationStatus: status.active ? "reported-active" : "awaiting-public-verification",
+    reviewerActions: "inspect-platform-requirements",
     validationUrl: status.validation_url ?? null,
   };
 }

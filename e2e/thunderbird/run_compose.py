@@ -20,7 +20,7 @@ from marionette_driver.addons import Addons
 from marionette_driver.by import By
 from marionette_driver.marionette import Marionette
 
-from stub_backend import RICH_FORMATTING_INSTRUCTION, RICH_SOURCE_BLOCKS, RICH_SOURCE_TEXT, start_stub
+from stub_inference import RICH_FORMATTING_INSTRUCTION, RICH_SOURCE_BLOCKS, RICH_SOURCE_TEXT, start_stub
 
 
 EXTENSION_ID = "thunderclaw@addons.thunderbird.net"
@@ -114,6 +114,17 @@ while (windows.hasMoreElements()) {
   for (const browser of win.document.querySelectorAll("browser")) {
     try { if (browser.contentDocument) documents.push(browser.contentDocument); } catch (_) {}
   }
+  // Received-action popups may be hosted inside the about:message document.
+  const visited = new Set(documents);
+  for (let index = 0; index < documents.length; index++) {
+    for (const frame of documents[index].querySelectorAll("browser, iframe")) {
+      try {
+        if (frame.contentDocument && !visited.has(frame.contentDocument)) {
+          visited.add(frame.contentDocument); documents.push(frame.contentDocument);
+        }
+      } catch (_) {}
+    }
+  }
   for (const document of documents) {
     try {
       if (document.location.href.endsWith(suffix)) return true;
@@ -138,6 +149,17 @@ while (windows.hasMoreElements()) {
   }
   for (const browser of win.document.querySelectorAll("browser")) {
     try { if (browser.contentDocument) documents.push(browser.contentDocument); } catch (_) {}
+  }
+  // Received-action popups may be hosted inside the about:message document.
+  const visited = new Set(documents);
+  for (let index = 0; index < documents.length; index++) {
+    for (const frame of documents[index].querySelectorAll("browser, iframe")) {
+      try {
+        if (frame.contentDocument && !visited.has(frame.contentDocument)) {
+          visited.add(frame.contentDocument); documents.push(frame.contentDocument);
+        }
+      } catch (_) {}
+    }
   }
   for (const document of documents) {
     try {
@@ -259,20 +281,7 @@ while (windows.hasMoreElements()) {
         finally { userInput.destruct(); }
         return true;
       }
-      if (action === "pair") {
-        const endpoint = document.querySelector("#endpoint");
-        const consent = document.querySelector("#consent-accepted");
-        const pair = document.querySelector("#pair");
-        if (!endpoint || !consent || !pair) return false;
-        endpoint.value = value.endpoint;
-        endpoint.dispatchEvent(new Event("input", { bubbles: true }));
-        consent.checked = true;
-        consent.dispatchEvent(new Event("input", { bubbles: true }));
-        consent.dispatchEvent(new Event("change", { bubbles: true }));
-        if (pair.disabled) return false;
-        pair.click();
-        return true;
-      }
+
     } catch (error) { if (action === "save-inference") return { pickerFailure: String(error.message) }; }
   }
 }
@@ -336,105 +345,79 @@ def configure_connection(
             "selector": "#connection-panel", "name": "phase",
         }) in initial_phases,
     )
-    standalone = extension_document(client, "options.html", "value", "#provider") is not None
-    if standalone:
-        configured = extension_document(client, "options.html", "inference", {
-            "endpoint": f"http://127.0.0.1:{port}/v1",
-        })
-        if configured is not True:
-            raise RuntimeError(f"Could not configure standalone extension at {url}")
-        if extension_document(client, "options.html", "value", "#thinking") != "none":
-            raise AssertionError("DeepSeek thinking did not default off")
-        if extension_document(client, "options.html", "value", "#max-response-tokens") != "16384":
-            raise AssertionError("The response token limit did not default to 16384")
-        try:
-            prompt = accept_permission_prompt(client)
-        except TimeoutError as error:
-            message = extension_document(client, "options.html", "text", "#result")
-            raise RuntimeError(f"Inference permission prompt did not appear; settings status: {message}") from error
-        wait_until("visible discovered model choices", lambda: "fixture-model" in extension_document(
-            client, "options.html", "model-options", None
-        ))
-        if extension_document(client, "options.html", "value", "#model") != "":
-            raise AssertionError("Discovery selected a model without a user choice")
-        def pointer_click(selector: str, scroll: bool = False) -> None:
-            point = extension_document(client, "options.html", "pointer-target", {"selector": selector, "scroll": scroll})
-            if not isinstance(point, dict) or "x" not in point:
-                raise AssertionError(f"Could not locate picker pointer target: {point!r}")
-            # W3C pointer actions exercise actual focus and pointer/mouse event order
-            # on both pinned Gecko versions without version-specific windowUtils hooks.
-            client.actions.sequence("pointer", "model-picker", {"pointerType": "mouse"}).pointer_move(
-                point["x"], point["y"], duration=100, origin="viewport"
-            ).perform()
-            observed = extension_document(client, "options.html", "pointer-position", None)
-            # Chrome viewport origins differ between Thunderbird generations. Measure
-            # their offset using mouse movement, never an extra activation click.
-            click_x = point["clientX"] + point["x"] - observed["x"]
-            click_y = point["clientY"] + point["y"] - observed["y"]
-            client.actions.sequence("pointer", "model-picker", {"pointerType": "mouse"}).pointer_move(
-                click_x, click_y, duration=100, origin="viewport"
-            ).click().perform()
-        pointer_click("#available-models", scroll=True)
-        wait_until("single pointer click opens model picker", lambda: extension_document(client, "options.html", "picker-open", None) is True)
-        if extension_document(client, "options.html", "picker-style", None) is not True:
-            raise AssertionError("Model picker styling does not match form fields")
-        pointer_click('#model-options [data-value="fixture-model"]')
-        wait_until("single pointer click selects model", lambda: extension_document(client, "options.html", "value", "#model") == "fixture-model")
-        chosen = extension_document(client, "options.html", "save-inference", None)
-        if chosen is not True:
-            raise AssertionError(f"Could not choose the discovered model and save: {chosen!r}")
-        wait_until("saved inference connection", lambda: extension_document(
-            client, "options.html", "dataset", {"selector": "#connection-panel", "name": "phase"}
-        ) == "untested")
-        if extension_document(client, "options.html", "click", "#test") is not True:
-            raise RuntimeError("Test inference connection button was not available")
-        try:
-            wait_until("tested inference connection", lambda: extension_document(
-                client, "options.html", "dataset", {"selector": "#connection-panel", "name": "phase"}
-            ) == "ready")
-        except TimeoutError as error:
-            message = extension_document(client, "options.html", "text", "#result")
-            raise RuntimeError(f"Inference test did not pass; settings status: {message}") from error
-        # Reopening settings must read the saved background credential without revealing it.
-        open_options(client)
-        wait_until("reopened inference connection", lambda: extension_document(
-            client, "options.html", "dataset", {"selector": "#connection-panel", "name": "phase"}
-        ) == "ready")
-        if extension_document(client, "options.html", "value", "#api-key") != "":
-            raise AssertionError("Reopened settings exposed the saved API key")
-        if "A key is saved" not in (extension_document(client, "options.html", "text", "#key-status") or ""):
-            raise AssertionError("Reopened settings did not retain the synthetic API key")
-        if extension_document(client, "options.html", "value", "#thinking") != "none":
-            raise AssertionError("Reopened settings did not retain DeepSeek thinking off")
-        if extension_document(client, "options.html", "value", "#max-response-tokens") != "16384":
-            raise AssertionError("Reopened settings did not retain the response token limit")
-        return {"optionsUrl": url, "permissionPrompt": prompt, "standalone": True,
-                "savedKeyOnReopen": True, "reopenedPasswordBlank": True, "deepSeekModelDiscovery": True, "singleClickStyledPicker": True,
-                "deepSeekThinkingDefaultOff": True, "responseTokenDefault": 16384}
-    # Retain legacy setup only for exact older-counterpart qualification.
-    configured = extension_document(client, "options.html", "pair", {
-        "endpoint": f"http://127.0.0.1:{port}/thunderclaw/v1",
+    configured = extension_document(client, "options.html", "inference", {
+        "endpoint": f"http://127.0.0.1:{port}/v1",
     })
     if configured is not True:
-        raise RuntimeError(f"Could not configure extension options at {url}")
-    prompt = accept_permission_prompt(client)
-    wait_until("pairing request", lambda: extension_document(
+        raise RuntimeError(f"Could not configure standalone extension at {url}")
+    if extension_document(client, "options.html", "value", "#thinking") != "none":
+        raise AssertionError("DeepSeek thinking did not default off")
+    if extension_document(client, "options.html", "value", "#max-response-tokens") != "16384":
+        raise AssertionError("The response token limit did not default to 16384")
+    try:
+        prompt = accept_permission_prompt(client)
+    except TimeoutError as error:
+        message = extension_document(client, "options.html", "text", "#result")
+        raise RuntimeError(f"Inference permission prompt did not appear; settings status: {message}") from error
+    wait_until("visible discovered model choices", lambda: "fixture-model" in extension_document(
+        client, "options.html", "model-options", None
+    ))
+    if extension_document(client, "options.html", "value", "#model") != "":
+        raise AssertionError("Discovery selected a model without a user choice")
+    def pointer_click(selector: str, scroll: bool = False) -> None:
+        point = extension_document(client, "options.html", "pointer-target", {"selector": selector, "scroll": scroll})
+        if not isinstance(point, dict) or "x" not in point:
+            raise AssertionError(f"Could not locate picker pointer target: {point!r}")
+        # W3C pointer actions exercise actual focus and pointer/mouse event order
+        # on both pinned Gecko versions without version-specific windowUtils hooks.
+        client.actions.sequence("pointer", "model-picker", {"pointerType": "mouse"}).pointer_move(
+            point["x"], point["y"], duration=100, origin="viewport"
+        ).perform()
+        observed = extension_document(client, "options.html", "pointer-position", None)
+        # Chrome viewport origins differ between Thunderbird generations. Measure
+        # their offset using mouse movement, never an extra activation click.
+        click_x = point["clientX"] + point["x"] - observed["x"]
+        click_y = point["clientY"] + point["y"] - observed["y"]
+        client.actions.sequence("pointer", "model-picker", {"pointerType": "mouse"}).pointer_move(
+            click_x, click_y, duration=100, origin="viewport"
+        ).click().perform()
+    pointer_click("#available-models", scroll=True)
+    wait_until("single pointer click opens model picker", lambda: extension_document(client, "options.html", "picker-open", None) is True)
+    if extension_document(client, "options.html", "picker-style", None) is not True:
+        raise AssertionError("Model picker styling does not match form fields")
+    pointer_click('#model-options [data-value="fixture-model"]')
+    wait_until("single pointer click selects model", lambda: extension_document(client, "options.html", "value", "#model") == "fixture-model")
+    chosen = extension_document(client, "options.html", "save-inference", None)
+    if chosen is not True:
+        raise AssertionError(f"Could not choose the discovered model and save: {chosen!r}")
+    wait_until("saved inference connection", lambda: extension_document(
         client, "options.html", "dataset", {"selector": "#connection-panel", "name": "phase"}
-    ) == "awaiting_approval")
-    if extension_document(client, "options.html", "click", "#claim") is not True:
-        raise RuntimeError("Claim approved pairing button was not available")
-    wait_until("authorized extension state", lambda: extension_document(
+    ) == "untested")
+    if extension_document(client, "options.html", "click", "#test") is not True:
+        raise RuntimeError("Test inference connection button was not available")
+    try:
+        wait_until("tested inference connection", lambda: extension_document(
+            client, "options.html", "dataset", {"selector": "#connection-panel", "name": "phase"}
+        ) == "ready")
+    except TimeoutError as error:
+        message = extension_document(client, "options.html", "text", "#result")
+        raise RuntimeError(f"Inference test did not pass; settings status: {message}") from error
+    # Reopening settings must read the saved background credential without revealing it.
+    open_options(client)
+    wait_until("reopened inference connection", lambda: extension_document(
         client, "options.html", "dataset", {"selector": "#connection-panel", "name": "phase"}
-    ) == "authorized_untested")
-    if extension_document(client, "options.html", "click", "#diagnose") is not True:
-        raise RuntimeError("Test connection button was not available")
-    wait_until(
-        "ready extension state",
-        lambda: extension_document(client, "options.html", "dataset", {
-            "selector": "#connection-panel", "name": "phase",
-        }) == "ready",
-    )
-    return {"optionsUrl": url, "permissionPrompt": prompt}
+    ) == "ready")
+    if extension_document(client, "options.html", "value", "#api-key") != "":
+        raise AssertionError("Reopened settings exposed the saved API key")
+    if "A key is saved" not in (extension_document(client, "options.html", "text", "#key-status") or ""):
+        raise AssertionError("Reopened settings did not retain the synthetic API key")
+    if extension_document(client, "options.html", "value", "#thinking") != "none":
+        raise AssertionError("Reopened settings did not retain DeepSeek thinking off")
+    if extension_document(client, "options.html", "value", "#max-response-tokens") != "16384":
+        raise AssertionError("Reopened settings did not retain the response token limit")
+    return {"optionsUrl": url, "permissionPrompt": prompt, "standalone": True,
+            "savedKeyOnReopen": True, "reopenedPasswordBlank": True, "deepSeekModelDiscovery": True, "singleClickStyledPicker": True,
+            "deepSeekThinkingDefaultOff": True, "responseTokenDefault": 16384}
 
 
 def open_compose(client: Marionette) -> None:
@@ -927,42 +910,42 @@ const { ExtensionParent } = ChromeUtils.importESModule("resource://gre/modules/E
 return ExtensionParent.GlobalManager.extensionMap.get(arguments[0])?.backgroundState === "running";
 """, [EXTENSION_ID]))
             connection = configure_connection(client, stub_port)
-            if connection.get("standalone"):
-                quit_thunderbird(client)
-                process.wait(timeout=15)
-                client = None
-                process = subprocess.Popen(command, stdout=log, stderr=subprocess.STDOUT, text=True)
-                wait_for_port(marionette_port, process)
-                client = Marionette(host="127.0.0.1", port=marionette_port)
-                client.start_session()
-                wait_until("installed extension after restart", lambda: chrome(client, r"""
+            quit_thunderbird(client)
+            process.wait(timeout=15)
+            client = None
+            process = subprocess.Popen(command, stdout=log, stderr=subprocess.STDOUT, text=True)
+            wait_for_port(marionette_port, process)
+            client = Marionette(host="127.0.0.1", port=marionette_port)
+            client.start_session()
+            wait_until("installed extension after restart", lambda: chrome(client, r"""
 const { ExtensionParent } = ChromeUtils.importESModule("resource://gre/modules/ExtensionParent.sys.mjs");
 return ExtensionParent.GlobalManager.extensionMap.get(arguments[0])?.backgroundState === "running";
 """, [EXTENSION_ID]))
-                open_options(client)
-                try:
-                    wait_until("saved connection after restart", lambda: extension_document(
-                        client, "options.html", "dataset", {"selector": "#connection-panel", "name": "phase"}
-                    ) == "ready")
-                except TimeoutError as error:
-                    state = extension_document(client, "options.html", "text", "#state")
-                    detail = extension_document(client, "options.html", "text", "#result")
-                    key_status = extension_document(client, "options.html", "text", "#key-status")
-                    extension_document(client, "options.html", "probe-credentials", None)
-                    probe = wait_until("credential store diagnostic", lambda: extension_document(
-                        client, "options.html", "dataset", {"selector": "html", "name": "credentialProbe"}
-                    ), 3)
-                    raise RuntimeError(f"Connection after restart: {state}; {detail}; {key_status}; IDB {probe}") from error
-                if extension_document(client, "options.html", "value", "#api-key") != "":
-                    raise AssertionError("Settings exposed the saved API key after restart")
-                if "A key is saved" not in (extension_document(client, "options.html", "text", "#key-status") or ""):
-                    raise AssertionError("Synthetic API key was not retained across Thunderbird restart")
-                extension_document(client, "options.html", "click", "#test")
-                wait_until("authenticated inference after restart", lambda: extension_document(
-                    client, "options.html", "text", "#result"
-                ) == "The selected model passed the synthetic connection test.")
-                connection["savedKeyAcrossRestart"] = True
-                connection["authenticatedTestAfterRestart"] = True
+            open_options(client)
+            try:
+                wait_until("saved connection after restart", lambda: extension_document(
+                    client, "options.html", "dataset", {"selector": "#connection-panel", "name": "phase"}
+                ) == "ready")
+            except TimeoutError as error:
+                state = extension_document(client, "options.html", "text", "#state")
+                detail = extension_document(client, "options.html", "text", "#result")
+                key_status = extension_document(client, "options.html", "text", "#key-status")
+                extension_document(client, "options.html", "probe-credentials", None)
+                probe = wait_until("credential store diagnostic", lambda: extension_document(
+                    client, "options.html", "dataset", {"selector": "html", "name": "credentialProbe"}
+                ), 3)
+                raise RuntimeError(f"Connection after restart: {state}; {detail}; {key_status}; IDB {probe}") from error
+            if extension_document(client, "options.html", "value", "#api-key") != "":
+                raise AssertionError("Settings exposed the saved API key after restart")
+            if "A key is saved" not in (extension_document(client, "options.html", "text", "#key-status") or ""):
+                raise AssertionError("Synthetic API key was not retained across Thunderbird restart")
+            extension_document(client, "options.html", "click", "#test")
+            wait_until("authenticated inference after restart", lambda: extension_document(
+                client, "options.html", "text", "#result"
+            ) == "The selected model passed the synthetic connection test.")
+            connection["savedKeyAcrossRestart"] = True
+            connection["authenticatedTestAfterRestart"] = True
+
             open_compose(client)
             initial = set_and_select_body(client, ORIGINAL)
             if initial != ORIGINAL:
@@ -991,7 +974,10 @@ return ExtensionParent.GlobalManager.extensionMap.get(arguments[0])?.backgroundS
                 if fixture != {"html": f"<p>BEFORE_CANARY</p>{RICH_SOURCE_HTML}<p>AFTER_CANARY</p>", "text": RICH_SOURCE_TEXT}:
                     raise AssertionError(f"Unexpected rich formatting fixture: {fixture!r}")
                 rich_formatting = exercise_rich_formatting_popup(client)
+            import received
+            received_result = received.exercise(client)
             result = {
+                "receivedMessage": received_result,
                 "trial": number,
                 "status": "passed",
                 "capabilities": capabilities,
@@ -1027,7 +1013,7 @@ def write_junit(
     error: BaseException | None,
     error_traceback: str | None,
 ) -> None:
-    suite = ET.Element("testsuite", name="thunderclaw.real-thunderbird.compose", tests=str(len(results) + (1 if error else 0)))
+    suite = ET.Element("testsuite", name="thunderclaw.real-thunderbird", tests=str(len(results) + (1 if error else 0)))
     for result in results:
         ET.SubElement(suite, "testcase", classname="real-thunderbird", name=f"fresh-profile-{result['trial']}")
     if error is not None:
@@ -1070,6 +1056,7 @@ def main() -> int:
     expected_app_version = args.expected_version.removesuffix("esr")
     if actual_version != expected_app_version:
         raise AssertionError(f"Expected Thunderbird {args.expected_version}, got {actual_version}")
+    xpi_sha256 = hashlib.sha256(args.xpi.read_bytes()).hexdigest()
     metadata = {
         "release": args.expected_version,
         "version": actual_version,
@@ -1077,10 +1064,10 @@ def main() -> int:
         "extensionId": EXTENSION_ID,
         "platform": sys.platform,
         "headless": args.headless,
-        "xpiSha256": hashlib.sha256(args.xpi.read_bytes()).hexdigest(),
+        "xpiSha256": xpi_sha256,
         "coverage": {
-            "kind": "real-compose-action-popup",
-            "network": "none",
+            "kind": "real-compose-and-received-action-popups",
+            "network": "loopback-synthetic-inference-only",
             "freshProfiles": 2,
             "qualification": "product-e2e",
         },
@@ -1114,6 +1101,8 @@ def main() -> int:
             json.dumps(state.requests, indent=2, sort_keys=True), encoding="utf-8"
         )
         write_junit(args.artifacts, results, caught, caught_traceback)
+    if hashlib.sha256(args.xpi.read_bytes()).hexdigest() != xpi_sha256:
+        raise AssertionError("Candidate XPI bytes changed during native qualification")
     if caught is not None:
         raise caught
     print(json.dumps({"status": "passed", "trials": len(results), "artifacts": str(args.artifacts)}))

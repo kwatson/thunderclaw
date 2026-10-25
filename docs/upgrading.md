@@ -9,8 +9,8 @@ the current setup.
 
 Install the newer XPI over the existing add-on; the stable extension ID remains
 `thunderclaw@addons.thunderbird.net`. Check the installed version in settings.
-The standalone candidate is not a claim of completed marketplace publication;
-verify the exact release and its qualification status before distribution.
+The standalone extension is available from Thunderbird Add-ons. Use the public
+listing or an exact GitHub release XPI when distributing a release.
 
 Old device credentials cannot become provider API keys. The extension does not
 read another application's configuration or import personality, memory, model
@@ -40,9 +40,7 @@ and [testing](testing.md). Remaining work is tracked in the [roadmap](roadmap.md
 
 ## Repository maintenance
 
-The active CI/release path publishes only the extension. Obsolete backend
-publication and upgrade automation has been retired. Remaining legacy source,
-development dependencies, ignored local state, and unused credentials require
-separate review before removal. Historical releases, tags, and changelog entries retain their public identity.
-Retired documentation and incident evidence are available in Git history; current
-setup does not use their old commands or deployment assumptions.
+The active CI/release path publishes only the extension. Retired backend source
+and tooling are available in Git history. Historical public releases, tags, and
+attestations retain their identity. Ignored local state remains private and is
+not removed by source cleanup.
