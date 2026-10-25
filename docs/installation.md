@@ -88,4 +88,4 @@ thinking, or use a shorter input. Partial output is never applied. For connectio
 failures, share the version, action, model ID, and sanitized error; never share
 keys or real mail in public reports.
 
-See [upgrading](standalone-migration.md) and the [privacy policy](privacy-policy.md).
+See [upgrading](upgrading.md) and the [privacy policy](privacy-policy.md).

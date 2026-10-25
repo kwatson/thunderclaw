@@ -169,7 +169,7 @@ Bug reports, documentation improvements, tests, and focused changes are welcome.
 - [Release process](docs/release.md) — artifact acceptance and publication policy
 - [Inference boundary](docs/reference/inference-boundary.md) — transport, local identity, validation, and safe errors
 - [Prompts and formatting](docs/inference-prompts.md) — action rules, response limits, and thinking
-- [Upgrade guide](docs/standalone-migration.md) — existing installations and retained review behavior
+- [Upgrade guide](docs/upgrading.md) — existing installations and retained review behavior
 - [Brand](docs/brand/) — assets, specification, licensing, and provenance
 
 ## Community and license

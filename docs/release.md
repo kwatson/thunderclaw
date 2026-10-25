@@ -1,9 +1,9 @@
 # ThunderClaw release policy
 
 ThunderClaw ships a standalone Thunderbird extension. Only the extension XPI and
-matching reviewer source are published. Historical releases, tags, attestations,
-and incident records remain intact. Retained legacy source and local validation
-tools are not release dependencies.
+matching reviewer source are published. Historical releases, tags, and attestations
+remain intact. Retained legacy source and local validation tools are not release
+dependencies. Historical documentation is available in Git history.
 
 ## Product and internal changes
 

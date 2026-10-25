@@ -43,6 +43,6 @@ and [testing](testing.md). Remaining work is tracked in the [roadmap](roadmap.md
 The active CI/release path publishes only the extension. Obsolete backend
 publication and upgrade automation has been retired. Remaining legacy source,
 development dependencies, ignored local state, and unused credentials require
-separate review before removal. Historical releases, tags, changelog entries,
-and incident evidence remain immutable; current setup does not use their old
-commands or deployment assumptions.
+separate review before removal. Historical releases, tags, and changelog entries retain their public identity.
+Retired documentation and incident evidence are available in Git history; current
+setup does not use their old commands or deployment assumptions.
