@@ -14,7 +14,6 @@
   <a href="https://github.com/kwatson/thunderclaw/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/kwatson/thunderclaw/actions/workflows/ci.yml/badge.svg"></a>
   <a href="LICENSE"><img alt="Apache 2.0 license" src="https://img.shields.io/badge/license-Apache%202.0-blue.svg"></a>
   <a href="docs/compatibility.md"><img alt="Thunderbird 128+" src="https://img.shields.io/badge/Thunderbird-128%2B-0A84FF?logo=thunderbird&logoColor=white"></a>
-  <a href="https://github.com/kwatson/thunderclaw/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/kwatson/thunderclaw?display_name=tag&amp;label=release"></a>
 </p>
 
 <p align="center">
