@@ -8,12 +8,11 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { changedFiles, classifyChangeScope } from "../scripts/classify-change-scope.mjs";
 
-test("reviewed tooling and retained plugin source require checks without extension packaging", () => {
+test("reviewed standalone tooling requires checks without extension packaging", () => {
   const files = [".github/workflows/ci.yml", "scripts/classify-change-scope.mjs",
     "scripts/submit-thunderbird-addon.mjs", "test/extension.test.ts", "e2e/thunderbird/run_compose.py",
-    "e2e/qualification/counterpart-baselines.json", "site/index.html", "scripts/build-pages.mjs",
-    "packages/openclaw-plugin/src/http.ts", "packages/openclaw-plugin/README.md",
-    "scripts/package-openclaw-plugin.mjs", "openclaw-qualification.json", "compose.spike.yaml"];
+    "site/index.html", "scripts/build-pages.mjs", "scripts/check.mjs",
+    "scripts/release-prepare.mjs", "scripts/release-status.mjs", "scripts/provider-trials.ts"];
   const scope = classifyChangeScope(files);
   assert.deepEqual(scope.internal, files);
   assert.deepEqual(scope.extension, []);
@@ -24,7 +23,7 @@ test("reviewed tooling and retained plugin source require checks without extensi
 
 test("extension runtime, reviewer-source inputs, dependencies and unknown paths retain package checks", () => {
   for (const file of ["packages/thunderbird-extension/src/manifest.json", "scripts/build-extension.mjs",
-    "scripts/package-extension-source.mjs", "SOURCE_REVIEW.md", ".mise.toml", "packages/openclaw-plugin/package.json",
+    "scripts/package-extension-source.mjs", "SOURCE_REVIEW.md", ".mise.toml",
     "package.json", "package-lock.json", "tsconfig.json", "LICENSE", "NOTICE",
     "scripts/new-build-tool.mjs", "new-runtime/input.ts"]) {
     const scope = classifyChangeScope([file]);

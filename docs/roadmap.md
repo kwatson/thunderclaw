@@ -2,15 +2,15 @@
 
 Last reconciled: 2026-10-24
 
-This file contains unfinished work only. Current behavior belongs in the
-product and architecture documents; completed test results belong in release
-provenance and CI artifacts.
+This file contains unfinished work only. Current behavior belongs in product and
+architecture documents; completed qualification belongs in release provenance
+and CI artifacts.
 
-## Now: standalone extension
+1. Extend native tests to actual old-release upgrades, permission removal, and
+   default extension-process isolation. Preserve key isolation and restart checks.
+2. Expand opt-in synthetic live-model evaluation across representative hosted and
+   local models. Track meaning/formatting quality separately from schema validity.
+3. Extend repeatable native platform coverage, including macOS compose automation.
 
-1. Extend verified Linux128/153 restart/key persistence and compose trials to old-release upgrades, credential isolation in email contexts, permission removal, and native platform coverage.
-2. Run the exact standalone candidate through real Thunderbird compose/message/Undo qualification and representative synthetic OpenAI, OpenRouter, DeepSeek, Ollama and LM Studio trials. Keep modeled compatibility distinct from live evidence.
-3. Complete extension release and reviewer-source qualification through the standalone release pipeline.
-4. Review remaining legacy development dependencies, runtime source, and unused publishing credentials for separate retirement. Publishing workflows and admission automation are retired; preserve immutable release history and existing private local state.
-
-See [upgrading](upgrading.md), [compatibility](compatibility.md), and [testing](testing.md) for scope and acceptance gates. Historical work remains in Git history and release records.
+See [compatibility](compatibility.md) and [testing](testing.md) for current coverage
+and the limits of fixture-based versus real-model evidence.

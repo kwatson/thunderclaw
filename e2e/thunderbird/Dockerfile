@@ -46,6 +46,7 @@ USER thunderclaw
 WORKDIR /work
 
 COPY --chown=thunderclaw:thunderclaw e2e/thunderbird /opt/thunderclaw-e2e
+COPY --chown=thunderclaw:thunderclaw fixtures/provider-trials/newsletter.json /opt/thunderclaw-e2e/newsletter.json
 RUN chmod 0644 /opt/thunderclaw-e2e/*.py /opt/thunderclaw-e2e/*.txt /opt/thunderclaw-e2e/user.js \
     && chmod 0755 /opt/thunderclaw-e2e/entrypoint.sh /opt/thunderclaw-e2e/entrypoint-rich-compose.sh
 

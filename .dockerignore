@@ -2,3 +2,6 @@
 !e2e/
 !e2e/thunderbird/
 !e2e/thunderbird/**
+!fixtures/
+!fixtures/provider-trials/
+!fixtures/provider-trials/newsletter.json

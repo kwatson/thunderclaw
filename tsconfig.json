@@ -11,10 +11,8 @@
     "types": ["node"]
   },
   "include": [
-    "packages/openclaw-plugin/**/*.ts",
     "packages/thunderbird-extension/src/**/*.ts",
     "scripts/**/*.ts",
     "test/**/*.ts"
-  ],
-  "exclude": ["packages/openclaw-plugin/dist"]
+  ]
 }

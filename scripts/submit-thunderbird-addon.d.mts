@@ -15,6 +15,7 @@ export function submitToThunderbirdAddons(options: {
   apiBase?: string;
   pollIntervalMs?: number;
   timeoutMs?: number;
+  fetchImpl?: typeof fetch;
 }): Promise<{
   addonId: string;
   version: string;
@@ -22,6 +23,7 @@ export function submitToThunderbirdAddons(options: {
   valid: boolean;
   reviewed: boolean;
   active: boolean;
-  manualHandoffRequired: true;
+  publicationStatus: "reported-active" | "awaiting-public-verification";
+  reviewerActions: "inspect-platform-requirements";
   validationUrl: string | null;
 }>;

@@ -5,8 +5,7 @@
 Use the managed runtime:
 
 ```text
-mise exec -- npm test
-mise exec -- npm run typecheck
+mise exec -- npm run check
 ```
 
 When changing extension source, also run:
@@ -29,9 +28,11 @@ sequentially when they share the default `build/` directory.
 | Live model trials | Request acceptance, faithful transformations, translations, formatting, injection evaluations | Model/server/version-specific evidence; never universal compatibility |
 | Release qualification | Checksummed build-once XPI, Linux/Windows Thunderbird gates, reviewer-source reproduction, protected promotion and public signed-XPI verification | Successful upload alone does not mean marketplace review is complete |
 
+The native fixture HTTP regression runs when Python 3 is available and reports a
+skip otherwise. Native Thunderbird trials require Python; hosted lanes provide it.
+
 Use synthetic email and test accounts. Never use a real inbox or retained provider
-keys in public CI. Some old source and harnesses remain in the repository; their
-checks are not standalone release requirements.
+keys in public CI. Retired backend source and harnesses are available in Git history.
 
 ## CI and exact-candidate Thunderbird trials
 
@@ -82,10 +83,30 @@ Before accepting an extension candidate, check the relevant supported paths:
 - Clear safe failures for token exhaustion, refusals, invalid structures,
   unsupported settings, network/authentication failures, and stale output.
 
-Tests for retained legacy upgrade helpers do not establish migration from every
-published version. Qualify actual old-release-to-candidate upgrades separately;
+Qualify actual old-release-to-candidate upgrades separately;
 never claim old authentication or remote revocation behavior applies to current
 provider keys.
+
+## Reusable synthetic provider trials
+
+Run `mise exec -- npm run test:provider` for deterministic trials using the real
+inference adapter with an injected synthetic transport. It covers action families,
+supported structures, a long segmented newsletter translation with automatic
+source detection, and a truncated response rejected with the output-limit error.
+This is a protocol regression, not evidence of model translation quality.
+
+Live calls are opt-in. Use `--live`, a provider/API base/model, and an API-key file
+outside the repository if needed. For example:
+
+```text
+mise exec -- npm run test:provider -- --live --provider deepseek --api-base https://api.deepseek.com --model YOUR_MODEL_ID --api-key-file /absolute/private/key-file --case received-newsletter-translate-auto
+```
+
+The key file path is permitted; the raw key never belongs in arguments, logs,
+fixtures, or screenshots. Trials use generated synthetic content and report
+bounded metadata, never private mail or raw model replies. Hosted providers can
+charge for explicit live trials. Keep deterministic, native-fixture, and live-model
+evidence distinct. See `mise exec -- npm run test:provider -- --help` for supported options.
 
 ## Live provider evaluation
 
@@ -104,8 +125,9 @@ all models or actions. See the [prompt evaluation checklist](inference-prompts.m
 ## Publication evidence
 
 The [release policy](release.md) owns blocking gates. Qualification must name the
-exact candidate; promotion reuses those bytes. ATN requires a manual Developer Hub
-source/notes handoff followed by public metadata and signed-payload verification
-and a smoke test of that public download. Keep artifact/source digests, runtime
+exact candidate; promotion reuses those bytes. ATN can publish automatically.
+Verify public download metadata and its payload; provide source/testing notes when
+requested. Identical public bytes reuse qualification evidence; changed signature
+packaging requires verified payload correspondence and public-artifact smoke. Keep artifact/source digests, runtime
 versions, and bounded check results in CI artifacts and provenance. Do not
 accumulate private or per-run evidence in evergreen documentation.

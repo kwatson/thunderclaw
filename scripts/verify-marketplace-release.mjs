@@ -9,9 +9,7 @@ export function expectedArtifactNames(component, version) {
   if (!/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/u.test(version)) {
     throw new Error(`Version must have canonical form X.Y.Z: ${version}`);
   }
-  return component === "openclaw-plugin"
-    ? [`thunderclaw-openclaw-plugin-${version}.tgz`]
-    : [`thunderclaw-thunderbird-${version}.xpi`, `thunderclaw-thunderbird-source-${version}.zip`];
+  return [`thunderclaw-thunderbird-${version}.xpi`, `thunderclaw-thunderbird-source-${version}.zip`];
 }
 
 export function parseChecksums(contents) {
@@ -33,7 +31,7 @@ function hasExactKeys(value, keys) {
 }
 
 export function validateReleaseProvenance(provenance, { component, tag, repository, commit, artifacts }) {
-  const releaseWorkflow = component === "openclaw-plugin" ? "release-openclaw-plugin.yml" : "release.yml";
+  const releaseWorkflow = "release.yml";
   const expectedWorkflow = `${repository}/.github/workflows/${releaseWorkflow}@refs/tags/${tag}`;
   const escapedRepository = repository.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
   const runPattern = new RegExp(`^https://github\\.com/${escapedRepository}/actions/runs/[1-9]\\d*$`, "u");

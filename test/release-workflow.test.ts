@@ -137,23 +137,32 @@ test("ATN authenticates tag ancestry before runtime setup or dependency lifecycl
     git("checkout", "-b", "unreviewed");
     git("commit", "--allow-empty", "-m", "Synthetic unreviewed source");
     git("tag", "thunderbird-extension-v1.2.4");
+    let sourceCreated = false;
     for (const scenario of [
-      { tag: "thunderbird-extension-v1.2.3", checkout: "thunderbird-extension-v1.2.3", status: 0 },
-      { tag: "thunderbird-extension-v1.2.4", checkout: "thunderbird-extension-v1.2.4", status: 1 },
-      { tag: "thunderbird-extension-v1.2.3", checkout: "thunderbird-extension-v1.2.4", status: 1 },
+      { tag: "thunderbird-extension-v1.2.3", checkout: "thunderbird-extension-v1.2.3", automation: "main", status: 0 },
+      { tag: "thunderbird-extension-v1.2.4", checkout: "thunderbird-extension-v1.2.4", automation: "main", status: 1 },
+      { tag: "thunderbird-extension-v1.2.3", checkout: "thunderbird-extension-v1.2.4", automation: "main", status: 1 },
+      { tag: "thunderbird-extension-v1.2.3", checkout: "thunderbird-extension-v1.2.3", automation: "unreviewed", status: 1 },
     ]) {
-      git("checkout", "--detach", `refs/tags/${scenario.checkout}`);
+      git("checkout", "--detach", scenario.automation);
+      if (!sourceCreated) {
+        git("worktree", "add", "--force", "--detach", "release-source", `refs/tags/${scenario.checkout}`);
+        sourceCreated = true;
+      } else {
+        execFileSync("git", ["checkout", "--detach", `refs/tags/${scenario.checkout}`], { cwd: path.join(directory, "release-source"), env: environment, stdio: "pipe" });
+      }
       const result: SpawnSyncReturns<string> = spawnSync("bash", ["-e", "-o", "pipefail", "-c", ancestry.script], {
         cwd: directory, encoding: "utf8", env: { ...environment, RELEASE_TAG: scenario.tag },
       });
       assert.equal(result.status, scenario.status, `${scenario.tag} from ${scenario.checkout}: ${result.stderr}`);
       if (scenario.tag.endsWith("1.2.4")) assert.match(result.stderr, /must be contained in origin\/main/u);
       if (scenario.tag !== scenario.checkout) assert.match(result.stderr, /must match the publication tag commit/u);
+      if (scenario.automation === "unreviewed") assert.match(result.stderr, /Publication automation commit must be contained in origin\/main/u);
     }
   } finally { await rm(directory, { recursive: true, force: true }); }
 });
 
-test("ATN promotion verifies release provenance and keeps mandatory handoff and public signed checks", async () => {
+test("ATN promotion verifies provenance and public bytes independently of conditional reviewer requests", async () => {
   const workflow = await readFile(publisherUrl, "utf8");
   assert.match(workflow, /environment:\n      name: thunderbird-addons/u);
   assert.match(workflow, /ref: \$\{\{ inputs\.tag \}\}/u);
@@ -164,12 +173,15 @@ test("ATN promotion verifies release provenance and keeps mandatory handoff and 
   assert.match(workflow, /--signer-workflow "\$GITHUB_REPOSITORY\/\.github\/workflows\/release\.yml"/u);
   assert.match(workflow, /--source-ref "refs\/tags\/\$RELEASE_TAG"[\s\S]*--source-digest "\$commit"/u);
   assert.match(workflow, /if: \$\{\{ !inputs\.verify_metadata_only \}\}[\s\S]*submit-thunderbird-addon\.mjs/u);
-  assert.match(workflow, /publication incomplete/u);
-  assert.match(workflow, /cannot set ATN release notes, attach reviewer source, or enter private reviewer testing notes/u);
-  assert.match(workflow, /inputs\.verify_metadata_only && \(!inputs\.reviewer_source_attached \|\| !inputs\.reviewer_testing_notes_entered\)/u);
+  assert.match(workflow, /ATN may publish automatically/u);
+  assert.match(workflow, /If ATN requests source or private testing notes/u);
+  assert.doesNotMatch(workflow, /reviewer_source_attached|reviewer_testing_notes_entered|mandatory.*handoff/iu);
+  assert.match(workflow, /ref: \$\{\{ github\.sha \}\}/u);
+  assert.match(workflow, /--root release-source/u);
   const publicVerification = workflow.slice(workflow.indexOf("      - name: Verify and download public"));
   assert.match(publicVerification, /verify-atn-release\.mjs/u);
   assert.match(publicVerification, /verify-atn-xpi-payload\.mjs/u);
+  assert.match(publicVerification, /THUNDERCLAW_E2E_EXPECTED_VERSION: \$\{\{ steps\.release\.outputs\.version \}\}/u);
   assert.match(publicVerification, /THUNDERCLAW_E2E_XPI: \$\{\{ runner\.temp \}\}\/thunderclaw-atn-signed-/u);
   assert.match(publicVerification, /npm run test:e2e:thunderbird/u);
   assert.ok(publicVerification.indexOf("verify-atn-xpi-payload.mjs") < publicVerification.indexOf("npm run test:e2e:thunderbird"));

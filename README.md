@@ -24,8 +24,7 @@
   <a href="CONTRIBUTING.md">Contributing</a>
 </p>
 
-> [!NOTE]
-> This checkout contains the standalone extension. It connects directly to your chosen provider or local model. The standalone candidate has not yet completed marketplace publication; check the exact version and release notes when downloading an older published build.
+> Install ThunderClaw from [Thunderbird Add-ons](https://addons.thunderbird.net/en-US/thunderbird/addon/thunderclaw/). The standalone extension connects directly to your chosen provider or local model.
 
 ## AI assistance without handing over your inbox
 
@@ -92,13 +91,13 @@ See [architecture](docs/architecture.md) and [security and privacy](docs/securit
 
 ## Installation
 
-Install the XPI through Thunderbird's **Add-ons and Themes → gear menu →
-Install Add-on From File**, then open ThunderClaw settings. Choose a provider,
+Install from [Thunderbird Add-ons](https://addons.thunderbird.net/en-US/thunderbird/addon/thunderclaw/), then open ThunderClaw settings. Choose a provider,
 load or enter a model, save your key and connection, grant host access, and click
 **Test connection**. Your key stays saved across restarts.
 
-For this development candidate, build the XPI from the checkout using the commands
-below. See [installation and connection setup](docs/installation.md) for provider
+For local development, build the XPI from this checkout and install it through
+Thunderbird’s **Add-ons and Themes → gear menu → Install Add-on From File**.
+See [installation and connection setup](docs/installation.md) for provider
 presets, local servers, troubleshooting, and upgrade guidance. Installing a newer
 XPI updates the existing add-on; uninstalling first is unnecessary.
 
@@ -112,9 +111,7 @@ ThunderClaw uses Node.js through [`mise`](https://mise.jdx.dev/):
 
 ```bash
 mise exec -- npm ci
-mise exec -- npm test
-mise exec -- npm run typecheck
-mise exec -- npm run build
+mise exec -- npm run check
 ```
 
 The main source and verification paths are:

@@ -11,7 +11,7 @@ and authorization; this document grants no publication or settings permission.
 
 Inspect the canonical extension tag, source commit, original run and attempt,
 qualified candidate checksums, qualification jobs, GitHub release, ATN submission,
-and Developer Hub handoff. A failed overall run does not mean every gate failed,
+and any actual reviewer requests. A failed overall run does not mean every gate failed,
 and a successful upload does not establish public marketplace completion.
 
 Read-only starting points:
@@ -33,8 +33,8 @@ API response or expired artifact is unknown evidence, not proof of public absenc
 | Candidate exists and a qualification job failed | Inspect that gate's evidence. Preserve candidate bytes; do not waive the failure by rebuilding or replacing them. |
 | Thunderbird could not start its virtual display | Diagnose infrastructure separately from product assertions; a fresh isolated trial must preserve the same XPI digest. |
 | Qualified GitHub release exists; no confirmed ATN submission | Verify its notes, provenance, checksums, and attestations before an authorized exact-tag submission. |
-| ATN accepted the upload | Complete Developer Hub source/notes handoff and inspect that exact version; do not upload again merely because review is slow. |
-| Public ATN version exists | Verify canonical notes, signed-payload correspondence, and exact-public-XPI smoke evidence. |
+| ATN accepted the upload | Check whether the version becomes public; act on actual reviewer requests. Do not upload again merely because review is slow. |
+| Public ATN version exists | Verify download identity/payload; report release-note metadata separately. Reuse exact-byte qualification when identical, otherwise smoke-test the verified signed artifact. |
 | Version, bytes, source, or metadata disagree | Stop promotion and resolve the mismatch. Never relabel a different archive as an existing release. |
 | Publication was intentionally cancelled | Resume only with operator direction; elapsed time is not authorization. |
 
@@ -47,28 +47,41 @@ canonical extension tags. Required approval still applies; inspect pending
 submissions first.
 Never move a published tag or manufacture a version to clear a historical failure.
 
+## Prepare and inspect releases
+
+Use `mise exec -- npm run release:prepare -- X.Y.Z` to prepare the extension
+version and changelog together. This is a local preparation step, not permission
+to commit, tag, publish, or replace any public release. It requires GitHub CLI
+access and ATN API availability to check the proposed version identity. Complete the generated
+release notes, run checks, and merge the reviewed change before tagging.
+
+Use `mise exec -- npm run release:status -- thunderbird-extension-vX.Y.Z` to
+inspect observed build/qualification, GitHub publication, ATN acceptance, and
+public-download verification. Inspect unknown stages rather than guessing. This
+command is read-only with respect to GitHub and ATN.
+
 ## Verify ATN completion
 
-The ATN workflow verifies release assets, notes, tag/commit, and attestations before
-submission. After its signing API accepts the XPI:
+ATN may publish automatically after accepting the XPI. Public availability is
+determined by the exact public version/download, not manual confirmations or
+the first upload response's `active` flag. A fresh API request can be needed when
+cached metadata still shows the previous version. Do not repeatedly upload.
 
-1. Attach the exact reviewer source ZIP to the same version in Developer Hub.
-2. Enter canonical release notes and private reviewer testing notes.
-3. Run metadata-only verification, confirming both handoff fields.
-4. Require signed-XPI payload verification and the exact-public-artifact smoke test.
+Verify advertised size/digest and compare the downloaded bytes/payload against
+the qualified XPI. Report release-note presence/matching independently. Missing
+notes do not block checking a public artifact. If source or private notes are
+requested, provide the exact reviewer ZIP and testing instructions in Developer
+Hub; this is a conditional response to a real request.
 
-A workflow summary must distinguish accepted upload, manual handoff, review, and
-verified public completion. Retain evidence without credentials or real mail.
+Keep synthetic evidence outside public source. Durable evidence belongs in CI
+artifacts and provenance; temporary investigations can use ignored local output.
 
 ## Validate internal repairs
 
 Run these through the managed runtime:
 
 ```text
-mise exec -- npm test
-mise exec -- npm run typecheck
-mise exec -- npm run build:extension
-mise exec -- npm run pack:source
+mise exec -- npm run check
 ```
 
 Workflow regression tests inspect pinned actions, shell syntax, tag/ref guards,

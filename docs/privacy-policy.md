@@ -1,6 +1,6 @@
 # ThunderClaw privacy policy
 
-Development policy for the standalone extension, October 24, 2026. The policy attached to an older released version remains available at its release tag. Enter the final reviewed policy text in the Thunderbird Add-ons privacy-policy field before publication.
+Policy for the standalone extension, October 24, 2026. The policy attached to an older released version remains available at its release tag.
 
 ThunderClaw provides user-initiated writing and reading assistance in Thunderbird. The project does not operate an inference server or analytics service. The extension connects directly to the endpoint selected by the user. That endpoint and any upstream model provider have their own privacy, retention, and billing terms.
 

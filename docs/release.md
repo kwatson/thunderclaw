@@ -2,8 +2,7 @@
 
 ThunderClaw ships a standalone Thunderbird extension. Only the extension XPI and
 matching reviewer source are published. Historical releases, tags, and attestations
-remain intact. Retained legacy source and local validation tools are not release
-dependencies. Historical documentation is available in Git history.
+remain intact. Retired backend source and tooling are available in Git history.
 
 ## Product and internal changes
 
@@ -48,8 +47,6 @@ matching `Thunderbird extension [X.Y.Z]` section in the root changelog.
 Only canonical `thunderbird-extension-vX.Y.Z` tags can enter the publication
 pipeline. The tag must resolve to a reviewed commit contained in main. Other
 tag formats, branches, and channel mismatches cannot dispatch a new publication.
-Shared historical verification helpers may still recognize earlier public formats;
-that does not authorize republishing them.
 
 Once a version has a public artifact, GitHub release, or attestation, its tag,
 source identity and qualified bytes are immutable. A correction to published
@@ -81,15 +78,23 @@ It verifies source, checksums, notes, provenance, and attestations from the immu
 GitHub release before submitting the exact XPI. Credentials never enter untrusted
 pull-request code.
 
-ATN's upload API cannot attach reviewer source or private testing notes. A maintainer
-must complete that version's Developer Hub handoff using the matching source ZIP,
-canonical notes, and reviewer testing instructions. Successful signing/upload is
-not completed marketplace publication.
+ATN can publish an accepted version automatically. Upload acceptance, review state,
+and public availability are separate observed stages. Do not assume manual
+Developer Hub work is required: provide source or testing notes when ATN requests
+them or when maintaining listing metadata. Keep the matching reviewer ZIP and
+instructions available with the GitHub release.
 
-After the handoff, run metadata-only verification with both confirmations. Require
-the public version's canonical notes, download the ATN-signed XPI, verify it either
-matches the qualified XPI or adds only allowlisted Mozilla signature metadata, and
-smoke-test that exact public artifact. Retain the API and smoke evidence.
+Verify the exact public version and download, then compare its bytes or unsigned
+payload with the qualified XPI. Public release notes are checked and reported
+separately; missing notes do not make an existing public download unpublished.
+If bytes are identical, the qualification evidence applies to those same bytes;
+if ATN adds signature metadata, verify that only allowed signature entries differ
+and smoke-test that exact public artifact. Keep API and payload evidence.
+
+Run `mise exec -- npm run release:status -- thunderbird-extension-vX.Y.Z` for an
+observed release summary. An inaccessible API or expired artifact is unknown,
+not evidence of failure. The status helper does not publish, retry uploads,
+approve environments, or create tags.
 
 Use [release operations](release-operations.md) to diagnose failures and recover an
 existing publication. Qualification evidence must use synthetic mail and exclude

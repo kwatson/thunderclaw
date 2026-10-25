@@ -16,6 +16,8 @@ test("real Thunderbird E2E pins and isolates the supported version matrix", asyn
   assert.match(script, /Unsupported pinned Thunderbird E2E version/u);
   assert.match(script, /THUNDERCLAW_E2E_XPI\+x/u);
   assert.match(script, /validate-candidate-artifact\.mjs xpi/u);
+  assert.match(script, /THUNDERCLAW_E2E_EXPECTED_VERSION/u);
+  assert.match(script, /--expected-version/u);
   assert.match(script, /cmp -s "\$\{candidate_xpi\}"/u);
   assert.doesNotMatch(script, /npm run(?: --silent)? build:extension/u);
 
@@ -25,21 +27,8 @@ test("real Thunderbird E2E pins and isolates the supported version matrix", asyn
   assert.match(workflow, /THUNDERCLAW_E2E_XPI: \$\{\{ github\.workspace \}\}\/candidate\/thunderclaw-extension\.xpi/u);
 
   const driver = await readFile(new URL("../e2e/thunderbird/run_compose.py", import.meta.url), "utf8");
-  assert.match(driver, /const consent = document\.querySelector\("#consent-accepted"\)/u);
-  assert.match(driver, /consent\.checked = true/u);
-  assert.match(driver, /consent\.dispatchEvent\(new Event\("change", \{ bubbles: true \}\)\)/u);
-  assert.match(driver, /if \(pair\.disabled\) return false/u);
-
-  const realAgent = await readFile(new URL("../e2e/qualification/real-agent/qualification.py", import.meta.url), "utf8");
-  assert.match(realAgent, /actual != "153\.0\.3"/u);
-  assert.doesNotMatch(realAgent, /153\.0\.1/u);
-});
-
-test("Thunderbird upgrade qualification requires exact baseline and candidate XPIs", async () => {
-  const script = await readFile(new URL("../scripts/run-thunderbird-upgrade-e2e.sh", import.meta.url), "utf8");
-  assert.match(script, /THUNDERCLAW_UPGRADE_BASELINE_XPI/u);
-  assert.match(script, /THUNDERCLAW_E2E_XPI/u);
-  assert.match(script, /verify-counterpart-baseline\.mjs/u);
-  assert.match(script, /validate-candidate-artifact\.mjs xpi/u);
-  assert.doesNotMatch(script, /npm run(?: --silent)? build:extension/u);
+  assert.match(driver, /savedKeyAcrossRestart/u);
+  assert.match(driver, /authenticatedTestAfterRestart/u);
+  assert.match(driver, /received\.exercise\(client\)/u);
+  assert.doesNotMatch(driver, /action === "pair"|#claim|pairing\/v1/u);
 });

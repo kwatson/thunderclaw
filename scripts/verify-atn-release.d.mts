@@ -5,4 +5,14 @@ export function verifyAtnRelease(options: {
   downloadOutput?: string;
   apiBase?: string;
   fetchImpl?: typeof fetch;
-}): Promise<unknown>;
+}): Promise<{
+  version: string;
+  releaseNotesVerified: boolean;
+  releaseNotesStatus: "missing" | "mismatch" | "verified";
+  signedXpiVerified: true;
+  qualifiedXpiSha256: string;
+  signedXpiSha256: string;
+  signedXpiSize: number;
+  reviewerSourceVerification: "unknown";
+  reviewerTestingNotesVerification: "unknown";
+}>;
