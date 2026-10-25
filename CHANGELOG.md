@@ -1,62 +1,36 @@
 # Changelog
 
-All notable changes to ThunderClaw are documented in this file. The OpenClaw
-plugin and Thunderbird extension release independently, so every entry names
-the component and version it describes.
+All notable changes to ThunderClaw are documented here. Current releases ship
+only the Thunderbird extension. Earlier component releases remain recorded below.
 
 ## Thunderbird extension [0.2.4] - 2026-10-24
 
 ### Changed
 
-- Add a saved response-token limit with a 16,384-token default and explanatory help.
-- Offer provider-specific thinking levels with model-default and off choices where
-  supported by the selected provider's request format.
-- Explain recognized response-limit, refusal, malformed-output and request-setting
-  failures without exposing provider messages or email content.
-
-## Thunderbird extension [0.2.3] - 2026-10-24
-
-### Fixed
-
-- Default DeepSeek thinking off so internal reasoning cannot consume the response
-  budget needed for newsletter translations; allow enabling it in saved settings.
-- Explain response-limit failures explicitly and reject incomplete output before
-  changing a message or draft.
-
-## Thunderbird extension [0.2.2] - 2026-10-24
-
-### Changed
-
-- Give each editing, translation and summary action explicit instructions while
+- Connect directly to OpenAI-compatible endpoints, with presets for OpenAI,
+  OpenRouter, DeepSeek, Ollama, LM Studio, and custom servers. Configure the
+  provider, model, API key, and optional writing style in the extension.
+- Remember API keys locally across Thunderbird restarts, scoped to the exact
+  provider and API base. Keys are never synchronized; local profile storage is
+  not an encrypted vault. Existing installations must configure a new connection;
+  previous backend credentials and settings are not imported.
+- Add model discovery, a styled model picker, synthetic connection testing,
+  and the installed version in settings.
+- Give each writing, translation, and summary action focused instructions while
   keeping email content and user preferences separate from fixed system rules.
-- Supply the model with the original supported rich formatting so it can preserve
-  paragraph structure and bold, italic and underline spans when rewriting.
-- Require instructions for custom edits, tone changes and draft translations;
-  keep automatic source-language detection for received-message translation.
-
-## Thunderbird extension [0.2.1] - 2026-10-24
-
-### Changed
-
-- Show model discovery progress and available models before saving a connection.
-- Use a styled model picker that opens and selects models with a single click.
-- Display the installed extension version in settings so development candidates
-  can be identified after installation.
-
-## Thunderbird extension [0.2.0] - 2026-10-24
-
-### Changed
-
-- Replace mandatory OpenClaw pairing with direct OpenAI-compatible inference,
-  including OpenAI, OpenRouter, DeepSeek, Ollama, LM Studio and custom endpoints.
-- Save provider credentials locally across restarts, with explicit endpoint-bound
-  key replacement and removal, model selection, synthetic testing and writing style.
-- Keep request identity and stale-result authority in Thunderbird, validate model
-  content before Preview and Apply, and minimize email context sent to providers.
-- Preserve ThunderClaw branding, extension identity and existing editor/Undo gates.
-
-This development candidate requires standalone provider and Thunderbird qualification
-before publication. Historical OpenClaw plugin releases remain unchanged.
+- Include original supported rich formatting in model requests to preserve
+  paragraph structure and bold, italic, and underline spans when rewriting.
+- Keep automatic source-language detection for received-message translation.
+  Draft translation, tone changes, and custom edits require an instruction.
+- Add a configurable response-token limit, defaulting to 16,384, and
+  provider-specific thinking controls. DeepSeek defaults to thinking off;
+  other presets use the model default. Individual model support varies.
+- Explain recognized response-limit, refusal, filtering, malformed-output,
+  translation-segment, context-limit, and request-setting failures with safe,
+  actionable messages. Incomplete output is rejected before changing mail.
+- Send selected content and necessary context directly to the chosen endpoint,
+  without separate recipient, subject, author, or attachment fields. Preserve
+  local validation, Preview, Apply, Undo, and Thunderbird's separate Send action.
 
 ## OpenClaw plugin [0.1.24] - 2026-10-24
 
