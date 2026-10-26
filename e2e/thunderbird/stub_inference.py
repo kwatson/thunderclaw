@@ -36,10 +36,32 @@ class State:
     def __init__(self) -> None:
         self.lock = threading.Lock()
         self.requests: list[dict[str, Any]] = []
+        self.delay_action: str | None = None
+        self.delay_text: str | None = None
+        self.delay_release = threading.Event()
+        self.delay_entered = threading.Event()
 
     def record(self, method: str, path: str, metadata: dict[str, Any] | None) -> None:
         with self.lock:
             self.requests.append({"method": method, "path": path, **(metadata or {})})
+
+    def arm_delay(self, action: str, text: str | None = None) -> None:
+        with self.lock:
+            self.delay_action = action
+            self.delay_text = text
+            self.delay_release.clear()
+            self.delay_entered.clear()
+
+    def maybe_delay(self, prompt: dict[str, Any]) -> None:
+        with self.lock:
+            if prompt.get("action") != self.delay_action or (self.delay_text is not None and prompt.get("text") != self.delay_text):
+                return
+            self.delay_action = None
+            self.delay_entered.set()
+        self.delay_release.wait(timeout=20)
+
+    def release_delay(self) -> None:
+        self.delay_release.set()
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -55,7 +77,11 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(encoded)))
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
-        self.wfile.write(encoded)
+        try:
+            self.wfile.write(encoded)
+        except (BrokenPipeError, ConnectionResetError):
+            # A synthetic Cancel can close the client while its held response is released.
+            pass
 
     def _authorized(self) -> bool:
         if self.headers.get("Authorization") == f"Bearer {INFERENCE_KEY}":
@@ -101,6 +127,7 @@ class Handler(BaseHTTPRequestHandler):
                     "segments": len(prompt.get("segments", [])),
                     "sourceCharacters": sum(len(text) for text in prompt.get("segments", [])),
                 })
+                self.server.state.maybe_delay(prompt)
                 if "segments" in prompt:
                     # Only the adapter's exact bounded connection probe may be short.
                     # Every received UI operation must forward the long fixture,

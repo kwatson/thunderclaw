@@ -1,17 +1,20 @@
 import { DirectClientError } from "./direct-client-contract.js";
 
-export type ProviderId = "openai" | "openrouter" | "deepseek" | "ollama" | "lmstudio" | "custom";
+export type ProviderId = "openai" | "openrouter" | "deepseek" | "fireworks" | "ollama" | "lmstudio" | "custom";
 export type ReasoningEffort = "default" | "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
 export const DEFAULT_MAX_RESPONSE_TOKENS = 16_384;
 // Application guardrail, not a claim about any model's supported token limit.
 export const MAX_RESPONSE_TOKENS = 131_072;
 const ALL_REASONING_EFFORTS: readonly ReasoningEffort[] = Object.freeze(["default", "none", "minimal", "low", "medium", "high", "xhigh", "max"]);
 const DEEPSEEK_REASONING_EFFORTS: readonly ReasoningEffort[] = Object.freeze(["default", "none", "low", "high", "max"]);
+const FIREWORKS_REASONING_EFFORTS: readonly ReasoningEffort[] = Object.freeze(["default", "none", "low", "medium", "high", "xhigh", "max"]);
 const LOCAL_REASONING_EFFORTS: readonly ReasoningEffort[] = Object.freeze(["default", "none", "low", "medium", "high"]);
 /** Request formats supported by the provider adapter; individual models may support fewer levels. */
 export function reasoningEffortsForProvider(provider: ProviderId): readonly ReasoningEffort[] {
-  return provider === "deepseek" ? DEEPSEEK_REASONING_EFFORTS : provider === "ollama" || provider === "lmstudio" ? LOCAL_REASONING_EFFORTS : ALL_REASONING_EFFORTS;
+  return provider === "deepseek" ? DEEPSEEK_REASONING_EFFORTS : provider === "fireworks" ? FIREWORKS_REASONING_EFFORTS : provider === "ollama" || provider === "lmstudio" ? LOCAL_REASONING_EFFORTS : ALL_REASONING_EFFORTS;
 }
+/** Fireworks model, router, and deployment IDs are entered manually for this preset. */
+export function supportsModelDiscovery(provider: ProviderId): boolean { return provider !== "fireworks"; }
 export type InferenceConfiguration = Readonly<{
   provider: ProviderId;
   apiBase: string;
@@ -26,6 +29,7 @@ export const PROVIDER_PRESETS = Object.freeze([
   { id: "openai", label: "OpenAI", apiBase: "https://api.openai.com/v1", outputMode: "json_schema", requiresKey: true },
   { id: "openrouter", label: "OpenRouter", apiBase: "https://openrouter.ai/api/v1", outputMode: "json_schema", requiresKey: true },
   { id: "deepseek", label: "DeepSeek", apiBase: "https://api.deepseek.com", outputMode: "json_object", requiresKey: true },
+  { id: "fireworks", label: "Fireworks AI", apiBase: "https://api.fireworks.ai/inference/v1", outputMode: "json_schema", requiresKey: true },
   { id: "ollama", label: "Ollama", apiBase: "http://127.0.0.1:11434/v1", outputMode: "json_schema", requiresKey: false },
   { id: "lmstudio", label: "LM Studio", apiBase: "http://127.0.0.1:1234/v1", outputMode: "json_schema", requiresKey: false },
   { id: "custom", label: "Custom", apiBase: "", outputMode: "json_schema", requiresKey: false },

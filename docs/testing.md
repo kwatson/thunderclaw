@@ -23,8 +23,8 @@ sequentially when they share the default `build/` directory.
 
 | Layer | Coverage | Limits |
 | --- | --- | --- |
-| Deterministic tests | Prompt assembly, strict contracts, provider mappings, credentials, permissions, races, lifecycle, stale results, DOM/Undo rules, workflow guards | Mocked responses do not establish real-model quality or provider availability |
-| Real Thunderbird with a synthetic API fixture | Built XPI installation, settings, model picker, key persistence/restart, capture, Preview, Apply, Undo/Redo, and eligible rich formatting | Bounded pinned versions and disposable profile configuration |
+| Deterministic tests | Prompt assembly, strict contracts, provider mappings, credentials, permissions, review-window bindings, cancellation races, local comparison rendering, lifecycle, stale results, DOM/Undo rules, workflow guards | Mocked responses do not establish real-model quality or provider availability |
+| Real Thunderbird with a synthetic API fixture | Built XPI installation, settings, model picker, key persistence/restart, capture, expanded review, Apply, Undo/Redo, compose and received elapsed timers and Cancel, and eligible rich formatting | Bounded pinned versions and disposable profile configuration |
 | Live model trials | Request acceptance, faithful transformations, translations, formatting, injection evaluations | Model/server/version-specific evidence; never universal compatibility |
 | Release qualification | Checksummed build-once XPI, Linux/Windows Thunderbird gates, reviewer-source reproduction, protected promotion and public signed-XPI verification | Successful upload alone does not mean marketplace review is complete |
 

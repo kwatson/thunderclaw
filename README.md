@@ -60,7 +60,7 @@ eligibility rules.
 ## Your inference connection
 
 ThunderClaw connects directly to OpenAI, OpenRouter,
-DeepSeek, Ollama, LM Studio, or a custom OpenAI-compatible endpoint. Choose the
+DeepSeek, Fireworks AI, Ollama, LM Studio, or a custom OpenAI-compatible endpoint. Choose the
 endpoint and model in settings, provide a key if needed, grant host access,
 save, and run the synthetic connection test. Keys are remembered locally across
 restarts. They are not synchronized or an encrypted vault.
@@ -92,7 +92,7 @@ See [architecture](docs/architecture.md) and [security and privacy](docs/securit
 ## Installation
 
 Install from [Thunderbird Add-ons](https://addons.thunderbird.net/en-US/thunderbird/addon/thunderclaw/), then open ThunderClaw settings. Choose a provider,
-load or enter a model, save your key and connection, grant host access, and click
+load a model where available or enter its exact ID, save your key and connection, grant host access, and click
 **Test connection**. Your key stays saved across restarts.
 
 For local development, build the XPI from this checkout and install it through

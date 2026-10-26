@@ -3,6 +3,31 @@
 All notable changes to ThunderClaw are documented here. Current releases ship
 only the Thunderbird extension. Earlier component releases remain recorded below.
 
+## Thunderbird extension [0.3.0] - 2026-10-25
+
+### Added
+
+- Review compose edits with local Changes, Original, and Proposed views. Inline
+  comparisons preserve supported text, list, and rich formatting; large changes
+  fall back to complete removed and inserted blocks without truncating content.
+- Expand the same preview into a separate review window with a scrolling
+  comparison and visible Apply/Undo controls, without another model request.
+- Show elapsed generation time and Cancel controls for compose edits and
+  received-message summaries and translations. Running and cancelled state
+  survives reopening the popup; late cancelled results are not used. Providers
+  may continue processing after cancellation.
+- Choose Fireworks AI directly in connection settings, using an exact full model,
+  router, or deployment ID. Default to JSON Schema, support provider-specific
+  thinking choices, and reject context overflow instead of reducing the output
+  allowance. Model discovery is unavailable for this preset.
+
+### Fixed
+
+- Shorten displayed Fireworks model names while preserving full IDs in requests.
+- Keep Apply/Undo and cancellation bound to the exact draft, preview, and run
+  across popup reopening and expanded review. Preserve Thunderbird's separate
+  Send decision.
+
 ## Thunderbird extension [0.2.4] - 2026-10-24
 
 ### Changed

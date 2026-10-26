@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { canonicalizeInferenceBase, DEFAULT_MAX_RESPONSE_TOKENS, MAX_RESPONSE_TOKENS, PROVIDER_PRESETS, reasoningEffortsForProvider, validateInferenceConfiguration } from "../packages/thunderbird-extension/src/inference-provider.js";
+import { canonicalizeInferenceBase, DEFAULT_MAX_RESPONSE_TOKENS, MAX_RESPONSE_TOKENS, PROVIDER_PRESETS, reasoningEffortsForProvider, supportsModelDiscovery, validateInferenceConfiguration } from "../packages/thunderbird-extension/src/inference-provider.js";
 
 test("provider presets cover hosted, local and custom APIs with DeepSeek JSON mode", () => {
-  assert.deepEqual(PROVIDER_PRESETS.map(({ id }) => id), ["openai", "openrouter", "deepseek", "ollama", "lmstudio", "custom"]);
+  assert.deepEqual(PROVIDER_PRESETS.map(({ id }) => id), ["openai", "openrouter", "deepseek", "fireworks", "ollama", "lmstudio", "custom"]);
   assert.equal(PROVIDER_PRESETS.find(({ id }) => id === "deepseek")?.outputMode, "json_object");
+  assert.deepEqual(PROVIDER_PRESETS.find(({ id }) => id === "fireworks"), { id: "fireworks", label: "Fireworks AI", apiBase: "https://api.fireworks.ai/inference/v1", outputMode: "json_schema", requiresKey: true });
+  for (const { id } of PROVIDER_PRESETS) assert.equal(supportsModelDiscovery(id), id !== "fireworks");
   for (const preset of PROVIDER_PRESETS.filter(({ apiBase }) => apiBase)) assert.equal(canonicalizeInferenceBase(preset.apiBase).apiBase, preset.apiBase);
 });
 
@@ -49,6 +51,7 @@ test("reasoning choices match provider adapters and reject unsupported or ambigu
     for (const reasoningEffort of [null, true, "auto", {}, []]) assert.throws(() => validateInferenceConfiguration({ ...config, provider, reasoningEffort }));
   }
   assert.deepEqual(reasoningEffortsForProvider("deepseek"), ["default", "none", "low", "high", "max"]);
+  assert.deepEqual(reasoningEffortsForProvider("fireworks"), ["default", "none", "low", "medium", "high", "xhigh", "max"]);
   assert.deepEqual(reasoningEffortsForProvider("ollama"), ["default", "none", "low", "medium", "high"]);
   assert.deepEqual(reasoningEffortsForProvider("lmstudio"), reasoningEffortsForProvider("ollama"));
   assert.throws(() => validateInferenceConfiguration({ ...config, provider: "deepseek", thinking: "enabled", reasoningEffort: "low" }));
@@ -63,5 +66,15 @@ test("legacy thinking migrates to canonical effort without retaining the obsolet
     assert.throws(() => validateInferenceConfiguration({ ...config, thinking }));
   }
   for (const thinking of [null, true, "auto", { type: "enabled" }]) assert.throws(() => validateInferenceConfiguration({ ...config, thinking }));
-  for (const provider of ["openai", "openrouter", "ollama", "lmstudio", "custom"]) assert.equal(validateInferenceConfiguration({ ...config, provider, thinking: "enabled" }, { allowLegacyThinking: true }).reasoningEffort, "default");
+  for (const provider of ["openai", "openrouter", "fireworks", "ollama", "lmstudio", "custom"]) assert.equal(validateInferenceConfiguration({ ...config, provider, thinking: "enabled" }, { allowLegacyThinking: true }).reasoningEffort, "default");
+});
+
+test("Fireworks accepts exact model, router, and deployment paths without inserting a model default", () => {
+  const preset = PROVIDER_PRESETS.find(({ id }) => id === "fireworks")!;
+  for (const model of ["accounts/fireworks/models/deepseek-v4p1-flash-1017", "accounts/example/routers/email-router", "accounts/example/deployments/prod-deployment"]) {
+    const config = validateInferenceConfiguration({ provider: "fireworks", apiBase: preset.apiBase, model, outputMode: "json_schema", writingStyle: "" });
+    assert.equal(config.model, model);
+    assert.equal(config.reasoningEffort, "default");
+  }
+  assert.throws(() => validateInferenceConfiguration({ provider: "fireworks", apiBase: preset.apiBase, model: "", outputMode: "json_schema", writingStyle: "" }));
 });

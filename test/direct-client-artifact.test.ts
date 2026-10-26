@@ -63,6 +63,9 @@ test("built XPI contains only the runtime allowlist and a classic browser IIFE",
     "popup.css",
     "popup.html",
     "popup.js",
+    "preview-renderer.js",
+    "review.html",
+    "review.js",
   ].sort();
   assert.deepEqual(names, expected);
   assert.equal(names.some((name) => /(?:\.tsx?|\.map)$/u.test(name)), false);

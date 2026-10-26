@@ -25,12 +25,15 @@ type ComposeSession = {
 
 type ComposeJob = {
   jobId: string;
-  state: "running" | "ready" | "applied" | "error";
+  state: "running" | "ready" | "applied" | "cancelled" | "error";
+  startedAt: number;
+  mutation?: "apply" | "undo";
+  settled?: Promise<void>;
   binding: ConnectionBinding;
   abort: AbortController;
   result?: { suggestionId: string; original: string; replacement: string; summary: string; applied?: true;
     selectionShape?: "text-range" | "flat-list-items" | "rich-blocks"; listKind?: "ul" | "ol";
-    replacementItems?: string[]; replacementBlocks?: RichBlock[] };
+    originalItems?: string[]; replacementItems?: string[]; originalBlocks?: RichBlock[]; replacementBlocks?: RichBlock[] };
   error?: string;
 };
 
@@ -46,7 +49,8 @@ type MessageCapture = {
 
 type MessageJob = {
   jobId: string;
-  state: "running" | "ready" | "error";
+  state: "running" | "finishing" | "ready" | "cancelled" | "error";
+  startedAt: number;
   action: "translate" | "summarize";
   requestId: string;
   runId: string;
@@ -108,6 +112,7 @@ const featureErrorMessages = new Set([
   "The preview is no longer available.",
   "The preview is stale.",
   "The preview was discarded.",
+  "The review window could not be opened.",
   "The rich-block suggestion is invalid or stale. Run ThunderClaw again.",
   "The selected list changed. Run ThunderClaw again on the current draft.",
   "The selected text changed. Run ThunderClaw again on the current draft.",
@@ -161,10 +166,10 @@ function validPopupMessage(message: Record<string, unknown>): boolean {
     "popup.initialize": [], "popup.job": [],
     "popup.transform": ["agentId", "action", "instruction"],
     "popup.apply": ["suggestionId", "jobId"], "popup.undo": ["suggestionId", "jobId"],
-    "popup.discard": ["jobId"], "popup.cancel": ["jobId"],
+    "popup.discard": ["jobId"], "popup.cancel": ["jobId"], "popup.expand": ["jobId"],
     "messagePopup.initialize": [], "messagePopup.job": [],
     "messagePopup.transform": ["agentId", "action", "sourceLanguage", "targetLanguage"],
-    "messagePopup.original": ["jobId"], "messagePopup.translation": ["jobId"], "messagePopup.dismiss": ["jobId"],
+    "messagePopup.original": ["jobId"], "messagePopup.translation": ["jobId"], "messagePopup.dismiss": ["jobId"], "messagePopup.cancel": ["jobId"],
   };
   const required = fields[message.type as string];
   if (!required || Object.keys(message).length !== required.length + 2
@@ -181,6 +186,15 @@ function validPopupMessage(message: Record<string, unknown>): boolean {
     && (message.targetLanguage === null || text("targetLanguage", 100))
     && (message.action !== "translate" || text("targetLanguage", 100));
   return true;
+}
+
+function validReviewMessage(message: Record<string, unknown>): boolean {
+  const fields: Record<string, string[]> = { "review.initialize": [], "review.job": ["jobId"],
+    "review.apply": ["jobId", "suggestionId"], "review.undo": ["jobId", "suggestionId"], "review.discard": ["jobId"] };
+  const required = fields[message.type as string];
+  return Boolean(required) && Object.keys(message).length === required.length + 1
+    && Object.keys(message).every((key) => key === "type" || required.includes(key))
+    && required.every((key) => typeof message[key] === "string" && (message[key] as string).length > 0 && (message[key] as string).length <= 128);
 }
 
 export function installFeatureBackground(controller: FeatureConnectionController): void {
@@ -209,6 +223,11 @@ export function installFeatureBackground(controller: FeatureConnectionController
   const jobs = new Map<number, ComposeJob>();
   const messageJobs = new Map<number, MessageJob>();
   const messageCaptures = new Map<number, MessageCapture>();
+  const pendingComposeCancelCleanups = new Map<number, Promise<void>>();
+  const pendingComposeStarts = new Map<number, Promise<any>>();
+  const pendingMessageStarts = new Map<number, Promise<any>>();
+  const reviewBindings = new Map<number, { sourceTabId: number; jobId: string; windowId: number }>();
+  const reviewOpening = new Map<string, Promise<void>>();
   const lifecycles = new WeakMap<object, DirectComposeLifecycleRegistry>();
 
   function lifecycleFor(lease: BackgroundFeatureLease): DirectComposeLifecycleRegistry {
@@ -333,24 +352,40 @@ export function installFeatureBackground(controller: FeatureConnectionController
   }
 
   async function initialize(tabId: number): Promise<any> {
-    const existingJob = jobs.get(tabId);
-    if (existingJob?.state === "ready" && existingJob.result) {
-      const suggestion = suggestions.get(existingJob.result.suggestionId);
+    let existingJob = jobs.get(tabId);
+    const terminalOnEntry = existingJob && ["cancelled", "error"].includes(existingJob.state);
+    if (existingJob?.state === "ready" && existingJob.result && !existingJob.mutation) {
+      const expectedResult = existingJob.result;
+      const suggestion = suggestions.get(expectedResult.suggestionId);
       try {
         if (!suggestion) throw new Error("The preview is no longer available.");
         await validateSuggestionSnapshot(tabId, suggestion);
       } catch {
-        discardSuggestionState(tabId);
-        captures.delete(tabId);
-        existingJob.state = "error";
-        existingJob.error = "The draft changed after this preview was created. Run ThunderClaw again.";
-        delete existingJob.result;
+        if (jobs.get(tabId) === existingJob && existingJob.state === "ready"
+            && existingJob.result === expectedResult && !existingJob.mutation) {
+          discardSuggestionState(tabId);
+          captures.delete(tabId);
+          existingJob.state = "error";
+          existingJob.error = "The draft changed after this preview was created. Run ThunderClaw again.";
+          delete existingJob.result;
+        }
       }
     }
     const selection = existingJob && ["running", "ready", "applied"].includes(existingJob.state)
       ? captures.get(tabId) || { text: existingJob.result?.original || "" }
       : await composeMessage(tabId, { type: "thunderclaw.capture" });
     if (!existingJob) captures.set(tabId, selection);
+    else if (terminalOnEntry && jobs.get(tabId) === existingJob) {
+      const previous = captures.get(tabId);
+      captures.set(tabId, selection);
+      if (!previous || previous.text !== selection.text || previous.selectionShape !== selection.selectionShape
+          || JSON.stringify(previous.items ?? null) !== JSON.stringify(selection.items ?? null)
+          || JSON.stringify(previous.blocks ?? null) !== JSON.stringify(selection.blocks ?? null)) {
+        jobs.delete(tabId);
+        existingJob = undefined;
+      }
+    }
+    else if (existingJob.state === "error") captures.set(tabId, selection);
     const lease = await controller.acquireFeatureLease();
     const requestId = randomId();
     const [hello, listed] = await Promise.all([lease.client.hello(), lease.client.listAgents(requestId)]);
@@ -362,7 +397,7 @@ export function installFeatureBackground(controller: FeatureConnectionController
 
   async function transform(tabId: number, agentId: string, action: any, instruction: string, job: ComposeJob, snapshot: any): Promise<any> {
     const lease = await controller.acquireFeatureLease();
-    if (jobs.get(tabId) !== job || !bindingCurrent(job.binding) || !sameConnectionBinding(job.binding, lease.binding)) throw new Error("The ThunderClaw connection changed.");
+    if (jobs.get(tabId) !== job || job.state !== "running" || job.abort.signal.aborted || !bindingCurrent(job.binding) || !sameConnectionBinding(job.binding, lease.binding)) throw new Error("The ThunderClaw connection changed.");
     if (snapshot.selectionShape === "flat-list-items" || snapshot.selectionShape === "rich-blocks") {
       const hello = await lease.client.hello();
       if (!sameConnectionBinding(hello.binding, lease.binding) || !bindingCurrent(lease.binding)) throw new Error("The ThunderClaw connection changed.");
@@ -374,9 +409,9 @@ export function installFeatureBackground(controller: FeatureConnectionController
       }
     }
     await requireUsableAgent(lease, agentId, job.abort.signal);
-    if (jobs.get(tabId) !== job || !bindingCurrent(job.binding) || !sameConnectionBinding(job.binding, lease.binding)) throw new Error("The preview was discarded.");
+    if (jobs.get(tabId) !== job || job.state !== "running" || job.abort.signal.aborted || !bindingCurrent(job.binding) || !sameConnectionBinding(job.binding, lease.binding)) throw new Error("The preview was discarded.");
     const session = await ensureSession(tabId, agentId, lease);
-    if (jobs.get(tabId) !== job || !bindingCurrent(job.binding)) {
+    if (jobs.get(tabId) !== job || job.state !== "running" || job.abort.signal.aborted || !bindingCurrent(job.binding)) {
       if (sessions.get(tabId) === session) sessions.delete(tabId);
       await session.lifecycle.close(session.composeId).catch(() => undefined);
       throw new Error("The preview was discarded.");
@@ -392,7 +427,7 @@ export function installFeatureBackground(controller: FeatureConnectionController
       await session.lifecycle.close(session.composeId).catch(() => undefined);
       throw error;
     }
-    if (jobs.get(tabId) !== job || !bindingCurrent(job.binding) || !sameConnectionBinding(job.binding, lease.binding)) {
+    if (jobs.get(tabId) !== job || job.state !== "running" || job.abort.signal.aborted || !bindingCurrent(job.binding) || !sameConnectionBinding(job.binding, lease.binding)) {
       if (sessions.get(tabId) === session) sessions.delete(tabId);
       await session.lifecycle.close(session.composeId).catch(() => undefined);
       throw new Error("The preview was discarded.");
@@ -409,7 +444,7 @@ export function installFeatureBackground(controller: FeatureConnectionController
           ...(snapshot.selectionShape === "rich-blocks" ? { blocks: structuredClone(snapshot.blocks) } : {}) },
         limits: { maxOperations: 1, maxOutputCharacters: 12_000 },
       }, { signal: job.abort.signal });
-      if (jobs.get(tabId) !== job || !bindingCurrent(job.binding) || !sameConnectionBinding(completion.binding, job.binding)) throw new Error("The preview is stale.");
+      if (jobs.get(tabId) !== job || job.state !== "running" || job.abort.signal.aborted || !bindingCurrent(job.binding) || !sameConnectionBinding(completion.binding, job.binding)) throw new Error("The preview is stale.");
       const operation = completion.value.operations[0]!;
       if ((snapshot.selectionShape === "flat-list-items" && operation.type !== "replace_flat_list_items")
         || (snapshot.selectionShape === "rich-blocks" && operation.type !== "replace_rich_blocks")
@@ -420,7 +455,7 @@ export function installFeatureBackground(controller: FeatureConnectionController
       const [{ contextHash: postContextHash }, postTargetHash, postGenerationState] = await Promise.all([
         composeContext(tabId, postSnapshot), targetFingerprint(postSnapshot), composeStateFingerprint(tabId),
       ]);
-      if (postContextHash !== contextHash || postTargetHash !== targetHash || postGenerationState.hash !== composeState.hash
+      if (jobs.get(tabId) !== job || job.state !== "running" || job.abort.signal.aborted || postContextHash !== contextHash || postTargetHash !== targetHash || postGenerationState.hash !== composeState.hash
           || postGenerationState.identity !== composeState.identity) {
         throw new Error("The draft changed while ThunderClaw was generating the preview. Run ThunderClaw again.");
       }
@@ -438,9 +473,9 @@ export function installFeatureBackground(controller: FeatureConnectionController
         selectionShape: snapshot.selectionShape === "flat-list-items" ? "flat-list-items"
           : snapshot.selectionShape === "rich-blocks" ? "rich-blocks" : "text-range",
         ...(snapshot.selectionShape === "flat-list-items" && operation.type === "replace_flat_list_items" ? {
-          listKind: snapshot.listKind, replacementItems: [...operation.items],
+          listKind: snapshot.listKind, originalItems: [...snapshot.items], replacementItems: [...operation.items],
         } : {}), ...(snapshot.selectionShape === "rich-blocks" && operation.type === "replace_rich_blocks" ? {
-          replacementBlocks: structuredClone(operation.blocks),
+          originalBlocks: structuredClone(snapshot.blocks), replacementBlocks: structuredClone(operation.blocks),
         } : {}) };
     } finally {
       if (session.activeRunId === runId) delete session.activeRunId;
@@ -449,7 +484,7 @@ export function installFeatureBackground(controller: FeatureConnectionController
 
   function composeJobView(job?: ComposeJob): any {
     if (!job) return null;
-    return { jobId: job.jobId, state: job.state, ...(job.result ? { result: job.result } : {}), ...(job.error ? { error: job.error } : {}) };
+    return { jobId: job.jobId, state: job.state, startedAt: job.startedAt, ...(job.mutation ? { mutation: job.mutation } : {}), ...(job.result ? { result: job.result } : {}), ...(job.error ? { error: job.error } : {}) };
   }
 
   function discardSuggestionState(tabId: number): void {
@@ -469,6 +504,18 @@ export function installFeatureBackground(controller: FeatureConnectionController
     return cleanups;
   }
 
+  function cancelRunningCompose(tabId: number, jobId: string): any {
+    const job = jobs.get(tabId);
+    if (!validJobId(jobId) || !job || job.jobId !== jobId) throw new Error("This preview is no longer current.");
+    if (job.state !== "running") return composeJobView(job);
+    job.state = "cancelled";
+    const cleanups = cancelComposeJob(tabId, false);
+    const cleanup = Promise.allSettled([...cleanups, ...(job.settled ? [job.settled] : [])]).then(() => undefined);
+    pendingComposeCancelCleanups.set(tabId, cleanup);
+    void cleanup.finally(() => { if (pendingComposeCancelCleanups.get(tabId) === cleanup) pendingComposeCancelCleanups.delete(tabId); });
+    return composeJobView(job);
+  }
+
   async function startTransform(tabId: number, agentId: string, action: any, instruction: string): Promise<any> {
     if (!instruction.trim()) {
       if (action === "tone") throw new Error("Describe the tone you want before generating a preview.");
@@ -477,6 +524,8 @@ export function installFeatureBackground(controller: FeatureConnectionController
     }
     const existing = jobs.get(tabId);
     if (existing?.state === "running") return composeJobView(existing);
+    if (existing?.mutation) throw new Error("The preview is no longer current.");
+    if (pendingComposeCancelCleanups.has(tabId)) await pendingComposeCancelCleanups.get(tabId);
     discardSuggestionState(tabId);
     jobs.delete(tabId);
     const captured = captures.get(tabId) || await composeMessage(tabId, { type: "thunderclaw.capture" });
@@ -491,13 +540,13 @@ export function installFeatureBackground(controller: FeatureConnectionController
     }
     captures.set(tabId, snapshot);
     const lease = await controller.acquireFeatureLease();
-    const job: ComposeJob = { jobId: randomId(), state: "running", binding: lease.binding, abort: new AbortController() };
+    const job: ComposeJob = { jobId: randomId(), state: "running", startedAt: Date.now(), binding: lease.binding, abort: new AbortController() };
     jobs.set(tabId, job);
-    void transform(tabId, agentId, action, instruction, job, snapshot).then((result) => {
-      if (jobs.get(tabId) !== job || !bindingCurrent(job.binding)) return;
+    job.settled = transform(tabId, agentId, action, instruction, job, snapshot).then((result) => {
+      if (jobs.get(tabId) !== job || job.state !== "running" || job.abort.signal.aborted || !bindingCurrent(job.binding)) return;
       job.state = "ready"; job.result = result;
     }).catch((error) => {
-      if (jobs.get(tabId) !== job || !bindingCurrent(job.binding)) return;
+      if (jobs.get(tabId) !== job || job.state !== "running" || job.abort.signal.aborted || !bindingCurrent(job.binding)) return;
       job.state = "error"; job.error = featureErrorMessage(error);
     });
     return composeJobView(job);
@@ -506,13 +555,16 @@ export function installFeatureBackground(controller: FeatureConnectionController
   async function applySuggestion(tabId: number, suggestionId: string, jobId: string): Promise<any> {
     const suggestion = suggestions.get(suggestionId);
     const job = jobs.get(tabId);
-    if (!validJobId(jobId) || !suggestion || !job || suggestion.tabId !== tabId || suggestion.jobId !== job.jobId || jobId !== job.jobId
+    if (!validJobId(jobId) || !suggestion || !job || job.state !== "ready" || job.mutation || suggestion.tabId !== tabId || suggestion.jobId !== job.jobId || jobId !== job.jobId
         || !bindingCurrent(suggestion.binding)) throw new Error("This suggestion is no longer available.");
+    job.mutation = "apply";
+    try {
     let current;
     try {
       current = await validateSuggestionSnapshot(tabId, suggestion);
     } catch {
       suggestions.delete(suggestionId);
+      job.state = "error"; job.error = "The draft changed after this suggestion was created. Run ThunderClaw again."; delete job.result;
       throw new Error("The draft changed after this suggestion was created. Run ThunderClaw again.");
     }
     if (jobs.get(tabId) !== job) throw new Error("The draft changed after this suggestion was created. Run ThunderClaw again.");
@@ -522,20 +574,65 @@ export function installFeatureBackground(controller: FeatureConnectionController
       ...(suggestion.operationType === "replace_flat_list_items" ? { replacement: suggestion.replacement,
         replacementItems: suggestion.replacementItems } : {}),
       ...(suggestion.operationType === "replace_rich_blocks" ? { replacementBlocks: suggestion.replacementBlocks } : {}) });
+    if (jobs.get(tabId) !== job || !bindingCurrent(job.binding)) throw new Error("This suggestion is no longer available.");
     suggestions.delete(suggestionId);
     undos.set(suggestionId, { tabId, jobId: job.jobId, undoId: result.undoId });
     captures.delete(tabId);
     job.state = "applied"; job.result = { ...job.result!, applied: true };
     return composeJobView(job);
+    } finally { delete job.mutation; }
   }
 
   async function undoSuggestion(tabId: number, suggestionId: string, jobId: string): Promise<any> {
     const undo = undos.get(suggestionId);
     const job = jobs.get(tabId);
-    if (!validJobId(jobId) || !undo || !job || undo.tabId !== tabId || undo.jobId !== job.jobId || jobId !== job.jobId) throw new Error("This applied change can no longer be undone.");
+    if (!validJobId(jobId) || !undo || !job || job.state !== "applied" || job.mutation || undo.tabId !== tabId || undo.jobId !== job.jobId || jobId !== job.jobId) throw new Error("This applied change can no longer be undone.");
+    job.mutation = "undo";
+    try {
     const result = await composeMessage(tabId, { type: "thunderclaw.undo", undoId: undo.undoId });
+    if (jobs.get(tabId) !== job || !bindingCurrent(job.binding)) throw new Error("This applied change can no longer be undone.");
     undos.delete(suggestionId); captures.delete(tabId); jobs.delete(tabId);
     return result;
+    } finally { delete job.mutation; }
+  }
+
+  async function checkedReviewJob(sourceTabId: number, jobId: string, validateReady = false): Promise<ComposeJob> {
+    const job = jobs.get(sourceTabId);
+    if (!validJobId(jobId) || !job || job.jobId !== jobId || !["ready", "applied"].includes(job.state)
+        || !job.result || !bindingCurrent(job.binding)) throw new Error("This preview is no longer current.");
+    if (validateReady && job.state === "ready" && !job.mutation) {
+      const suggestion = suggestions.get(job.result.suggestionId);
+      if (!suggestion) throw new Error("The preview is no longer available.");
+      await validateSuggestionSnapshot(sourceTabId, suggestion);
+      if (jobs.get(sourceTabId) !== job || job.state !== "ready" || !bindingCurrent(job.binding)) throw new Error("This preview is no longer current.");
+    }
+    return job;
+  }
+
+  async function expandReview(sourceTabId: number, jobId: string): Promise<{ opened: true }> {
+    await checkedReviewJob(sourceTabId, jobId, true);
+    const existing = [...reviewBindings.values()].find((item) => item.sourceTabId === sourceTabId && item.jobId === jobId);
+    if (existing) {
+      try { await browser.windows.update(existing.windowId, { focused: true }); return { opened: true }; }
+      catch { for (const [id, value] of reviewBindings) if (value === existing) reviewBindings.delete(id); }
+    }
+    const pending = reviewOpening.get(jobId);
+    if (pending) { await pending; return { opened: true }; }
+    const opening = (async () => {
+      // Thunderbird can load an extension page before windows.create resolves.
+      // Bind the real tab first, then navigate it to the review page.
+      const created = await browser.windows.create({ type: "popup", url: "about:blank", width: 900, height: 700, allowScriptsToClose: true });
+      const reviewTabId = created?.tabs?.[0]?.id ?? (created?.id ? (await browser.tabs.query({ windowId: created.id }))[0]?.id : undefined);
+      if (!Number.isSafeInteger(reviewTabId) || reviewTabId <= 0 || !Number.isSafeInteger(created?.id)) throw new Error("The review window could not be opened.");
+      try { await checkedReviewJob(sourceTabId, jobId, true); }
+      catch (error) { await browser.windows.remove(created.id).catch(() => undefined); throw error; }
+      reviewBindings.set(reviewTabId, { sourceTabId, jobId, windowId: created.id });
+      try { await browser.tabs.update(reviewTabId, { url: browser.runtime.getURL("review.html") }); }
+      catch (error) { reviewBindings.delete(reviewTabId); await browser.windows.remove(created.id).catch(() => undefined); throw error; }
+    })();
+    reviewOpening.set(jobId, opening);
+    try { await opening; } finally { if (reviewOpening.get(jobId) === opening) reviewOpening.delete(jobId); }
+    return { opened: true };
   }
 
   async function ensureMessageDisplayScript(tabId: number): Promise<any> {
@@ -563,7 +660,7 @@ export function installFeatureBackground(controller: FeatureConnectionController
 
   function messageJobView(job?: MessageJob): any {
     if (!job) return null;
-    return { jobId: job.jobId, state: job.state, action: job.action, ...(job.result ? { result: job.result } : {}), ...(job.error ? { error: job.error } : {}) };
+    return { jobId: job.jobId, state: job.state, startedAt: job.startedAt, action: job.action, ...(job.result ? { result: job.result } : {}), ...(job.error ? { error: job.error } : {}) };
   }
 
   async function initializeMessage(tabId: number): Promise<any> {
@@ -592,32 +689,45 @@ export function installFeatureBackground(controller: FeatureConnectionController
     return [cleanup];
   }
 
+  function cancelRunningMessage(tabId: number, jobId: string): any {
+    const job = messageJobs.get(tabId);
+    if (!validJobId(jobId) || !job || job.jobId !== jobId) throw new Error("This message result is no longer current.");
+    if (job.state !== "running") return messageJobView(job);
+    job.state = "cancelled";
+    job.abort.abort();
+    void job.lease.client.cancelMessageTransform({ protocolVersion: 1, requestId: randomId(), transformRequestId: job.requestId, runId: job.runId, messageHash: job.messageHash }).catch(() => undefined);
+    return messageJobView(job);
+  }
+
   async function startMessageTransform(tabId: number, agentId: string, action: "translate" | "summarize", sourceLanguage: string | null, targetLanguage: string | null): Promise<any> {
     const existing = messageJobs.get(tabId);
-    if (existing?.state === "running") return messageJobView(existing);
+    if (existing?.state === "running" || existing?.state === "finishing") return messageJobView(existing);
     const captured = messageCaptures.get(tabId);
     if (!captured) throw new Error("The displayed message is no longer available. Reopen ThunderClaw.");
     const requestId = randomId(); const runId = randomId(); const abort = new AbortController();
     const lease = await controller.acquireFeatureLease();
     if (messageCaptures.get(tabId) !== captured || !bindingCurrent(lease.binding)) throw new Error("The displayed message changed.");
-    const job: MessageJob = { jobId: randomId(), state: "running", action, requestId, runId, messageId: captured.messageId, messageHash: captured.messageHash, displayInstanceId: captured.displayInstanceId, lease, abort };
+    const job: MessageJob = { jobId: randomId(), state: "running", startedAt: Date.now(), action, requestId, runId, messageId: captured.messageId, messageHash: captured.messageHash, displayInstanceId: captured.displayInstanceId, lease, abort };
     messageJobs.set(tabId, job);
     try {
       await requireUsableAgent(lease, agentId, abort.signal);
-      if (messageJobs.get(tabId) !== job || messageCaptures.get(tabId) !== captured || !bindingCurrent(lease.binding)) {
+      if (messageJobs.get(tabId) !== job || job.state !== "running" || abort.signal.aborted || messageCaptures.get(tabId) !== captured || !bindingCurrent(lease.binding)) {
         throw new Error("The displayed message changed.");
       }
     } catch (error) {
-      if (messageJobs.get(tabId) === job) messageJobs.delete(tabId);
+      if (messageJobs.get(tabId) === job && job.state !== "cancelled") messageJobs.delete(tabId);
       abort.abort();
+      if (job.state === "cancelled") return messageJobView(job);
       throw error;
     }
     void (async () => {
       try {
         const completion = await lease.client.transformMessage({ protocolVersion: 1, requestId, runId, agentId, action, sourceLanguage, targetLanguage, messageHash: captured.messageHash, document: { subject: captured.subject, author: captured.author, segments: captured.segments }, limits: { maxSegments: 400, maxOutputCharacters: 200_000 } }, { signal: abort.signal });
-        if (messageJobs.get(tabId) !== job || !bindingCurrent(lease.binding) || !sameConnectionBinding(completion.binding, lease.binding)) return;
+        if (messageJobs.get(tabId) !== job || job.state !== "running" || abort.signal.aborted || !bindingCurrent(lease.binding) || !sameConnectionBinding(completion.binding, lease.binding)) return;
         const fresh = await captureDisplayedMessage(tabId);
-        if (messageJobs.get(tabId) !== job || fresh.messageId !== job.messageId || fresh.messageHash !== job.messageHash || fresh.displayInstanceId !== job.displayInstanceId || !bindingCurrent(lease.binding)) throw new Error("The displayed message changed while ThunderClaw was working.");
+        if (messageJobs.get(tabId) !== job || job.state !== "running" || abort.signal.aborted) return;
+        if (fresh.messageId !== job.messageId || fresh.messageHash !== job.messageHash || fresh.displayInstanceId !== job.displayInstanceId || !bindingCurrent(lease.binding)) throw new Error("The displayed message changed while ThunderClaw was working.");
+        job.state = "finishing";
         if (action === "translate") {
           await messageDisplayCall(tabId, { type: "thunderclaw.message.translate", displayInstanceId: job.displayInstanceId, segments: completion.value.result.segments });
           if (messageJobs.get(tabId) !== job || !bindingCurrent(lease.binding)) return;
@@ -628,7 +738,7 @@ export function installFeatureBackground(controller: FeatureConnectionController
         if (messageJobs.get(tabId) !== job || !bindingCurrent(lease.binding)) return;
         job.state = "ready"; job.result = completion.value.result;
       } catch (error) {
-        if (messageJobs.get(tabId) !== job || !bindingCurrent(job.lease.binding)) return;
+        if (messageJobs.get(tabId) !== job || job.state === "cancelled" || !bindingCurrent(job.lease.binding)) return;
         job.state = "error"; job.error = featureErrorMessage(error);
       }
     })();
@@ -644,6 +754,8 @@ export function installFeatureBackground(controller: FeatureConnectionController
   }
 
   function closeTab(tabId: number): Promise<unknown>[] {
+    reviewBindings.delete(tabId);
+    for (const [id, binding] of reviewBindings) if (binding.sourceTabId === tabId) reviewBindings.delete(id);
     const cleanups = [...cancelComposeJob(tabId), ...invalidateMessage(tabId)];
     const session = sessions.get(tabId) ?? pendingSessions.get(tabId);
     sessions.delete(tabId); pendingSessions.delete(tabId); captures.delete(tabId); jobs.delete(tabId); messageJobs.delete(tabId); messageCaptures.delete(tabId);
@@ -672,7 +784,14 @@ export function installFeatureBackground(controller: FeatureConnectionController
 
   async function dispatchPopupMessage(message: any): Promise<any> {
     if (message.type === "messagePopup.initialize") return initializeMessage(message.tabId);
-    if (message.type === "messagePopup.transform") return startMessageTransform(message.tabId, message.agentId, message.action, message.sourceLanguage, message.targetLanguage);
+    if (message.type === "messagePopup.transform") {
+      const pending = pendingMessageStarts.get(message.tabId);
+      if (pending) return pending;
+      const starting = startMessageTransform(message.tabId, message.agentId, message.action, message.sourceLanguage, message.targetLanguage);
+      pendingMessageStarts.set(message.tabId, starting);
+      void starting.finally(() => { if (pendingMessageStarts.get(message.tabId) === starting) pendingMessageStarts.delete(message.tabId); }).catch(() => undefined);
+      return starting;
+    }
     if (message.type === "messagePopup.job") return Promise.resolve(messageJobView(messageJobs.get(message.tabId)));
     if (message.type === "messagePopup.original" || message.type === "messagePopup.translation") {
       const job = messageJobs.get(message.tabId);
@@ -680,30 +799,55 @@ export function installFeatureBackground(controller: FeatureConnectionController
       return messageDisplayCall(message.tabId, { type: message.type === "messagePopup.original" ? "thunderclaw.message.original" : "thunderclaw.message.showTranslation", displayInstanceId: job.displayInstanceId });
     }
     if (message.type === "messagePopup.dismiss") return dismissMessageResult(message.tabId, message.jobId);
+    if (message.type === "messagePopup.cancel") return cancelRunningMessage(message.tabId, message.jobId);
     if (message.type === "popup.initialize") return initialize(message.tabId);
-    if (message.type === "popup.transform") return startTransform(message.tabId, message.agentId, message.action, message.instruction);
+    if (message.type === "popup.transform") {
+      const pending = pendingComposeStarts.get(message.tabId);
+      if (pending) return pending;
+      const starting = startTransform(message.tabId, message.agentId, message.action, message.instruction);
+      pendingComposeStarts.set(message.tabId, starting);
+      void starting.finally(() => { if (pendingComposeStarts.get(message.tabId) === starting) pendingComposeStarts.delete(message.tabId); }).catch(() => undefined);
+      return starting;
+    }
     if (message.type === "popup.job") return Promise.resolve(composeJobView(jobs.get(message.tabId)));
     if (message.type === "popup.discard") {
       const job = jobs.get(message.tabId);
-      if (!validJobId(message.jobId) || job?.jobId !== message.jobId) return Promise.reject(new Error("This preview is no longer current."));
+      if (!validJobId(message.jobId) || !job || job.jobId !== message.jobId || job.mutation) return Promise.reject(new Error("This preview is no longer current."));
       void Promise.allSettled(cancelComposeJob(message.tabId)); captures.delete(message.tabId);
       return Promise.resolve({ discarded: true });
     }
     if (message.type === "popup.apply") return applySuggestion(message.tabId, message.suggestionId, message.jobId);
     if (message.type === "popup.undo") return undoSuggestion(message.tabId, message.suggestionId, message.jobId);
-    if (message.type === "popup.cancel") {
-      const job = jobs.get(message.tabId);
-      if (!validJobId(message.jobId) || job?.jobId !== message.jobId) return Promise.reject(new Error("This preview is no longer current."));
-      const active = sessions.get(message.tabId)?.activeRunId;
-      void Promise.allSettled(cancelComposeJob(message.tabId, false));
-      return Promise.resolve({ cancelled: Boolean(active) });
-    }
+    if (message.type === "popup.expand") return expandReview(message.tabId, message.jobId);
+    if (message.type === "popup.cancel") return cancelRunningCompose(message.tabId, message.jobId);
     return undefined;
   }
 
   browser.runtime.onMessage.addListener((message: any, sender: any) => {
     if (!message || typeof message !== "object" || typeof message.type !== "string"
-        || (!message.type.startsWith("popup.") && !message.type.startsWith("messagePopup."))) return undefined;
+        || (!message.type.startsWith("popup.") && !message.type.startsWith("messagePopup.") && !message.type.startsWith("review."))) return undefined;
+    if (message.type.startsWith("review.")) {
+      if (sender?.id !== browser.runtime.id || sender?.url !== browser.runtime.getURL("review.html")
+          || !Number.isSafeInteger(sender?.tab?.id) || !validReviewMessage(message)) {
+        return Promise.reject(new Error("This ThunderClaw action is only available from its popup."));
+      }
+      return (async () => {
+        const binding = reviewBindings.get(sender.tab.id);
+        if (!binding) throw new Error("This preview is no longer current.");
+        const source = await browser.tabs.get(binding.sourceTabId);
+        if (source?.type !== "messageCompose") throw new Error("This preview is no longer current.");
+        const job = await checkedReviewJob(binding.sourceTabId, binding.jobId, message.type === "review.initialize");
+        if (message.jobId !== undefined && message.jobId !== binding.jobId) throw new Error("This preview is no longer current.");
+        if (message.type === "review.initialize" || message.type === "review.job") return { job: composeJobView(job) };
+        if (message.type === "review.apply") return { job: await applySuggestion(binding.sourceTabId, message.suggestionId, binding.jobId) };
+        if (message.type === "review.undo") return { job: await undoSuggestion(binding.sourceTabId, message.suggestionId, binding.jobId) };
+        if (message.type === "review.discard") {
+          if (job.state !== "ready" || job.mutation) throw new Error("This preview is no longer current.");
+          void Promise.allSettled(cancelComposeJob(binding.sourceTabId)); captures.delete(binding.sourceTabId); return { discarded: true };
+        }
+        return undefined;
+      })().catch((error) => { throw new Error(featureErrorMessage(error)); });
+    }
     const reading = message.type.startsWith("messagePopup.");
     const expectedUrl = browser.runtime.getURL(reading ? "message-popup.html" : "popup.html");
     // Thunderbird may include tab metadata for an extension action popup.

@@ -108,7 +108,7 @@ test("writing style never changes proofreading, translation or summary tasks", a
 });
 
 test("DeepSeek disables thinking in JSON object mode and other providers retain their request options", async () => {
-  for (const provider of ["deepseek", "openrouter", "openai", "ollama", "lmstudio", "custom"] as const) {
+  for (const provider of ["deepseek", "openrouter", "openai", "fireworks", "ollama", "lmstudio", "custom"] as const) {
     const config = { ...configuration, provider, outputMode: provider === "deepseek" ? "json_object" as const : "json_schema" as const };
     await transform(makeClient(async (_url, init) => {
       const body = JSON.parse(String(init?.body)); assert.equal(body.response_format.type, config.outputMode);
@@ -124,7 +124,7 @@ test("DeepSeek disables thinking in JSON object mode and other providers retain 
 });
 
 test("every provider maps each configured thinking level and token limit to its documented request format", async () => {
-  for (const provider of ["deepseek", "openrouter", "openai", "ollama", "lmstudio", "custom"] as const) {
+  for (const provider of ["deepseek", "openrouter", "openai", "fireworks", "ollama", "lmstudio", "custom"] as const) {
     for (const reasoningEffort of reasoningEffortsForProvider(provider)) {
       const config = { ...configuration, provider, outputMode: provider === "deepseek" ? "json_object" as const : "json_schema" as const, reasoningEffort, maxResponseTokens: 32_768 };
       await transform(makeClient(async (_url, init) => {
@@ -149,6 +149,37 @@ test("every provider maps each configured thinking level and token limit to its 
       }, config));
     }
   }
+});
+
+test("Fireworks sends only documented Chat Completions fields and rejects model discovery locally", async () => {
+  const apiBase = "https://api.fireworks.ai/inference/v1";
+  for (const outputMode of ["json_schema", "json_object"] as const) {
+    for (const reasoningEffort of ["default", "none", "high"] as const) {
+      const config = { ...configuration, provider: "fireworks" as const, apiBase, model: "accounts/example/routers/email-router", outputMode, reasoningEffort };
+      let calls = 0;
+      const client = makeClient(async (url, init) => {
+        calls++;
+        assert.equal(url, `${apiBase}/chat/completions`);
+        assert.equal(new Headers(init?.headers).get("Authorization"), "Bearer synthetic-key");
+        const body = JSON.parse(String(init?.body));
+        const keys = ["model", "stream", "n", "messages", "response_format", "max_tokens", "context_length_exceeded_behavior", ...(reasoningEffort === "default" ? [] : ["reasoning_effort"])];
+        assert.deepEqual(Object.keys(body).sort(), keys.sort());
+        assert.equal(body.model, config.model);
+        assert.equal(body.stream, false); assert.equal(body.n, 1);
+        assert.equal(body.max_tokens, 16_384);
+        assert.equal(body.context_length_exceeded_behavior, "error");
+        assert.equal(body.response_format.type, outputMode);
+        assert.equal(body.reasoning_effort, reasoningEffort === "default" ? undefined : reasoningEffort);
+        return response({ text: "Edited.", summary: "Done." });
+      }, config);
+      await assert.rejects(client.listModels(), (error: unknown) => error instanceof DirectClientError && error.kind === "capability" && error.code === "MODEL_DISCOVERY_UNAVAILABLE");
+      assert.equal(calls, 0);
+      await transform(client);
+      assert.equal(calls, 1);
+    }
+  }
+  const config = { ...configuration, provider: "fireworks" as const, apiBase };
+  assert.throws(() => new InferenceClient(config, "", binding(config)), (error: unknown) => error instanceof DirectClientError && error.code === "API_KEY_REQUIRED");
 });
 
 test("DeepSeek newsletter auto translation retains all 74 segment identities and rejects missing or extra segments", async () => {

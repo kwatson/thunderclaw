@@ -14,9 +14,24 @@ button { padding: 8px 10px; border: 1px solid color-mix(in srgb, CanvasText 25%,
 button.primary { background: #2563eb; border-color: #2563eb; color: white; }
 button:disabled { opacity: 0.55; cursor: default; }
 #preview { display: grid; gap: 8px; padding-top: 12px; border-top: 1px solid color-mix(in srgb, CanvasText 18%, transparent); }
-#replacement { white-space: pre-wrap; max-height: 220px; overflow: auto; padding: 10px; background: color-mix(in srgb, CanvasText 7%, Canvas); border-radius: 6px; }
+.review-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.review-heading button { width: auto; }
+.view-tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
+.view-tabs button[aria-selected="true"] { border-color: #2563eb; font-weight: bold; }
+.review-content { white-space: pre-wrap; max-height: 280px; overflow: auto; padding: 10px; background: color-mix(in srgb, CanvasText 7%, Canvas); border-radius: 6px; overflow-wrap: anywhere; }
+.review-content del { background: color-mix(in srgb, #dc2626 22%, Canvas); text-decoration: line-through; }
+.review-content ins { background: color-mix(in srgb, #16a34a 22%, Canvas); text-decoration: none; }
+.review-content p { margin: 0 0 0.7em; }
+.review-content :is(ul, ol) { padding-inline-start: 1.5em; margin: 0 0 0.7em; }
+.run-progress { display: flex; gap: 8px; align-items: center; justify-content: space-between; }
+.run-progress button { width: auto; }
 #summary { margin: 0; font-size: 0.86rem; }
 .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 #error { margin: 0; padding: 9px; border-radius: 6px; background: color-mix(in srgb, #dc2626 15%, Canvas); color: #dc2626; }
 #message-result { display: grid; gap: 8px; padding-top: 12px; border-top: 1px solid color-mix(in srgb, CanvasText 18%, transparent); }
 #message-result p, #privacy-note { margin: 0; }
+body.review-page { width: auto; min-width: 360px; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+.review-page header { flex: none; }
+.review-page main { flex: 1; min-height: 0; overflow: hidden; grid-template-rows: auto minmax(0, 1fr) auto auto auto auto; }
+.review-page .review-content { max-height: none; min-height: 0; overflow: auto; }
+.review-page #summary { max-height: 5rem; overflow: auto; }

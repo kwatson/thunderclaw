@@ -37,6 +37,7 @@ levels are opt-in, and saved changes require a fresh connection test.
 | OpenAI | `max_completion_tokens`, optional `reasoning_effort` | [Effort values vary by model](https://developers.openai.com/api/docs/guides/reasoning?api-mode=chat); some cannot turn reasoning off. |
 | OpenRouter | `max_tokens`, optional `reasoning` | [Unified efforts](https://openrouter.ai/docs/guides/best-practices/reasoning-tokens) depend on the routed model; some require reasoning. Explicit provider fallback remains disabled. |
 | DeepSeek | `max_tokens`, `thinking`, optional `reasoning_effort` | [Thinking controls](https://api-docs.deepseek.com/guides/thinking_mode/) support Off and low/high/max effort. Model default omits both controls. |
+| Fireworks AI | `max_tokens`, `context_length_exceeded_behavior: error`, optional `reasoning_effort` | [Chat Completions](https://docs.fireworks.ai/api-reference/post-chatcompletions) uses the exact model/router/deployment ID entered in settings. Model default omits effort; explicit Off/Low/Medium/High/Very high/Maximum may be rejected or reinterpreted by the selected model. Requests fail when the prompt plus requested output budget exceeds the context window, instead of reducing the output allowance. |
 | Ollama | `max_tokens`, optional `reasoning_effort` | [Compatibility controls](https://docs.ollama.com/api/openai-compatibility) depend on local model metadata; unsupported named levels may resolve to the model default. |
 | LM Studio | `max_tokens`, optional `reasoning_effort` | Requires a server version with chat reasoning controls and a compatible model; see the [API changelog](https://lmstudio.ai/changelog/lmstudio). |
 | Custom | `max_tokens`, optional `reasoning_effort` | Explicit efforts require support for OpenAI-style reasoning controls. Model default omits the effort parameter. |
@@ -45,7 +46,7 @@ These selectors describe request formats, not discovered model capabilities.
 The extension does not query extra capability routes or silently substitute a
 different effort/model. A connection test checks whether the request and result
 are accepted; it cannot prove that a server honored an effort setting internally.
-Use Model default when uncertain about a local or custom model's support.
+Use Model default when uncertain about a model's support.
 
 Reasoning can consume the generation budget before the final JSON response,
 leaving too little room for a newsletter translation. Responses reaching their

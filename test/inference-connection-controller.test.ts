@@ -75,6 +75,30 @@ test("preserve binds keys to exact canonical API base and provider, including po
   }
 });
 
+test("Fireworks persists a keyed connection, requires retesting, and never reuses a custom or changed-base key", async () => {
+  const h = harness();
+  const controller = new InferenceConnectionController(h.api, h.options);
+  const fireworks = { ...configuration, provider: "fireworks" as const, apiBase: "https://api.fireworks.ai/inference/v1", model: "accounts/example/routers/email", reasoningEffort: "high" as const };
+  h.grants.add("https://api.fireworks.ai/*");
+  await controller.save(fireworks, "replace", "synthetic-fireworks-key");
+  assert.equal((await controller.getState()).phase, "untested");
+  assert.equal(JSON.stringify(await controller.getState()).includes("synthetic-fireworks-key"), false);
+  await controller.testConnection();
+  assert.equal((await controller.getState()).phase, "ready");
+  const restored = new InferenceConnectionController(h.api, h.options);
+  assert.equal((await restored.getState()).configuration?.model, fireworks.model);
+  assert.equal((await restored.getState()).hasKey, true);
+  assert.equal(h.calls.at(-1)?.key, "synthetic-fireworks-key");
+  await restored.save({ ...fireworks, reasoningEffort: "none" }, "preserve");
+  assert.equal((await restored.getState()).phase, "untested");
+  await restored.save({ ...fireworks, apiBase: "https://api.fireworks.ai/inference/v2" }, "preserve");
+  assert.equal((await restored.getState()).hasKey, false);
+  await restored.save({ ...configuration, apiBase: fireworks.apiBase }, "replace", "synthetic-custom-key");
+  await restored.save(fireworks, "preserve");
+  assert.equal((await restored.getState()).hasKey, false);
+  await assert.rejects(restored.testConnection(), (error: unknown) => error instanceof DirectClientError && error.code === "KEY_REQUIRED");
+});
+
 test("key replacement/removal and style/model/output changes retire old leases and invalidate tests", async () => {
   const h = harness(); const controller = new InferenceConnectionController(h.api, h.options);
   await controller.save(configuration, "replace", "synthetic-key"); await controller.testConnection();
@@ -226,6 +250,14 @@ test("discovery works before model selection without saving a configuration, key
   assert.equal(h.calls.at(-1)?.configuration.model, "thunderclaw-model-discovery");
   assert.equal(h.storage[INFERENCE_SETTINGS_KEY], undefined); assert.equal(h.keys.size, 0);
   assert.equal((await controller.getState()).phase, "not_configured");
+});
+
+test("Fireworks draft discovery stops before permission, client creation, and network", async () => {
+  const h = harness();
+  const controller = new InferenceConnectionController(h.api, h.options);
+  await assert.rejects(controller.listModels({ ...configuration, provider: "fireworks", apiBase: "https://api.fireworks.ai/inference/v1", model: "" }, "synthetic-key"), (error: unknown) => error instanceof DirectClientError && error.code === "MODEL_DISCOVERY_UNAVAILABLE");
+  assert.equal(h.calls.length, 0);
+  assert.equal(h.networkCalls, 0);
 });
 
 test("draft discovery uses a saved key only for its exact provider and endpoint scope", async () => {

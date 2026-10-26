@@ -1,6 +1,6 @@
 import * as C from "./direct-client-contract.js";
 import * as V from "./direct-client-validators.js";
-import { canonicalizeInferenceBase, DEFAULT_MAX_RESPONSE_TOKENS, PROVIDER_PRESETS, validateInferenceConfiguration, type InferenceConfiguration } from "./inference-provider.js";
+import { canonicalizeInferenceBase, DEFAULT_MAX_RESPONSE_TOKENS, PROVIDER_PRESETS, supportsModelDiscovery, validateInferenceConfiguration, type InferenceConfiguration } from "./inference-provider.js";
 import { bindComposeOutput, bindMessageOutput, composeOutputSchema, inferenceMessages, messageOutputSchema } from "./inference-output.js";
 
 export const CONFIGURED_MODEL_ID = "configured-model";
@@ -273,6 +273,7 @@ export class InferenceClient implements C.ThunderClawDirectClient {
       model: this.configuration.model, stream: false, n: 1,
       messages: inferenceMessages(request, schema, this.configuration.writingStyle), response_format: responseFormat,
       ...(this.configuration.provider === "openai" ? { store: false, max_completion_tokens: this.configuration.maxResponseTokens ?? DEFAULT_MAX_RESPONSE_TOKENS } : { max_tokens: this.configuration.maxResponseTokens ?? DEFAULT_MAX_RESPONSE_TOKENS }),
+      ...(this.configuration.provider === "fireworks" ? { context_length_exceeded_behavior: "error" } : {}),
       ...reasoningParameters(this.configuration),
       ...(this.configuration.provider === "openrouter" ? { provider: { require_parameters: true, allow_fallbacks: false } } : {}),
     }, signal));
@@ -292,6 +293,7 @@ export class InferenceClient implements C.ThunderClawDirectClient {
     catch { failure("contract", "INVALID_INFERENCE_JSON", "The model returned invalid JSON content."); }
   }
   async listModels(options?: C.DirectCallOptions): Promise<string[]> {
+    if (!supportsModelDiscovery(this.configuration.provider)) failure("capability", "MODEL_DISCOVERY_UNAVAILABLE", "Enter the exact full Fireworks model ID manually.");
     return this.scope(async (signal) => {
       const envelope = record(await this.request("/models", undefined, signal));
       if (!Array.isArray(envelope.data) || envelope.data.length > 5_000) failure("contract", "INVALID_MODEL_LIST", "The inference server returned an invalid model list.");

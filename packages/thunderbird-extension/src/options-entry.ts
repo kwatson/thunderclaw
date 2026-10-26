@@ -1,4 +1,4 @@
-import { canonicalizeInferenceBase, DEFAULT_MAX_RESPONSE_TOKENS, MAX_RESPONSE_TOKENS, PROVIDER_PRESETS, reasoningEffortsForProvider, validateInferenceConfiguration, type InferenceConfiguration, type ProviderId, type ReasoningEffort } from "./inference-provider.js";
+import { canonicalizeInferenceBase, DEFAULT_MAX_RESPONSE_TOKENS, MAX_RESPONSE_TOKENS, PROVIDER_PRESETS, reasoningEffortsForProvider, supportsModelDiscovery, validateInferenceConfiguration, type InferenceConfiguration, type ProviderId, type ReasoningEffort } from "./inference-provider.js";
 import { inferenceFailureMessage } from "./inference-client.js";
 import { randomId } from "./random-id.js";
 
@@ -28,6 +28,7 @@ const models = element<HTMLButtonElement>("available-models");
 const modelList = element<HTMLElement>("model-options");
 const modelChoices = element<HTMLElement>("model-choices");
 const modelStatus = element<HTMLElement>("model-status");
+const modelProviderHelp = element<HTMLElement>("model-provider-help");
 const save = element<HTMLButtonElement>("save");
 const load = element<HTMLButtonElement>("load-models");
 const test = element<HTMLButtonElement>("test");
@@ -109,12 +110,15 @@ port.onDisconnect.addListener(() => {
   controls();
 });
 function controls(): void {
+  const canDiscover = supportsModelDiscovery(provider.value as ProviderId);
   save.disabled = busy || closed;
-  load.disabled = busy || closed;
+  load.disabled = busy || closed || !canDiscover;
   test.disabled = busy || closed || !configured || dirty;
   forget.disabled = busy || closed || !configured;
   load.textContent = discovering ? "Loading models…" : "Load models";
   load.setAttribute("aria-busy", String(discovering));
+  modelProviderHelp.textContent = canDiscover ? "" : "Fireworks AI: copy the exact full model, router, or deployment ID from Fireworks and enter it manually. For example: accounts/fireworks/models/deepseek-v4p1-flash-1017. Load models is unavailable.";
+  model.placeholder = canDiscover ? "Enter an exact model ID" : "accounts/fireworks/models/deepseek-v4p1-flash-1017";
   models.disabled = busy || closed;
   if (models.disabled) closeModelList();
 }
@@ -145,6 +149,8 @@ function renderThinking(effort: ReasoningEffort = provider.value === "deepseek" 
   thinking.value = effort;
   thinkingProviderHelp.textContent = provider.value === "ollama" || provider.value === "lmstudio"
     ? "Some local models use their own thinking levels; use Model default if unsure."
+    : provider.value === "fireworks"
+      ? "Fireworks models may reject or reinterpret an explicit thinking level. Use Model default when unsure."
     : provider.value === "custom"
       ? "Choosing a level other than Model default requires your compatible server to support OpenAI reasoning_effort."
       : provider.value === "deepseek" ? "Off is the default for DeepSeek email editing and translation." : "Model default leaves the thinking level to your model and server.";
@@ -273,7 +279,7 @@ form.addEventListener("submit", (event) => {
   });
 });
 load.addEventListener("click", () => {
-  if (busy || closed) return;
+  if (busy || closed || !supportsModelDiscovery(provider.value as ProviderId)) return;
   let permission: Promise<boolean>;
   let draft: Record<string, unknown>;
   const apiKey = removeKey.checked ? "" : key.value || undefined;
@@ -316,7 +322,9 @@ load.addEventListener("click", () => {
     showModels(`${ids.length} ${ids.length === 1 ? "model" : "models"} loaded. Choose a model below, or enter an exact model ID. Then save and test.`);
   }, (error) => { if (generation === discoveryGeneration) showModels(actionError(error, true), true); }).finally(() => {
     discovering = false;
-    if (!closed && generation !== discoveryGeneration) showModels("Settings changed. Load models again for this connection.");
+    if (!closed && generation !== discoveryGeneration) showModels(supportsModelDiscovery(provider.value as ProviderId)
+      ? "Settings changed. Load models again for this connection."
+      : "Settings changed. Enter the exact model ID manually for Fireworks AI.");
     controls();
   });
 });

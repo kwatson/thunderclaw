@@ -84,7 +84,7 @@ return pane.browsingContext.currentWindowGlobal.getActor("MarionetteCommands").e
 """, [STATE])
 
 
-def open_action(client) -> None:
+def open_action(client, allow_cancelled: bool = False) -> None:
     for handle in client.chrome_window_handles:
         client.switch_to_window(handle)
         if harness.chrome(client, 'return document.documentElement.getAttribute("windowtype");') == "mail:3pane":
@@ -106,10 +106,12 @@ for (const doc of [document, about?.document].filter(Boolean)) {
 return true;
 """)
     harness.wait_until("received action popup", lambda: harness.chrome(client, harness.FIND_EXTENSION_DOCUMENT, ["message-popup.html"]))
-    harness.wait_until("received newsletter captured", lambda: "message characters" in (harness.extension_document(client, "message-popup.html", "text", "#status") or ""))
+    harness.wait_until("received newsletter captured", lambda: (
+        "message characters" in (harness.extension_document(client, "message-popup.html", "text", "#status") or "")
+        or (allow_cancelled and "Cancelled" in (harness.extension_document(client, "message-popup.html", "text", "#status") or ""))))
 
 
-def exercise(client) -> dict[str, Any]:
+def exercise(client, stub_state) -> dict[str, Any]:
     # Close the compose popup and compose window before opening the received UI.
     harness.extension_document(client, "popup.html", "close", None)
     harness.chrome(client, 'Services.wm.getMostRecentWindow("msgcompose")?.close(); return true;')
@@ -146,6 +148,26 @@ def exercise(client) -> dict[str, Any]:
     harness.wait_until("received translation shown again", lambda: state(client)["html"] == translated["html"])
     harness.extension_document(client, "message-popup.html", "click", "#dismiss")
     harness.wait_until("received dismiss restores original", lambda: state(client)["html"] == original["html"])
+    open_action(client)
+    stub_state.arm_delay("summarize")
+    try:
+        if harness.extension_document(client, "message-popup.html", "click", "#run") is not True:
+            raise RuntimeError("Delayed received Summary was unavailable")
+        if not stub_state.delay_entered.wait(timeout=10):
+            raise RuntimeError("Delayed received request did not reach the synthetic provider")
+        harness.wait_until("received elapsed timer", lambda: (harness.extension_document(client, "message-popup.html", "text", "#elapsed") or "") not in ("", "Elapsed: 0s"), 5)
+        if harness.extension_document(client, "message-popup.html", "click", "#cancel") is not True:
+            raise RuntimeError("Received Cancel was unavailable")
+        harness.wait_until("received Cancelled state", lambda: "Cancelled" in (harness.extension_document(client, "message-popup.html", "text", "#status") or ""), 5)
+    finally:
+        stub_state.release_delay()
+    if state(client)["html"] != original["html"] or state(client)["summaryCards"] != 0:
+        raise AssertionError("Cancelled received result changed the message")
+    harness.extension_document(client, "message-popup.html", "close", None)
+    harness.wait_until("received Cancel popup closed", lambda: not harness.chrome(client, harness.FIND_EXTENSION_DOCUMENT, ["message-popup.html"]))
+    open_action(client, allow_cancelled=True)
+    harness.wait_until("received Cancel survives reopen", lambda: "Cancelled" in (harness.extension_document(client, "message-popup.html", "text", "#status") or ""), 5)
     return {"status": "passed", "sourceCharacters": len(original["text"]), "summaryPreservesOriginal": True,
             "automaticSourceLanguage": True, "translationPreservesFormattingNodes": True,
-            "showOriginal": True, "showTranslation": True, "dismissRestoresOriginal": True}
+            "showOriginal": True, "showTranslation": True, "dismissRestoresOriginal": True,
+            "elapsedTimer": True, "cancelledResultUnused": True, "cancelSurvivesReopen": True}

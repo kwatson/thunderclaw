@@ -8,12 +8,22 @@ record of how the behavior was developed.
 ThunderClaw can improve, proofread, shorten, retone, translate, summarize, or
 follow a custom instruction for an eligible selection.
 
-Generate does not mutate the draft. Preview shows only a validated result.
+Generate does not mutate the draft. Preview shows a local Changes comparison by
+default, with Original and Proposed views and an optional expanded review window.
+The comparison is built from the captured source and validated replacement,
+never from model-supplied markup. A long comparison scrolls without hiding the
+whole-suggestion Apply and Undo controls. Closing the review window keeps the
+current suggestion available in the compose popup.
 Apply is allowed only while the compose generation, connection binding,
 selected provider/model, target identity, target hash, context hash, headers,
 recipients, and attachments still match the authoritative state captured for the result.
 Undo is rejected after a newer user edit or another state change makes exact
 restoration unsafe.
+An elapsed timer and Cancel are available while a compose or message model run
+is active. Cancel invalidates the local run; a late response cannot become a
+preview or displayed message result. A result already being committed to the
+message display cannot be cancelled. Cancelling cannot guarantee the remote
+provider stops processing or charging.
 
 ## Plain selected text
 
