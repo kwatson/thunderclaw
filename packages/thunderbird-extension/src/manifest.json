@@ -2,7 +2,7 @@
   "manifest_version": 2,
   "name": "ThunderClaw",
   "description": "Reviewable AI writing and reading assistance using your chosen provider or local model.",
-  "version": "0.2.4",
+  "version": "0.3.0",
   "browser_specific_settings": {
     "gecko": {
       "id": "thunderclaw@addons.thunderbird.net",
