@@ -6,8 +6,13 @@ const elements = {
   instruction: document.querySelector("#instruction"),
   instructionLabel: document.querySelector("#instruction-label"),
   run: document.querySelector("#run"),
+  progress: document.querySelector("#run-progress"),
+  elapsed: document.querySelector("#elapsed"),
+  cancel: document.querySelector("#cancel"),
   preview: document.querySelector("#preview"),
   replacement: document.querySelector("#replacement"),
+  tabs: [...document.querySelectorAll("#view-tabs [role=tab]")],
+  expand: document.querySelector("#expand"),
   summary: document.querySelector("#summary"),
   apply: document.querySelector("#apply"),
   discard: document.querySelector("#discard"),
@@ -19,6 +24,12 @@ let suggestionId;
 let applied = false;
 let activeJobId;
 let pollTimer;
+let pollGeneration = 0;
+let elapsedTimer;
+let view = "changes";
+let lastRendered = "";
+let currentResult;
+let actionPending = false;
 
 function showError(error) {
   elements.error.textContent = error instanceof Error ? error.message : String(error);
@@ -29,8 +40,9 @@ function showError(error) {
 
 function setBusy(busy, label) {
   elements.run.disabled = busy || !elements.agent.value;
-  elements.apply.disabled = busy || applied;
-  elements.discard.disabled = busy;
+  elements.apply.disabled = busy || applied || !suggestionId;
+  elements.discard.disabled = busy || !activeJobId;
+  elements.expand.disabled = busy || !suggestionId;
   if (label) elements.status.textContent = label;
 }
 
@@ -53,63 +65,32 @@ function updateAction() {
 }
 
 function renderReplacement(result) {
-  elements.replacement.replaceChildren();
-  if (result.selectionShape === "flat-list-items") {
-    if ((result.listKind !== "ul" && result.listKind !== "ol") || !Array.isArray(result.replacementItems)) {
-      throw new Error("The structured list preview is invalid.");
-    }
-    const list = document.createElement(result.listKind);
-    for (const item of result.replacementItems) {
-      if (typeof item !== "string") throw new Error("The structured list preview is invalid.");
-      const listItem = document.createElement("li");
-      listItem.textContent = item;
-      list.append(listItem);
-    }
-    elements.replacement.append(list);
-    return;
-  }
-  if (result.selectionShape === "rich-blocks") {
-    if (!Array.isArray(result.replacementBlocks)) throw new Error("The structured rich preview is invalid.");
-    const appendSpans = (parent, spans) => {
-      if (!Array.isArray(spans)) throw new Error("The structured rich preview is invalid.");
-      for (const span of spans) {
-        if (!span || typeof span.text !== "string") throw new Error("The structured rich preview is invalid.");
-        let node = document.createTextNode(span.text);
-        for (const mark of [...(span.marks ?? [])].reverse()) {
-          const element = document.createElement(mark === "bold" ? "b" : mark === "italic" ? "i" : mark === "underline" ? "u" : "invalid");
-          if (element.localName === "invalid") throw new Error("The structured rich preview is invalid.");
-          element.append(node); node = element;
-        }
-        parent.append(node);
-      }
-    };
-    for (const block of result.replacementBlocks) {
-      if (block.type === "paragraph") {
-        const paragraph = document.createElement("p"); appendSpans(paragraph, block.spans); elements.replacement.append(paragraph);
-      } else if (block.type === "unordered_list" || block.type === "ordered_list") {
-        const list = document.createElement(block.type === "unordered_list" ? "ul" : "ol");
-        for (const value of block.items ?? []) {
-          const item = document.createElement("li"); appendSpans(item, value.spans); list.append(item);
-        }
-        elements.replacement.append(list);
-      } else throw new Error("The structured rich preview is invalid.");
-    }
-    return;
-  }
-  elements.replacement.textContent = result.replacement;
+  const key = `${result.suggestionId}:${view}`;
+  if (lastRendered === key) return;
+  ThunderClawPreview.render(elements.replacement, result, view);
+  lastRendered = key;
+  for (const tab of elements.tabs) tab.setAttribute("aria-selected", String(tab.dataset.view === view));
 }
 
 function renderJob(job) {
-  if (!job) return;
+  if (!job || (activeJobId && job.jobId !== activeJobId)) {
+    activeJobId = undefined; suggestionId = undefined; currentResult = undefined; lastRendered = "";
+    elements.preview.hidden = true; elements.progress.hidden = true; stopElapsed();
+    setBusy(false, "Preview unavailable. Generate again."); return;
+  }
   activeJobId = job.jobId;
   if (job.state === "running") {
     suggestionId = undefined;
     applied = false;
     elements.preview.hidden = true;
+    elements.progress.hidden = false;
+    startElapsed(job.startedAt);
     setBusy(true, "Generating preview…");
     return;
   }
+  stopElapsed(); elements.progress.hidden = true;
   setBusy(false);
+  if (job.state === "cancelled") { suggestionId = undefined; elements.preview.hidden = true; elements.status.textContent = "Cancelled. No suggestion was used; your provider may still process the request."; return; }
   if (job.state === "error") {
     showError(new Error(job.error || "Preview generation failed."));
     return;
@@ -117,33 +98,48 @@ function renderJob(job) {
   if (job.state === "ready" && job.result) {
     applied = false;
     suggestionId = job.result.suggestionId;
+    currentResult = job.result;
     renderReplacement(job.result);
     elements.summary.textContent = job.result.summary;
     elements.preview.hidden = false;
     elements.apply.textContent = "Apply to draft";
-    elements.apply.disabled = false;
+    elements.apply.disabled = Boolean(job.mutation);
     elements.discard.textContent = "Start over";
+    elements.discard.disabled = Boolean(job.mutation);
+    elements.expand.disabled = Boolean(job.mutation);
     elements.status.textContent = "Preview ready";
   }
   if (job.state === "applied" && job.result) {
     applied = true;
     suggestionId = job.result.suggestionId;
+    currentResult = job.result;
     renderReplacement(job.result);
     elements.summary.textContent = job.result.summary;
     elements.preview.hidden = false;
     elements.apply.textContent = "Applied";
     elements.apply.disabled = true;
     elements.discard.textContent = "Undo change";
-    elements.discard.disabled = false;
+    elements.discard.disabled = Boolean(job.mutation);
+    elements.expand.disabled = Boolean(job.mutation);
     elements.status.textContent = "Applied — Thunderbird still controls Send";
   }
 }
 
+function stopElapsed() { if (elapsedTimer) clearInterval(elapsedTimer); elapsedTimer = undefined; }
+function startElapsed(startedAt) {
+  stopElapsed();
+  const update = () => { elements.elapsed.textContent = `Elapsed: ${Math.max(0, Math.floor((Date.now() - startedAt) / 1000))}s`; };
+  update(); elapsedTimer = setInterval(update, 1000);
+}
+function schedulePoll() { if (pollTimer) clearTimeout(pollTimer); pollTimer = setTimeout(() => void pollJob().catch(showError), 750); }
+
 async function pollJob() {
+  const expectedJobId = activeJobId; const generation = pollGeneration;
   const job = await browser.runtime.sendMessage({ type: "popup.job", tabId });
-  if (!job || job.jobId !== activeJobId) return;
+  if (generation !== pollGeneration || activeJobId !== expectedJobId) return;
+  if (!job || job.jobId !== activeJobId) { renderJob(null); return; }
   renderJob(job);
-  if (job.state === "running") pollTimer = setTimeout(() => void pollJob().catch(showError), 500);
+  if (["running", "ready", "applied"].includes(job.state)) schedulePoll();
 }
 
 async function initialize() {
@@ -154,7 +150,10 @@ async function initialize() {
   for (const agent of state.agents) {
     const option = document.createElement("option");
     option.value = agent.agentId;
-    option.textContent = agent.model || agent.displayName;
+    const label = agent.model || agent.displayName;
+    const fireworksPrefix = "accounts/fireworks/models/";
+    option.textContent = typeof label === "string" && label.startsWith(fireworksPrefix) && label.length > fireworksPrefix.length
+      ? label.slice(fireworksPrefix.length) : label;
     option.selected = agent.agentId === state.selectedAgentId;
     elements.agent.append(option);
   }
@@ -166,13 +165,19 @@ async function initialize() {
   elements.status.textContent = `${state.selection.text.length} characters selected`;
   if (state.job) {
     renderJob(state.job);
-    if (state.job.state === "running") void pollJob().catch(showError);
+    if (["running", "ready", "applied"].includes(state.job.state)) schedulePoll();
   }
 }
 
 elements.action.addEventListener("change", updateAction);
+for (const tab of elements.tabs) tab.addEventListener("click", () => {
+  view = tab.dataset.view;
+  lastRendered = "";
+  if (currentResult) renderReplacement(currentResult);
+});
 elements.instruction.addEventListener("input", () => elements.instruction.removeAttribute("aria-invalid"));
 elements.run.addEventListener("click", async () => {
+  if (actionPending) return;
   elements.error.hidden = true;
   const requirement = instructionRequirement();
   if (requirement && !elements.instruction.value.trim()) {
@@ -182,7 +187,11 @@ elements.run.addEventListener("click", async () => {
   }
   elements.preview.hidden = true;
   suggestionId = undefined;
+  activeJobId = undefined;
+  currentResult = undefined; lastRendered = ""; view = "changes";
+  pollGeneration += 1;
   applied = false;
+  if (pollTimer) clearTimeout(pollTimer);
   setBusy(true, "Generating preview…");
   try {
     const job = await browser.runtime.sendMessage({
@@ -193,14 +202,36 @@ elements.run.addEventListener("click", async () => {
       instruction: elements.instruction.value.trim(),
     });
     renderJob(job);
-    if (job.state === "running") void pollJob().catch(showError);
+    if (["running", "ready", "applied"].includes(job.state)) schedulePoll();
   } catch (error) {
     showError(error);
   }
 });
 
+elements.cancel.addEventListener("click", async () => {
+  if (!activeJobId || actionPending) return;
+  pollGeneration += 1;
+  actionPending = true; elements.cancel.disabled = true;
+  try {
+    const job = await browser.runtime.sendMessage({ type: "popup.cancel", tabId, jobId: activeJobId });
+    renderJob(job);
+    if (["running", "ready", "applied"].includes(job?.state)) schedulePoll();
+  }
+  catch (error) { showError(error); }
+  finally { actionPending = false; elements.cancel.disabled = false; }
+});
+
+elements.expand.addEventListener("click", async () => {
+  if (!activeJobId || !suggestionId || actionPending) return;
+  actionPending = true; elements.expand.disabled = true;
+  try { await browser.runtime.sendMessage({ type: "popup.expand", tabId, jobId: activeJobId }); }
+  catch (error) { showError(error); }
+  finally { actionPending = false; elements.expand.disabled = false; }
+});
+
 elements.apply.addEventListener("click", async () => {
-  if (!suggestionId) return;
+  if (!suggestionId || actionPending) return;
+  actionPending = true;
   elements.error.hidden = true;
   setBusy(true, "Applying…");
   try {
@@ -209,11 +240,14 @@ elements.apply.addEventListener("click", async () => {
   } catch (error) {
     showError(error);
   } finally {
+    actionPending = false;
     setBusy(false);
   }
 });
 
 elements.discard.addEventListener("click", async () => {
+  if (!activeJobId || actionPending) return;
+  actionPending = true;
   elements.error.hidden = true;
   setBusy(true, applied ? "Undoing change…" : "Discarding suggestion…");
   try {
@@ -227,17 +261,22 @@ elements.discard.addEventListener("click", async () => {
     }
     suggestionId = undefined;
     activeJobId = undefined;
+    currentResult = undefined; lastRendered = "";
+    if (pollTimer) clearTimeout(pollTimer);
     applied = false;
     elements.preview.hidden = true;
   } catch (error) {
     showError(error);
   } finally {
+    actionPending = false;
     setBusy(false);
   }
 });
 
 window.addEventListener("unload", () => {
+  pollGeneration += 1;
   if (pollTimer) clearTimeout(pollTimer);
+  stopElapsed();
 });
 
 updateAction();

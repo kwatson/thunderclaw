@@ -33,6 +33,13 @@ async function eventually<T>(read: () => Promise<T>, accept: (value: T) => boole
   }
   return read();
 }
+function composeCompletion(request: any, text = "Clear") {
+  return { binding, value: { protocolVersion: 1, runId: request.runId, result: {
+    version: 1, requestId: request.requestId, composeGeneration: request.composeGeneration,
+    contextHash: request.contextHash, targetHash: request.targetHash,
+    operations: [{ type: "replace_text_range", targetId: request.target.targetId, start: 0, end: request.target.text.length, text }], summary: "ok",
+  }, evidence: { runtimeSessionMarker: null, repairAttempted: false } } } as any;
+}
 
 function harness() {
   const runtimeListeners: Array<(message: any, sender: any) => unknown> = [];
@@ -43,6 +50,13 @@ function harness() {
   const cancels: any[] = [];
   const closes: any[] = [];
   const storage: Record<string, unknown> = {};
+  let reviewTabId = 900; let reviewWindowId = 800;
+  let windowCreateBarrier: Promise<void> | undefined;
+  let tabUpdateBarrier: Promise<void> | undefined;
+  let messageCaptureBarrier: Promise<void> | undefined;
+  let applyBarrier: Promise<void> | undefined;
+  let applyReplyBarrier: Promise<void> | undefined;
+  let nextInspectBarrier: Promise<void> | undefined;
   let current = true;
   let retirement: FeatureRetirementHandler | undefined;
   let displayed = { id: 41, subject: "Subject", author: "sender@example.test" };
@@ -88,25 +102,38 @@ function harness() {
   const browser = {
     runtime: { id: "thunderclaw@addons.thunderbird.net", getURL(path: string) { return `moz-extension://thunderclaw-test/${path}`; }, onMessage: { addListener(listener: any) { runtimeListeners.push(listener); } } },
     tabs: {
-      async get(tabId: number) { calls.push(["tab-get", tabId]); return { id: tabId, type: tabType || (currentMessageType.startsWith("messagePopup.") ? "mail" : "messageCompose") }; },
+      async get(tabId: number) { calls.push(["tab-get", tabId]); return { id: tabId, type: tabId === reviewTabId ? "content" : tabType || (currentMessageType.startsWith("messagePopup.") ? "mail" : "messageCompose") }; },
+      async update(tabId: number, options: any) { calls.push(["tab-update", tabId, structuredClone(options)]); if (tabUpdateBarrier) await tabUpdateBarrier; return { id: tabId }; },
       async sendMessage(_tabId: number, message: any) {
         calls.push(["tab-message", structuredClone(message)]);
+        if (message.type === "thunderclaw.inspect" && nextInspectBarrier) {
+          const barrier = nextInspectBarrier;
+          nextInspectBarrier = undefined;
+          await barrier;
+        }
         if (message.type === "thunderclaw.inspect" && composeInspectError) return { ok: false, error: composeInspectError };
         if (message.type === "thunderclaw.capture" || message.type === "thunderclaw.inspect") {
           return { ok: true, value: { targetId: "target-a", text: composeText, authoredText: composeText, ...composeSelection } };
         }
         if (message.type === "thunderclaw.apply") {
+          if (applyBarrier) await applyBarrier;
           if (message.expectedText !== composeText) return { ok: false, error: "stale" };
           composeText = message.replacement;
+          if (applyReplyBarrier) await applyReplyBarrier;
           return { ok: true, value: { undoId: "undo-a" } };
         }
         if (message.type === "thunderclaw.undo") return { ok: true, value: { undone: true } };
-        if (message.type === "thunderclaw.message.capture") return { ok: true, value: {
+        if (message.type === "thunderclaw.message.capture") { if (messageCaptureBarrier) await messageCaptureBarrier; return { ok: true, value: {
           displayInstanceId, segments: [{ id: "segment-0", text: messageText }], text: messageText,
-        } };
+        } }; }
         return { ok: true, value: { accepted: true } };
       },
       onRemoved: { addListener(listener: any) { removedListeners.push(listener); } },
+    },
+    windows: {
+      async create(options: any) { calls.push(["window-create", structuredClone(options)]); if (windowCreateBarrier) await windowCreateBarrier; return { id: reviewWindowId, tabs: [{ id: reviewTabId }] }; },
+      async update(id: number, options: any) { calls.push(["window-update", id, structuredClone(options)]); return { id }; },
+      async remove(id: number) { calls.push(["window-remove", id]); },
     },
     compose: {
       async getComposeDetails() { return structuredClone(composeDetails); },
@@ -149,6 +176,13 @@ function harness() {
     setTransformMessage(value: typeof transformMessageImpl) { transformMessageImpl = value; },
     setTransformCompose(value: typeof transformComposeImpl) { transformComposeImpl = value; },
     setTabType(value: string | undefined) { tabType = value; },
+    setWindowCreateBarrier(value: Promise<void> | undefined) { windowCreateBarrier = value; },
+    setTabUpdateBarrier(value: Promise<void> | undefined) { tabUpdateBarrier = value; },
+    setMessageCaptureBarrier(value: Promise<void> | undefined) { messageCaptureBarrier = value; },
+    setApplyBarrier(value: Promise<void> | undefined) { applyBarrier = value; },
+    setApplyReplyBarrier(value: Promise<void> | undefined) { applyReplyBarrier = value; },
+    setNextInspectBarrier(value: Promise<void> | undefined) { nextInspectBarrier = value; },
+    get reviewTabId() { return reviewTabId; },
     async send(message: any, sender: any = { id: browser.runtime.id, url: browser.runtime.getURL(message.type?.startsWith("messagePopup.") ? "message-popup.html" : "popup.html") }): Promise<any> {
       currentMessageType = message.type || "";
       for (const listener of runtimeListeners) {
@@ -748,4 +782,197 @@ test("same-text rich formatting changes invalidate generation and Apply", async 
       assert.equal(h.calls.some(([kind, message]) => kind === "tab-message" && message.type === "thunderclaw.apply"), false);
     } finally { h.restore(); }
   }
+});
+
+test("compose Cancel remains visible on reopen and fences late success and failure", async () => {
+  for (const outcome of ["success", "failure"] as const) {
+    const h = harness(); const completion = deferred<any>();
+    try {
+      h.setTransformCompose(async (request: any) => { await completion.promise; if (outcome === "failure") throw new Error("private provider failure"); return composeCompletion(request); });
+      const started = await h.send({ type: "popup.transform", tabId: 201, agentId: "agent-a", action: "improve", instruction: "" });
+      await eventually(() => Promise.resolve(h.calls.some(([kind]) => kind === "compose-transform")), Boolean);
+      const cancelled = await h.send({ type: "popup.cancel", tabId: 201, jobId: started.jobId });
+      assert.equal(cancelled.state, "cancelled");
+      assert.equal(cancelled.startedAt, started.startedAt);
+      assert.equal((await h.send({ type: "popup.initialize", tabId: 201 })).job.state, "cancelled");
+      await assert.rejects(h.send({ type: "popup.cancel", tabId: 201, jobId: "stale" }), /no longer current/u);
+      completion.resolve(undefined); await settle();
+      assert.equal((await h.send({ type: "popup.job", tabId: 201 })).state, "cancelled");
+      assert.equal(h.calls.some(([kind, message]) => kind === "tab-message" && message.type === "thunderclaw.apply"), false);
+      assert.equal(h.cancels.length, 1);
+    } finally { h.restore(); }
+  }
+});
+
+test("a cancelled compose job retires when a different selection is captured", async () => {
+  const h = harness(); const completion = deferred<any>();
+  try {
+    h.setTransformCompose(async () => completion.promise);
+    await h.send({ type: "popup.initialize", tabId: 210 });
+    const started = await h.send({ type: "popup.transform", tabId: 210, agentId: "agent-a", action: "improve", instruction: "" });
+    await eventually(() => Promise.resolve(h.calls.some(([kind]) => kind === "compose-transform")), Boolean);
+    assert.equal((await h.send({ type: "popup.cancel", tabId: 210, jobId: started.jobId })).state, "cancelled");
+    completion.reject(new Error("late result")); await settle();
+    assert.equal((await h.send({ type: "popup.initialize", tabId: 210 })).job.state, "cancelled");
+    h.setComposeText("A different selected draft");
+    const reopened = await h.send({ type: "popup.initialize", tabId: 210 });
+    assert.equal(reopened.job, null);
+    assert.equal(reopened.selection.text, "A different selected draft");
+  } finally { completion.reject(new Error("late result")); h.restore(); }
+});
+
+test("received-message Cancel preserves terminal state and ignores a late model completion", async () => {
+  const h = harness(); const completion = deferred<any>();
+  try {
+    h.setTransformMessage(async () => completion.promise);
+    await h.send({ type: "messagePopup.initialize", tabId: 202 });
+    const started = await h.send({ type: "messagePopup.transform", tabId: 202, agentId: "agent-a", action: "translate", sourceLanguage: null, targetLanguage: "English" });
+    const request = h.calls.find(([kind]) => kind === "message-transform")[1];
+    const cancelled = await h.send({ type: "messagePopup.cancel", tabId: 202, jobId: started.jobId });
+    assert.equal(cancelled.state, "cancelled"); assert.equal(cancelled.startedAt, started.startedAt);
+    assert.equal((await h.send({ type: "messagePopup.initialize", tabId: 202 })).job.state, "cancelled");
+    completion.resolve({ binding, value: { result: { version: 1, requestId: request.requestId, messageHash: request.messageHash, action: "translate", detectedLanguage: "fr", targetLanguage: "English", segments: [{ id: "segment-0", text: "Hello" }], summary: null } } });
+    await settle();
+    assert.equal((await h.send({ type: "messagePopup.job", tabId: 202 })).state, "cancelled");
+    assert.equal(h.calls.some(([kind, value]) => kind === "tab-message" && value.type === "thunderclaw.message.translate"), false);
+    assert.equal(h.cancels.length, 1);
+  } finally { h.restore(); }
+});
+
+test("expanded review binds its own tab, reuses the job window, and shares Apply and Undo", async () => {
+  const h = harness();
+  try {
+    h.setTransformCompose(async (request: any) => composeCompletion(request));
+    const started = await h.send({ type: "popup.transform", tabId: 203, agentId: "agent-a", action: "improve", instruction: "" });
+    const ready = await eventually(() => h.send({ type: "popup.job", tabId: 203 }), (job) => job?.state === "ready");
+    assert.equal(ready.jobId, started.jobId);
+    assert.equal(ready.result.original, "Draft");
+    await h.send({ type: "popup.expand", tabId: 203, jobId: ready.jobId });
+    await h.send({ type: "popup.expand", tabId: 203, jobId: ready.jobId });
+    assert.equal(h.calls.filter(([kind]) => kind === "window-create").length, 1);
+    assert.equal(h.calls.filter(([kind]) => kind === "window-update").length, 1);
+    assert.equal(h.calls.find(([kind]) => kind === "window-create")[1].url, "about:blank");
+    assert.equal(h.calls.find(([kind]) => kind === "window-create")[1].allowScriptsToClose, true);
+    assert.deepEqual(h.calls.find(([kind]) => kind === "tab-update").slice(1), [h.reviewTabId, { url: "moz-extension://thunderclaw-test/review.html" }]);
+    const sender = { id: "thunderclaw@addons.thunderbird.net", url: "moz-extension://thunderclaw-test/review.html", tab: { id: h.reviewTabId } };
+    assert.equal((await h.send({ type: "review.initialize" }, sender)).job.jobId, ready.jobId);
+    await assert.rejects(h.send({ type: "review.job", jobId: "stale" }, sender), /no longer current/u);
+    await assert.rejects(h.send({ type: "review.initialize" }, { ...sender, tab: { id: 901 } }), /no longer current/u);
+    await assert.rejects(h.send({ type: "review.initialize" }, { ...sender, url: "moz-extension://thunderclaw-test/review.html?source=203" }), /only available/u);
+    const applied = await h.send({ type: "review.apply", jobId: ready.jobId, suggestionId: ready.result.suggestionId }, sender);
+    assert.equal(applied.job.state, "applied");
+    assert.equal((await h.send({ type: "popup.job", tabId: 203 })).state, "applied");
+    await h.send({ type: "review.undo", jobId: ready.jobId, suggestionId: ready.result.suggestionId }, sender);
+    assert.equal(await h.send({ type: "popup.job", tabId: 203 }), null);
+    assert.equal(h.calls.filter(([kind, value]) => kind === "tab-message" && value.type === "thunderclaw.apply").length, 1);
+    assert.equal(h.calls.filter(([kind, value]) => kind === "tab-message" && value.type === "thunderclaw.undo").length, 1);
+  } finally { h.restore(); }
+});
+
+test("review page initializes only after binding and never after source closure", async () => {
+  const h = harness(); const opening = deferred<void>(); const navigation = deferred<void>();
+  try {
+    h.setTransformCompose(async (request: any) => composeCompletion(request));
+    await h.send({ type: "popup.transform", tabId: 204, agentId: "agent-a", action: "improve", instruction: "" });
+    const ready = await eventually(() => h.send({ type: "popup.job", tabId: 204 }), (job) => job?.state === "ready");
+    h.setWindowCreateBarrier(opening.promise);
+    h.setTabUpdateBarrier(navigation.promise);
+    const expanding = h.send({ type: "popup.expand", tabId: 204, jobId: ready.jobId });
+    await eventually(() => Promise.resolve(h.calls.some(([kind]) => kind === "window-create")), Boolean);
+    const sender = { id: "thunderclaw@addons.thunderbird.net", url: "moz-extension://thunderclaw-test/review.html", tab: { id: h.reviewTabId } };
+    await assert.rejects(h.send({ type: "review.initialize" }, sender), /no longer current/u);
+    opening.resolve();
+    await eventually(() => Promise.resolve(h.calls.some(([kind]) => kind === "tab-update")), Boolean);
+    assert.equal((await h.send({ type: "review.initialize" }, sender)).job.jobId, ready.jobId);
+    navigation.resolve(); await expanding;
+    h.emitRemoved(204); await settle();
+    await assert.rejects(h.send({ type: "review.initialize" }, sender), /no longer current/u);
+  } finally { opening.resolve(); navigation.resolve(); h.restore(); }
+});
+
+test("concurrent review Apply sends one editor mutation", async () => {
+  const h = harness(); const gate = deferred<void>();
+  try {
+    h.setTransformCompose(async (request: any) => composeCompletion(request));
+    await h.send({ type: "popup.transform", tabId: 205, agentId: "agent-a", action: "improve", instruction: "" });
+    const ready = await eventually(() => h.send({ type: "popup.job", tabId: 205 }), (job) => job?.state === "ready");
+    await h.send({ type: "popup.expand", tabId: 205, jobId: ready.jobId });
+    const sender = { id: "thunderclaw@addons.thunderbird.net", url: "moz-extension://thunderclaw-test/review.html", tab: { id: h.reviewTabId } };
+    h.setApplyBarrier(gate.promise);
+    const first = h.send({ type: "review.apply", jobId: ready.jobId, suggestionId: ready.result.suggestionId }, sender);
+    await eventually(() => Promise.resolve(h.calls.some(([kind, value]) => kind === "tab-message" && value.type === "thunderclaw.apply")), Boolean);
+    await assert.rejects(h.send({ type: "review.apply", jobId: ready.jobId, suggestionId: ready.result.suggestionId }, sender), /no longer available/u);
+    gate.resolve(); await first;
+    assert.equal(h.calls.filter(([kind, value]) => kind === "tab-message" && value.type === "thunderclaw.apply").length, 1);
+  } finally { h.restore(); }
+});
+
+test("reopening either review surface during delayed Apply does not invalidate its owned mutation", async () => {
+  const h = harness(); const reply = deferred<void>();
+  try {
+    h.setTransformCompose(async (request: any) => composeCompletion(request));
+    await h.send({ type: "popup.transform", tabId: 208, agentId: "agent-a", action: "improve", instruction: "" });
+    const ready = await eventually(() => h.send({ type: "popup.job", tabId: 208 }), (job) => job?.state === "ready");
+    await h.send({ type: "popup.expand", tabId: 208, jobId: ready.jobId });
+    const sender = { id: "thunderclaw@addons.thunderbird.net", url: "moz-extension://thunderclaw-test/review.html", tab: { id: h.reviewTabId } };
+    h.setApplyReplyBarrier(reply.promise);
+    const applying = h.send({ type: "popup.apply", tabId: 208, jobId: ready.jobId, suggestionId: ready.result.suggestionId });
+    await eventually(() => Promise.resolve(h.calls.some(([kind, value]) => kind === "tab-message" && value.type === "thunderclaw.apply")), Boolean);
+    assert.equal((await h.send({ type: "popup.initialize", tabId: 208 })).job.mutation, "apply");
+    assert.equal((await h.send({ type: "review.initialize" }, sender)).job.mutation, "apply");
+    reply.resolve();
+    assert.equal((await applying).state, "applied");
+    assert.equal((await h.send({ type: "review.job", jobId: ready.jobId }, sender)).job.result.suggestionId, ready.result.suggestionId);
+  } finally { h.restore(); }
+});
+
+test("an earlier initialize validation cannot erase a later applied preview", async () => {
+  const h = harness(); const inspect = deferred<void>();
+  try {
+    h.setTransformCompose(async (request: any) => composeCompletion(request));
+    await h.send({ type: "popup.transform", tabId: 209, agentId: "agent-a", action: "improve", instruction: "" });
+    const ready = await eventually(() => h.send({ type: "popup.job", tabId: 209 }), (job) => job?.state === "ready");
+    const priorInspects = h.calls.filter(([kind, value]) => kind === "tab-message" && value.type === "thunderclaw.inspect").length;
+    h.setNextInspectBarrier(inspect.promise);
+    const reopening = h.send({ type: "popup.initialize", tabId: 209 });
+    await eventually(() => Promise.resolve(h.calls.filter(([kind, value]) => kind === "tab-message" && value.type === "thunderclaw.inspect").length),
+      (count) => count > priorInspects);
+    assert.equal((await h.send({ type: "popup.apply", tabId: 209, jobId: ready.jobId, suggestionId: ready.result.suggestionId })).state, "applied");
+    inspect.resolve();
+    assert.equal((await reopening).job.state, "applied");
+    const current = await h.send({ type: "popup.job", tabId: 209 });
+    assert.equal(current.state, "applied");
+    assert.equal(current.result.suggestionId, ready.result.suggestionId);
+  } finally { inspect.resolve(); h.restore(); }
+});
+
+test("message Cancel during delayed recapture prevents display dispatch", async () => {
+  const h = harness(); const gate = deferred<void>();
+  try {
+    await h.send({ type: "messagePopup.initialize", tabId: 206 });
+    h.setMessageCaptureBarrier(gate.promise);
+    h.setTransformMessage(async (request: any) => ({ binding, value: { result: { version: 1, requestId: request.requestId, messageHash: request.messageHash, action: "translate", detectedLanguage: "fr", targetLanguage: "English", segments: [{ id: "segment-0", text: "Hello" }], summary: null } } } as any));
+    const started = await h.send({ type: "messagePopup.transform", tabId: 206, agentId: "agent-a", action: "translate", sourceLanguage: null, targetLanguage: "English" });
+    await eventually(() => Promise.resolve(h.calls.filter(([kind, value]) => kind === "tab-message" && value.type === "thunderclaw.message.capture").length >= 2), Boolean);
+    assert.equal((await h.send({ type: "messagePopup.cancel", tabId: 206, jobId: started.jobId })).state, "cancelled");
+    gate.resolve(); await settle();
+    assert.equal(h.calls.some(([kind, value]) => kind === "tab-message" && value.type === "thunderclaw.message.translate"), false);
+  } finally { h.restore(); }
+});
+
+test("rapid compose Cancel then Generate waits for old cleanup and keeps the replacement run", async () => {
+  const h = harness(); const old = deferred<void>(); let runs = 0;
+  try {
+    h.setTransformCompose(async (request: any) => { runs += 1; if (runs === 1) await old.promise; return composeCompletion(request, runs === 1 ? "Old" : "New"); });
+    const started = await h.send({ type: "popup.transform", tabId: 207, agentId: "agent-a", action: "improve", instruction: "" });
+    await eventually(() => Promise.resolve(runs), (count) => count === 1);
+    await h.send({ type: "popup.cancel", tabId: 207, jobId: started.jobId });
+    const replacement = h.send({ type: "popup.transform", tabId: 207, agentId: "agent-a", action: "improve", instruction: "" });
+    await settle(); assert.equal(runs, 1, "replacement waits until the old task settles");
+    old.resolve(); const next = await replacement;
+    assert.notEqual(next.jobId, started.jobId);
+    const ready = await eventually(() => h.send({ type: "popup.job", tabId: 207 }), (job) => job?.state === "ready");
+    assert.equal(ready.result.replacement, "New");
+    assert.equal(runs, 2);
+  } finally { h.restore(); }
 });

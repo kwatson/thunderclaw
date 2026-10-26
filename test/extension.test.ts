@@ -73,6 +73,7 @@ test("extension applies only a stored suggestion after draft and target revalida
   const background = await readFile(new URL("../packages/thunderbird-extension/src/background-coordinator.ts", import.meta.url), "utf8");
   const compose = await readFile(new URL("../packages/thunderbird-extension/src/compose.js", import.meta.url), "utf8");
   const popup = await readFile(new URL("../packages/thunderbird-extension/src/popup.js", import.meta.url), "utf8");
+  const renderer = await readFile(new URL("../packages/thunderbird-extension/src/preview-renderer.js", import.meta.url), "utf8");
   assert.match(background, /contextHash !== suggestion\.contextHash \|\| targetHash !== suggestion\.targetHash/u);
   assert.match(background, /suggestions\.get\(suggestionId\)/u);
   assert.match(compose, /target\.range\.toString\(\) !== expectedText/u);
@@ -150,16 +151,16 @@ test("extension applies only a stored suggestion after draft and target revalida
   assert.match(popup, /state\.job/u);
   assert.match(popup, /Undo change/u);
   assert.match(popup, /Start over/u);
-  assert.match(popup, /document\.createElement\(result\.listKind\)/u);
-  assert.match(popup, /document\.createElement\("li"\)/u);
-  assert.match(popup, /listItem\.textContent = item/u);
-  assert.match(popup, /result\.selectionShape === "rich-blocks"/u);
-  assert.match(popup, /document\.createTextNode\(span\.text\)/u);
+  assert.match(popup, /ThunderClawPreview\.render\(elements\.replacement, result, view\)/u);
+  assert.match(renderer, /document\.createElement\("li"\)/u);
+  assert.match(renderer, /result\.selectionShape === "rich-blocks"/u);
+  assert.match(renderer, /document\.createTextNode\(span\.text\)/u);
+  assert.doesNotMatch(renderer, /innerHTML/u);
   assert.match(popup, /sendMessage\(\{ type: "popup\.apply", tabId, suggestionId, jobId: activeJobId \}\)/u,
     "Apply sends only background-owned suggestion identity, never preview items");
   assert.match(popup, /window\.close\(\)/u);
   assert.match(background, /cancelComposeJob\(message\.tabId\).*captures\.delete\(message\.tabId\)/u);
   assert.match(compose, /const undos = new Map\(\)/u);
   assert.doesNotMatch(compose, /thunderclaw-start/u);
-  assert.doesNotMatch(popup, /popup\.cancel/u);
+  assert.match(popup, /popup\.cancel/u);
 });

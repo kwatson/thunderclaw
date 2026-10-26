@@ -24,4 +24,6 @@ Change or remove a saved connection/key in settings. Local removal does not revo
 
 A loopback server can forward requests to cloud services. OpenRouter may route to an upstream provider. Choose the model/server configuration appropriate for your data. ThunderClaw does not silently switch your connection.
 
+For Fireworks AI, its [data-handling documentation](https://docs.fireworks.ai/guides/security_compliance/data_handling) says open-model prompts and outputs are not persistently retained unless you opt in, while request metadata is logged and transient caches may hold content. Provider and account settings govern actual handling; ThunderClaw cannot control those policies.
+
 Models cannot send email or change recipients, attachments, or headers. Compose edits require Preview and Apply, with stale-state checks and Undo. Reading translations are reversible and summaries are displayed separately.

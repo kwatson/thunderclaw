@@ -5,7 +5,7 @@ import { readFile } from "node:fs/promises";
 const manifest = JSON.parse(await readFile(new URL("../packages/thunderbird-extension/src/manifest.json", import.meta.url), "utf8"));
 
 class FakeElement {
-  id = ""; focused = false; scrolls = 0; value = ""; checked = false; disabled = false; hidden = false; textContent = ""; dataset: Record<string, string> = {}; children: FakeElement[] = [];
+  id = ""; focused = false; scrolls = 0; value = ""; placeholder = ""; checked = false; disabled = false; hidden = false; textContent = ""; dataset: Record<string, string> = {}; children: FakeElement[] = [];
   listeners = new Map<string, Array<(event: any) => void>>(); attributes = new Map<string, string>();
   addEventListener(type: string, listener: (event: any) => void) { this.listeners.set(type, [...this.listeners.get(type) ?? [], listener]); }
   setAttribute(name: string, value: string) { this.attributes.set(name, value); }
@@ -17,7 +17,7 @@ class FakeElement {
   replaceChildren(...elements: FakeElement[]) { this.children = elements; }
   dispatch(type: string, details: Record<string, unknown> = {}) { const event = { target: this, defaultPrevented: false, preventDefault() { this.defaultPrevented = true; }, ...details }; for (const listener of this.listeners.get(type) ?? []) listener(event); return event; }
 }
-const ids = ["build-version", "connection-form", "connection-panel", "consent-accepted", "provider", "endpoint", "api-key", "remove-key", "model", "output-mode", "max-response-tokens", "thinking", "thinking-setting", "thinking-provider-help", "writing-style", "state", "result", "available-models", "model-options", "model-choices", "model-status", "save", "load-models", "test", "forget", "migration", "key-status"];
+const ids = ["build-version", "connection-form", "connection-panel", "consent-accepted", "provider", "endpoint", "api-key", "remove-key", "model", "output-mode", "max-response-tokens", "thinking", "thinking-setting", "thinking-provider-help", "writing-style", "state", "result", "available-models", "model-options", "model-choices", "model-status", "model-provider-help", "save", "load-models", "test", "forget", "migration", "key-status"];
 async function setup(version = manifest.version) {
   const elements = new Map(ids.map((id) => [id, new FakeElement()]));
   elements.get("provider")!.value = "openai"; elements.get("output-mode")!.value = "json_schema";
@@ -52,6 +52,49 @@ test("settings identify the installed manifest version before the connection res
       assert.equal(h.posted[0].method, "state");
     } finally { h.restore(); }
   }
+});
+
+test("Fireworks restores a blank or saved exact ID, keeps manual help visible, and never starts discovery", async () => {
+  for (const saved of [false, true]) {
+    const h = await setup();
+    try {
+      const fireworks = { provider: "fireworks", apiBase: "https://api.fireworks.ai/inference/v1", model: "accounts/example/deployments/prod", outputMode: "json_schema", writingStyle: "" };
+      if (saved) h.respond(h.posted[0], { configured: true, configuration: fireworks, phase: "ready", hasKey: true });
+      else h.respond(h.posted[0], { configured: false, phase: "not_configured", hasKey: false });
+      await settle();
+      if (!saved) { h.elements.get("provider")!.value = "fireworks"; h.dispatch("provider", "change"); }
+      assert.equal(h.elements.get("endpoint")!.value, fireworks.apiBase);
+      assert.equal(h.elements.get("model")!.value, saved ? fireworks.model : "");
+      assert.equal(h.elements.get("load-models")!.disabled, true);
+      assert.match(h.elements.get("model-provider-help")!.textContent, /copy the exact full model, router, or deployment ID.*Load models is unavailable/u);
+      assert.match(h.elements.get("model")!.placeholder, /accounts\/fireworks\/models/u);
+      h.dispatch("load-models", "click"); await settle();
+      assert.equal(h.permissions.length, 0);
+      assert.equal(h.posted.some((item) => item.method === "listModels"), false);
+      h.elements.get("provider")!.value = "openai"; h.dispatch("provider", "change");
+      assert.equal(h.elements.get("load-models")!.disabled, false);
+      assert.equal(h.elements.get("model-provider-help")!.textContent, "");
+    } finally { h.restore(); }
+  }
+});
+
+test("switching to Fireworks discards a pending model list and forget keeps manual guidance", async () => {
+  const h = await setup();
+  try {
+    h.respond(h.posted[0], { configured: true, configuration: config, phase: "ready", hasKey: true }); await settle();
+    h.dispatch("load-models", "click"); await settle();
+    const listing = h.posted.find((item) => item.method === "listModels");
+    h.elements.get("provider")!.value = "fireworks"; h.dispatch("provider", "change");
+    assert.equal(h.elements.get("load-models")!.disabled, true);
+    h.respond(listing, ["stale-model"]); await settle();
+    assert.equal(h.elements.get("model-options")!.children.length, 0);
+    assert.equal(h.elements.get("model")!.value, "");
+    assert.match(h.elements.get("model-status")!.textContent, /Enter the exact model ID manually/u);
+    h.dispatch("forget", "click"); await settle();
+    h.respond(h.posted.find((item) => item.method === "forget"), { configured: false, phase: "not_configured", hasKey: false }); await settle();
+    assert.equal(h.elements.get("load-models")!.disabled, true);
+    assert.match(h.elements.get("model-provider-help")!.textContent, /Load models is unavailable/u);
+  } finally { h.restore(); }
 });
 
 test("options save grants selected host in gesture, requires consent, clears typed key and does not retrieve stored secrets", async () => {
@@ -179,7 +222,7 @@ test("provider levels and defaults reset on switching while preserving the respo
     assert.equal(h.elements.get("thinking")!.value, "default");
     h.elements.get("max-response-tokens")!.value = "65536";
     const all = ["default", "none", "minimal", "low", "medium", "high", "xhigh", "max"];
-    for (const [provider, efforts] of [["deepseek", ["default", "none", "low", "high", "max"]], ["openai", all], ["openrouter", all], ["ollama", ["default", "none", "low", "medium", "high"]], ["lmstudio", ["default", "none", "low", "medium", "high"]], ["custom", all]] as const) {
+    for (const [provider, efforts] of [["deepseek", ["default", "none", "low", "high", "max"]], ["openai", all], ["openrouter", all], ["fireworks", ["default", "none", "low", "medium", "high", "xhigh", "max"]], ["ollama", ["default", "none", "low", "medium", "high"]], ["lmstudio", ["default", "none", "low", "medium", "high"]], ["custom", all]] as const) {
       h.elements.get("thinking")!.value = "high";
       h.elements.get("provider")!.value = provider; h.dispatch("provider", "change");
       assert.equal(h.elements.get("thinking")!.value, provider === "deepseek" ? "none" : "default");
@@ -188,6 +231,7 @@ test("provider levels and defaults reset on switching while preserving the respo
       assert.equal(h.elements.get("test")!.disabled, true);
       if (provider === "ollama" || provider === "lmstudio") assert.match(h.elements.get("thinking-provider-help")!.textContent, /own thinking levels.*Model default/u);
       if (provider === "custom") assert.match(h.elements.get("thinking-provider-help")!.textContent, /requires.*OpenAI reasoning_effort/u);
+      if (provider === "fireworks") assert.match(h.elements.get("thinking-provider-help")!.textContent, /reject or reinterpret.*Model default/u);
     }
     chooseDeepSeek(h); assert.equal(h.elements.get("thinking")!.value, "none");
     assert.deepEqual(h.elements.get("thinking")!.children.map((option) => option.textContent), ["Model default", "Off", "Low", "High", "Maximum"]);

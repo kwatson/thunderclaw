@@ -29,6 +29,7 @@ test("real Thunderbird E2E pins and isolates the supported version matrix", asyn
   const driver = await readFile(new URL("../e2e/thunderbird/run_compose.py", import.meta.url), "utf8");
   assert.match(driver, /savedKeyAcrossRestart/u);
   assert.match(driver, /authenticatedTestAfterRestart/u);
-  assert.match(driver, /received\.exercise\(client\)/u);
+  assert.match(driver, /received\.exercise\(client, stub_state\)/u);
+  assert.match(driver, /exercise_compose_cancel\(client, stub_state\)/u);
   assert.doesNotMatch(driver, /action === "pair"|#claim|pairing\/v1/u);
 });

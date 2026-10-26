@@ -11,7 +11,7 @@ have their own retention, privacy, and billing policies.
 The project operates no inference or analytics service. A local API address can
 still route to hosted models. OpenRouter can route to upstream providers. Choose
 a connection appropriate for your mail. See the [privacy policy](privacy-policy.md)
-for what is transmitted and stored.
+for what is transmitted and stored, including Fireworks data handling.
 
 ## Model authority and prompt injection
 

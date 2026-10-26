@@ -1,6 +1,6 @@
 import { DirectClientError, nextConnectionEpoch, sameConnectionBinding, type ConnectionBinding, type ThunderClawDirectClient } from "./direct-client-contract.js";
 import { InferenceClient, inferenceFailureMessage } from "./inference-client.js";
-import { canonicalizeInferenceBase, PROVIDER_PRESETS, validateInferenceConfiguration, type InferenceConfiguration } from "./inference-provider.js";
+import { canonicalizeInferenceBase, PROVIDER_PRESETS, supportsModelDiscovery, validateInferenceConfiguration, type InferenceConfiguration } from "./inference-provider.js";
 import { canonicalizeApiBase } from "./endpoint-policy.js";
 import { IndexedDbInferenceCredentialStore, type InferenceCredentialStore } from "./credential-store.js";
 import { randomId } from "./random-id.js";
@@ -26,8 +26,8 @@ export type InferencePublicState = Readonly<{
 }>;
 
 function record(value: unknown): Record<string, unknown> | null { return value !== null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null; }
-function fail(kind: "configuration" | "permission" | "cancellation" | "contract", code: string): never {
-  throw new DirectClientError(kind, code, kind === "permission" ? "Grant access to the selected inference endpoint in settings." : kind === "cancellation" ? "The connection changed. Try the action again." : "Save and test a valid inference connection in settings.");
+function fail(kind: "configuration" | "permission" | "cancellation" | "contract" | "capability", code: string): never {
+  throw new DirectClientError(kind, code, kind === "permission" ? "Grant access to the selected inference endpoint in settings." : kind === "cancellation" ? "The connection changed. Try the action again." : kind === "capability" ? "Enter the exact full Fireworks model ID manually." : "Save and test a valid inference connection in settings.");
 }
 function readSettings(value: unknown): SavedSettings | null {
   const item = record(value);
@@ -235,6 +235,7 @@ export class InferenceConnectionController {
     if (!input || typeof input.model !== "string") fail("configuration", "INVALID_DISCOVERY_CONFIGURATION");
     // GET /models requires an endpoint, not a selected inference model. This ID is never inferred or saved.
     const configuration = validateInferenceConfiguration({ ...input, model: "thunderclaw-model-discovery" });
+    if (!supportsModelDiscovery(configuration.provider)) fail("capability", "MODEL_DISCOVERY_UNAVAILABLE");
     if (apiKey !== undefined && (typeof apiKey !== "string" || apiKey.length > 4096 || /[\s\u0000-\u001F\u007F]/u.test(apiKey))) fail("configuration", "INVALID_DISCOVERY_KEY");
     await this.initialized; await this.tail;
     if (this.pendingMutations) fail("cancellation", "CONNECTION_CHANGING");

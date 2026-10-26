@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>ThunderClaw review</title>
+    <link rel="stylesheet" href="popup.css">
+  </head>
+  <body class="review-page">
+    <header><img src="icons/thunderclaw-64.png" alt=""><div><strong>ThunderClaw review</strong><small id="status">Opening review…</small></div></header>
+    <main>
+      <div id="view-tabs" class="view-tabs" role="tablist" aria-label="Review view">
+        <button type="button" role="tab" data-view="changes" aria-selected="true">Changes</button>
+        <button type="button" role="tab" data-view="original" aria-selected="false">Original</button>
+        <button type="button" role="tab" data-view="proposed" aria-selected="false">Proposed</button>
+      </div>
+      <div id="replacement" class="review-content" role="tabpanel"></div>
+      <p id="summary"></p>
+      <div class="actions"><button id="apply" class="primary" disabled>Apply to draft</button><button id="discard" disabled>Start over</button></div>
+      <button id="close" type="button">Close review</button>
+      <p id="error" role="alert" hidden></p>
+    </main>
+    <script src="preview-renderer.js"></script>
+    <script src="review.js"></script>
+  </body>
+</html>

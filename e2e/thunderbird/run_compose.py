@@ -20,7 +20,7 @@ from marionette_driver.addons import Addons
 from marionette_driver.by import By
 from marionette_driver.marionette import Marionette
 
-from stub_inference import RICH_FORMATTING_INSTRUCTION, RICH_SOURCE_BLOCKS, RICH_SOURCE_TEXT, start_stub
+from stub_inference import RICH_FORMATTING_INSTRUCTION, RICH_SOURCE_BLOCKS, RICH_SOURCE_TEXT, State, start_stub
 
 
 EXTENSION_ID = "thunderclaw@addons.thunderbird.net"
@@ -664,12 +664,32 @@ def exercise_popup(client: Marionette) -> dict[str, Any]:
         lambda: extension_document(client, "popup.html", "text", "#status") == "Preview ready",
         30.0,
     )
+    if extension_document(client, "popup.html", "click", '[data-view="proposed"]') is not True:
+        raise RuntimeError("Proposed review tab was unavailable")
     preview = extension_document(client, "popup.html", "text", "#replacement")
     after_preview = compose_body(client)
     if after_preview != before_preview:
         raise AssertionError("Generate/Preview mutated the compose body")
     if preview != EXPECTED:
         raise AssertionError(f"Unexpected preview: {preview!r}")
+    if extension_document(client, "popup.html", "click", "#expand") is not True:
+        raise RuntimeError("Expanded review was unavailable")
+    wait_until("expanded review", lambda: chrome(client, FIND_EXTENSION_DOCUMENT, ["review.html"]))
+    try:
+        wait_until("expanded review ready", lambda: extension_document(client, "review.html", "text", "#status") == "Preview ready", 5.0)
+    except TimeoutError as error:
+        status = extension_document(client, "review.html", "text", "#status")
+        detail = extension_document(client, "review.html", "text", "#error")
+        raise RuntimeError(f"Expanded review did not become ready: {status!r}; {detail!r}") from error
+    if extension_document(client, "review.html", "click", '[data-view="proposed"]') is not True:
+        raise RuntimeError("Expanded Proposed tab was unavailable")
+    if extension_document(client, "review.html", "text", "#replacement") != EXPECTED:
+        raise AssertionError("Expanded review changed the proposed text")
+    if extension_document(client, "review.html", "click", "#close") is not True:
+        raise RuntimeError("Expanded review could not be closed")
+    wait_until("expanded review closed", lambda: not chrome(client, FIND_EXTENSION_DOCUMENT, ["review.html"]))
+    open_compose_action(client)
+    wait_until("reopened compose preview", lambda: extension_document(client, "popup.html", "text", "#status") == "Preview ready")
     if extension_document(client, "popup.html", "click", "#apply") is not True:
         raise RuntimeError("Apply button was not available")
     wait_until(
@@ -699,6 +719,35 @@ def exercise_popup(client: Marionette) -> dict[str, Any]:
     }
 
 
+def exercise_compose_cancel(client: Marionette, stub_state: State) -> dict[str, Any]:
+    source = "Synthetic delayed draft."
+    extension_document(client, "popup.html", "close", None)
+    wait_until("compose popup closed before Cancel fixture", lambda: not chrome(client, FIND_EXTENSION_DOCUMENT, ["popup.html"]))
+    if set_and_select_body(client, source) != source:
+        raise AssertionError("Delayed compose fixture was not selected")
+    open_compose_action(client)
+    wait_until("delayed compose selection", lambda: extension_document(client, "popup.html", "text", "#status") == f"{len(source)} characters selected")
+    stub_state.arm_delay("improve", source)
+    try:
+        if extension_document(client, "popup.html", "click", "#run") is not True:
+            raise RuntimeError("Delayed compose Generate was unavailable")
+        if not stub_state.delay_entered.wait(timeout=10):
+            raise RuntimeError("Delayed compose request did not reach the synthetic provider")
+        wait_until("compose elapsed timer", lambda: (extension_document(client, "popup.html", "text", "#elapsed") or "") not in ("", "Elapsed: 0s"), 5)
+        if extension_document(client, "popup.html", "click", "#cancel") is not True:
+            raise RuntimeError("Compose Cancel was unavailable")
+        wait_until("compose Cancelled state", lambda: "Cancelled" in (extension_document(client, "popup.html", "text", "#status") or ""), 5)
+    finally:
+        stub_state.release_delay()
+    if compose_body(client) != source:
+        raise AssertionError("Cancelled compose result changed the draft")
+    extension_document(client, "popup.html", "close", None)
+    wait_until("compose Cancel popup closed", lambda: not chrome(client, FIND_EXTENSION_DOCUMENT, ["popup.html"]))
+    open_compose_action(client)
+    wait_until("compose Cancel survives reopen", lambda: "Cancelled" in (extension_document(client, "popup.html", "text", "#status") or ""), 5)
+    return {"elapsedTimer": True, "cancelledResultUnused": True, "cancelSurvivesReopen": True}
+
+
 def exercise_body_text_list_popup(client: Marionette) -> dict[str, Any]:
     action = open_compose_action(client)
     wait_until("Body Text compose action popup", lambda: chrome(client, FIND_EXTENSION_DOCUMENT, ["popup.html"]))
@@ -716,6 +765,8 @@ def exercise_body_text_list_popup(client: Marionette) -> dict[str, Any]:
     if extension_document(client, "popup.html", "click", "#run") is not True:
         raise RuntimeError("Generate preview button was unavailable for Body Text")
     wait_until("Body Text list preview", lambda: extension_document(client, "popup.html", "text", "#status") == "Preview ready", 30.0)
+    if extension_document(client, "popup.html", "click", '[data-view="proposed"]') is not True:
+        raise RuntimeError("Proposed review tab was unavailable")
     preview_html = extension_document(client, "popup.html", "html", "#replacement")
     after_preview = body_text_state(client)
     if preview_html != BODY_TEXT_PREVIEW:
@@ -766,6 +817,8 @@ def exercise_paragraph_expansion_popup(client: Marionette) -> dict[str, Any]:
     if extension_document(client, "popup.html", "click", "#run") is not True:
         raise RuntimeError("Generate preview button was unavailable for paragraph expansion")
     wait_until("paragraph expansion preview", lambda: extension_document(client, "popup.html", "text", "#status") == "Preview ready", 30.0)
+    if extension_document(client, "popup.html", "click", '[data-view="proposed"]') is not True:
+        raise RuntimeError("Proposed review tab was unavailable")
     preview_html = extension_document(client, "popup.html", "html", "#replacement")
     after_preview = paragraph_state(client)
     if preview_html != PARAGRAPH_PREVIEW or after_preview != original:
@@ -817,6 +870,8 @@ def exercise_rich_formatting_popup(client: Marionette) -> dict[str, Any]:
     # selected original paragraph's exact text, blocks, and all three marks.
     wait_until("source-verified rich formatting preview", lambda: extension_document(client, "popup.html", "text", "#status")
                == "Preview ready", 30.0)
+    if extension_document(client, "popup.html", "click", '[data-view="proposed"]') is not True:
+        raise RuntimeError("Proposed review tab was unavailable")
     preview_html = extension_document(client, "popup.html", "html", "#replacement")
     after_preview = paragraph_state(client)
     if preview_html != RICH_FORMATTING_PREVIEW or after_preview != original:
@@ -861,6 +916,7 @@ def run_trial(
     xpi: Path,
     artifacts: Path,
     stub_port: int,
+    stub_state: State,
     expected_version: str,
     expected_build_id: str,
     thunderbird: Path,
@@ -951,6 +1007,7 @@ return ExtensionParent.GlobalManager.extensionMap.get(arguments[0])?.backgroundS
             if initial != ORIGINAL:
                 raise AssertionError(f"Unexpected initial compose body: {initial!r}")
             compose = exercise_popup(client)
+            compose_cancel = exercise_compose_cancel(client, stub_state)
             body_text_list = None
             paragraph_expansion = None
             rich_formatting = None
@@ -975,7 +1032,7 @@ return ExtensionParent.GlobalManager.extensionMap.get(arguments[0])?.backgroundS
                     raise AssertionError(f"Unexpected rich formatting fixture: {fixture!r}")
                 rich_formatting = exercise_rich_formatting_popup(client)
             import received
-            received_result = received.exercise(client)
+            received_result = received.exercise(client, stub_state)
             result = {
                 "receivedMessage": received_result,
                 "trial": number,
@@ -985,6 +1042,7 @@ return ExtensionParent.GlobalManager.extensionMap.get(arguments[0])?.backgroundS
                 "installedExtensionId": installed_id,
                 "connection": connection,
                 "compose": compose,
+                "composeCancel": compose_cancel,
                 "bodyTextListConversion": body_text_list,
                 "paragraphExpansion": paragraph_expansion,
                 "richSourceFormatting": rich_formatting,
@@ -1084,6 +1142,7 @@ def main() -> int:
                 args.xpi,
                 args.artifacts,
                 server.server_address[1],
+                state,
                 actual_version,
                 actual_build_id,
                 args.thunderbird,

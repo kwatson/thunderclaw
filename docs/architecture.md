@@ -19,9 +19,16 @@ The existing local compose lifecycle and product types retain some legacy protoc
 
 ## Inference boundary
 
-One configured provider and model are active. Presets cover OpenAI, OpenRouter, DeepSeek, Ollama, LM Studio, and custom compatible servers. Configuration contains a canonical API base, model, structured-output mode, response-token limit, thinking level, and optional writing style. Provider differences are explicit; there is no automatic endpoint/model fallback.
+One configured provider and model are active. Presets cover OpenAI, OpenRouter, DeepSeek, Fireworks AI, Ollama, LM Studio, and custom compatible servers. Configuration contains a canonical API base, model, structured-output mode, response-token limit, thinking level, and optional writing style. Provider differences are explicit; there is no automatic endpoint/model fallback.
 
 Calls use nonstreaming Chat Completions with bounded JSON output. JSON Schema is preferred where supported; JSON-object mode accommodates DeepSeek and compatible servers. Both modes use the same local product validation. Model names and API errors are untrusted data. Reject tool calls, refusals, truncation, invalid shapes, oversize output, and stale completions.
+
+Compose review compares the captured original with the locally validated
+replacement in a text-only renderer. The expanded review is a fixed extension
+page bound by the background to its opening compose tab and exact job. Its
+sender, job, and suggestion identities are checked before Apply or Undo; it
+cannot select another source tab. Both review surfaces share one background job
+and one mutation gate.
 
 Remote endpoints require HTTPS. HTTP is restricted to explicit loopback addresses. Build only fixed models/chat-completions routes under the configured base, reject redirects, and omit cookies. Host permissions do not replace exact application-level origin/path checks.
 
